@@ -49,11 +49,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           sender: msg.sender,
         })));
       } else {
-        client.emit('load-history', [{
-          id: '1',
-          text: 'Olá! Sou seu assistente jurídico. Como posso ajudar com sua questão jurídica hoje?',
-          sender: 'ai',
-        }]);
+        // Não emitir mensagem inicial - deixar o frontend controlar a experiência
+        client.emit('load-history', []);
       }
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);

@@ -117,7 +117,7 @@ export default function Chat() {
 
         {/* Messages Container */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {isFirstVisit && messages.length === 0 && !isLoading && (
+          {!hasStartedConversation && messages.length === 0 && isInitialized && (
             <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
               <div className="max-w-md">
                 <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
