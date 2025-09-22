@@ -8,7 +8,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center">
-              <div className="text-3xl font-bold text-white">Jurídico<span className="text-emerald-400">IA</span></div>
+              <div className="text-3xl font-bold text-white">Juristec<span className="text-emerald-400">.com.br</span></div>
             </div>
             <nav className="hidden md:flex space-x-8">
               <a href="#como-funciona" className="text-slate-300 hover:text-white transition-colors duration-200">Como Funciona</a>
@@ -241,7 +241,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-8">
             <div className="col-span-2">
-              <div className="text-3xl font-bold mb-6">Jurídico<span className="text-emerald-400">IA</span></div>
+              <div className="text-3xl font-bold mb-6">Juristec</div>
               <p className="text-slate-400 mb-6 leading-relaxed">
                 Revolucionando o acesso à justiça através da tecnologia e inteligência artificial.
                 Tornando o direito acessível, eficiente e transparente para todos.
@@ -280,7 +280,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-slate-800 mt-12 pt-8 text-center text-slate-400">
-            <p>&copy; 2025 JurídicoIA. Todos os direitos reservados. | Desenvolvido com ❤️ para democratizar o acesso à justiça.</p>
+            <p>&copy; 2025 Juristec. Todos os direitos reservados. | Desenvolvido com ❤️ para democratizar o acesso à justiça.</p>
           </div>
         </div>
       </footer>

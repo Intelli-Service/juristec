@@ -1,22 +1,22 @@
-# Escritório de Advocacia Online - Monorepo
+# Juristec - Plataforma Jurídica Online
 
-Este é o monorepo para o sistema de escritório de advocacia online, conectando usuários a advogados especializados via IA.
+Sistema de escritório de advocacia online que conecta usuários a advogados especializados via IA, oferecendo triagem inteligente e consultoria jurídica acessível.
 
 ## Estrutura
 
 - `apps/`: Aplicações principais
-  - `next-app/`: Frontend Next.js (usuário e advogado)
-  - `nest-api/`: Backend NestJS (processamentos complexos, IA)
-- `docs/`: Documentação
+  - `next-app/`: Frontend Next.js (interface do usuário)
+  - `websocket-service-nest/`: Backend NestJS (chat em tempo real, IA)
+- `docs/`: Documentação técnica
 - `packages/`: Bibliotecas compartilhadas (futuro)
 
 ## Tecnologias
 
-- Frontend: Next.js, TypeScript, Tailwind CSS
-- Backend: NestJS, Node.js
-- Banco: MongoDB
-- IA: OpenAI API (GPT-4)
-- Deploy: Vercel (frontend), AWS/Railway (backend)
+- **Frontend**: Next.js 15, TypeScript, Tailwind CSS
+- **Backend**: NestJS, Socket.io para WebSocket
+- **Banco de Dados**: MongoDB com Mongoose
+- **IA**: Google Gemini API
+- **Deploy**: Vercel (frontend), AWS/Railway (backend)
 
 ## Como executar
 

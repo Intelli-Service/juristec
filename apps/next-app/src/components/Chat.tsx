@@ -15,6 +15,8 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [roomId] = useState(() => `room-${Date.now()}`); // Room única por conversa
+  const [hasStartedConversation, setHasStartedConversation] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000';
@@ -26,16 +28,10 @@ export default function Chat() {
     newSocket.on('load-history', (history: Message[]) => {
       if (history.length > 0) {
         setMessages(history);
-      } else {
-        // Mensagem inicial se não houver histórico
-        const initialMessage: Message = {
-          id: '1',
-          text: 'Olá! Sou seu assistente jurídico. Como posso ajudar com sua questão jurídica hoje?',
-          sender: 'ai',
-        };
-        setMessages([initialMessage]);
-        localStorage.setItem(`chat-${roomId}`, JSON.stringify([initialMessage]));
+        setHasStartedConversation(true);
       }
+      // Marcar como inicializado após carregar histórico
+      setIsInitialized(true);
     });
 
     newSocket.on('receive-message', (data: { text: string; sender: string }) => {
@@ -55,7 +51,9 @@ export default function Chat() {
     // Carregar do localStorage se existir
     const cached = localStorage.getItem(`chat-${roomId}`);
     if (cached) {
-      setMessages(JSON.parse(cached));
+      const parsedMessages = JSON.parse(cached);
+      setMessages(parsedMessages);
+      setHasStartedConversation(true);
     }
 
     return () => {
@@ -80,6 +78,11 @@ export default function Chat() {
     setInput('');
     setIsLoading(true);
 
+    // Marcar que a conversa começou após o primeiro envio
+    if (!hasStartedConversation) {
+      setHasStartedConversation(true);
+    }
+
     socket.emit('send-message', { roomId, message: input });
   };
 
@@ -91,7 +94,7 @@ export default function Chat() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <a href="/" className="flex items-center space-x-2">
-                <div className="text-2xl font-bold text-white">Jurídico<span className="text-emerald-400">IA</span></div>
+                <div className="text-2xl font-bold text-white">Juristec<span className="text-emerald-400">.com.br</span></div>
               </a>
               <div className="hidden sm:block text-slate-400 text-sm">
                 Assistente Jurídico Inteligente
@@ -114,7 +117,7 @@ export default function Chat() {
 
         {/* Messages Container */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 && !isLoading && (
+          {isFirstVisit && messages.length === 0 && !isLoading && (
             <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
               <div className="max-w-md">
                 <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -122,7 +125,7 @@ export default function Chat() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-2">Bem-vindo ao JurídicoIA</h2>
+                <h2 className="text-2xl font-bold text-slate-800 mb-2">Bem-vindo ao Juristec</h2>
                 <p className="text-slate-600 mb-6">
                   Seu assistente jurídico inteligente está pronto para ajudar.
                   Digite sua pergunta jurídica abaixo para começar.

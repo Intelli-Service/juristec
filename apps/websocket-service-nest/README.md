@@ -18,6 +18,54 @@
     <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
   <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
 </p>
+
+## WebSocket Service - Juristec
+
+Serviço WebSocket em NestJS para chat em tempo real com integração ao Google Gemini AI.
+
+### Configuração do Ambiente
+
+1. **Instalação de dependências:**
+   ```bash
+   npm install
+   ```
+
+2. **Variáveis de Ambiente:**
+   Copie o arquivo de exemplo e configure suas variáveis:
+   ```bash
+   cp .env.example .env
+   ```
+
+   **Variáveis obrigatórias:**
+   - `MONGODB_URI`: String de conexão do MongoDB
+   - `GOOGLE_API_KEY`: Chave da API do Google Gemini
+   - `PORT`: Porta do servidor (padrão: 4000)
+
+3. **Execução:**
+   ```bash
+   # Desenvolvimento
+   npm run start:dev
+
+   # Produção
+   npm run build
+   npm run start:prod
+   ```
+
+### Comportamento das Variáveis de Ambiente
+
+O serviço usa `dotenv` que funciona de forma inteligente:
+
+- **Desenvolvimento**: Carrega automaticamente o arquivo `.env`
+- **Produção**: Usa variáveis de ambiente do sistema (Docker, Kubernetes, etc.)
+- **Prioridade**: Variáveis do sistema sobrescrevem as do arquivo `.env`
+
+### Funcionalidades
+
+- Chat em tempo real via WebSocket
+- Integração com Google Gemini AI
+- Persistência de conversas no MongoDB
+- Gerenciamento de salas de chat
+- Histórico de mensagens
   <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
   [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
