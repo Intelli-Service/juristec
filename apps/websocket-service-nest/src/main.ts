@@ -1,15 +1,19 @@
+import * as dotenv from 'dotenv';
+import { resolve } from 'path';
+
+// Carregar variáveis de ambiente ANTES de qualquer outro import
+dotenv.config({ path: resolve(__dirname, '../.env') });
+
 import { NestFactory } from '@nestjs/core';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './app.module';
-import * as dotenv from 'dotenv';
-
-// Carregar variáveis de ambiente
-dotenv.config();
-process.env.MONGODB_URI = 'mongodb+srv://adeva:UDFhIeQR85J0QOBQ@itellichat.q9eooso.mongodb.net/?retryWrites=true&w=majority&appName=ItelliChat';
-process.env.GOOGLE_API_KEY = 'AIzaSyDfrGlkneG0K5uHMlVP9AxxTw5wP_0tD64';
-process.env.PORT = '4000';
 
 async function bootstrap() {
+  console.log('Environment variables loaded:');
+  console.log(`MONGODB_URI: ${process.env.MONGODB_URI ? 'Present' : 'Missing'}`);
+  console.log(`GOOGLE_API_KEY: ${process.env.GOOGLE_API_KEY ? 'Present' : 'Missing'}`);
+  console.log(`PORT: ${process.env.PORT || '4000 (default)'}`);
+
   const app = await NestFactory.create(AppModule);
   app.useWebSocketAdapter(new IoAdapter(app));
   await app.listen(process.env.PORT ?? 4000);

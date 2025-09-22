@@ -5,7 +5,7 @@ import { MongodbService } from './lib/mongodb.service';
 
 @Module({
   imports: [
-    MongooseModule.forRoot('mongodb+srv://adeva:UDFhIeQR85J0QOBQ@itellichat.q9eooso.mongodb.net/?retryWrites=true&w=majority&appName=ItelliChat'),
+    MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/chat'),
     ChatModule,
   ],
   providers: [MongodbService],
