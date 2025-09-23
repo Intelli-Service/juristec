@@ -6,7 +6,7 @@ import io, { Socket } from 'socket.io-client';
 interface Message {
   id: string;
   text: string;
-  sender: 'user' | 'ai' | 'system';
+  sender: 'user' | 'ai' | 'system' | 'lawyer';
 }
 
 export default function Chat() {
@@ -39,11 +39,11 @@ export default function Chat() {
       setIsInitialized(true);
     });
 
-    newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string; isError?: boolean; shouldRetry?: boolean }) => {
+    newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string; isError?: boolean; shouldRetry?: boolean; createdAt?: string }) => {
       const newMessage: Message = {
         id: data.messageId || Date.now().toString(),
         text: data.text,
-        sender: (data.sender === 'lawyer' ? 'ai' : data.sender === 'system' ? 'system' : (data.sender as 'user' | 'ai' | 'system')), // Mostrar mensagens do advogado como IA para o cliente
+        sender: data.sender as 'user' | 'ai' | 'system', // Manter sender original para o cliente
       };
       setMessages((prev) => {
         const newMsgs = [...prev, newMessage];
@@ -51,6 +51,15 @@ export default function Chat() {
         return newMsgs;
       });
       setIsLoading(false);
+
+      // Se a mensagem é de um advogado, atualizar o estado para mostrar que o caso foi atribuído
+      if (data.sender === 'lawyer') {
+        setCaseAssigned({
+          assigned: true,
+          lawyerName: 'Advogado',
+          lawyerId: 'lawyer'
+        });
+      }
     });
 
     // Listener para atualizações de status do caso
@@ -84,11 +93,11 @@ export default function Chat() {
       return { name: 'Você', role: '', color: 'text-slate-600' };
     }
 
-    if (caseAssigned.assigned && sender === 'ai') {
-      // Quando o caso está atribuído, mostrar informações do advogado
+    if (sender === 'lawyer' || (caseAssigned.assigned && sender === 'ai')) {
+      // Quando o caso está atribuído ou mensagem é de advogado, mostrar informações do advogado
       return {
-        name: caseAssigned.lawyerName || 'Advogado',
-        role: 'Advogado Responsável',
+        name: caseAssigned.lawyerName || 'Advogado Responsável',
+        role: 'Advogado Especialista',
         color: 'text-purple-600',
         icon: '👨‍⚖️'
       };
@@ -207,7 +216,7 @@ export default function Chat() {
               )}
               <div
                 className={`flex ${
-                  message.sender === 'user' ? 'justify-end' : 'justify-center'
+                  message.sender === 'user' ? 'justify-end' : message.sender === 'system' ? 'justify-center' : 'justify-start'
                 }`}
               >
                 <div
@@ -216,6 +225,8 @@ export default function Chat() {
                       ? 'bg-emerald-600 text-white'
                       : message.sender === 'system'
                       ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                      : message.sender === 'lawyer'
+                      ? 'bg-purple-50 text-purple-900 shadow-md border border-purple-200'
                       : 'bg-white text-slate-800 shadow-md border border-slate-200'
                   }`}
                 >

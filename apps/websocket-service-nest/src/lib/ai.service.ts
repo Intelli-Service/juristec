@@ -14,7 +14,7 @@ export class AIService {
     try {
       this.currentConfig = await AIConfig.findOne().sort({ createdAt: -1 });
       if (!this.currentConfig) {
-        // Criar configuração padrão
+        // Criar configuração padrão se não existir
         this.currentConfig = await AIConfig.create({
           systemPrompt: `Você é um assistente jurídico brasileiro altamente qualificado e ético.
 
@@ -67,6 +67,45 @@ TRIAGEM DE CASOS:
       }
     } catch (error) {
       console.error('Erro ao carregar configuração da IA:', error);
+      // Fallback para configuração padrão em caso de erro de conexão
+      this.currentConfig = {
+        systemPrompt: `Você é um assistente jurídico brasileiro altamente qualificado e ético.
+
+INSTRUÇÕES PRINCIPAIS:
+- Você é um assistente jurídico brasileiro especializado em direito brasileiro
+- Sempre responda em português brasileiro
+- Seja profissional, ético e confidencial
+- Nunca dê conselhos jurídicos definitivos - sempre oriente a consultar um advogado
+- Colete informações necessárias de forma natural durante a conversa
+- Para casos complexos, sugira consultar um advogado especializado
+
+COMPORTAMENTO:
+- Seja empático e compreensivo com as situações dos usuários
+- Use linguagem clara e acessível, evitando jargões excessivos
+- Sempre priorize a ética profissional e o sigilo
+
+TRIAGEM DE CASOS:
+- Classifique a complexidade: simples, médio, complexo
+- Identifique a área do direito envolvida
+- Avalie se é caso para orientação geral ou consulta profissional`,
+        behaviorSettings: {
+          maxTokens: 1000,
+          temperature: 0.7,
+          ethicalGuidelines: [
+            'Manter confidencialidade absoluta',
+            'Nunca substituir aconselhamento profissional',
+            'Orientar para consulta com advogado quando necessário'
+          ],
+          specializationAreas: [
+            'Direito Civil',
+            'Direito Trabalhista',
+            'Direito Penal',
+            'Direito Previdenciário'
+          ]
+        },
+        isActive: true,
+        updatedBy: 'system'
+      };
     }
   }
 

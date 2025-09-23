@@ -143,15 +143,39 @@ export default function LawyerChatPage() {
       setMessages(history);
     });
 
-    newSocket.on('receive-lawyer-message', (data: { text: string; sender: string; messageId: string }) => {
+    newSocket.on('receive-lawyer-message', (data: { text: string; sender: string; messageId: string; createdAt?: string }) => {
       const newMessage: Message = {
         id: data.messageId,
         text: data.text,
         sender: data.sender as 'user' | 'ai' | 'lawyer',
-        createdAt: new Date().toISOString(),
+        createdAt: data.createdAt || new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, newMessage]);
+      setMessages((prev) => {
+        // Evitar mensagens duplicadas
+        const exists = prev.find(msg => msg.id === newMessage.id);
+        if (exists) return prev;
+        return [...prev, newMessage];
+      });
       setIsLoading(false); // Reset loading state when message is received
+    });
+
+    // Também escutar mensagens regulares do cliente e IA
+    newSocket.on('receive-message', (data: { text: string; sender: string; messageId: string; createdAt?: string }) => {
+      // Só processar mensagens de cliente e IA
+      if (data.sender === 'user' || data.sender === 'ai' || data.sender === 'system') {
+        const newMessage: Message = {
+          id: data.messageId,
+          text: data.text,
+          sender: data.sender as 'user' | 'ai' | 'lawyer',
+          createdAt: data.createdAt || new Date().toISOString(),
+        };
+        setMessages((prev) => {
+          // Evitar mensagens duplicadas
+          const exists = prev.find(msg => msg.id === newMessage.id);
+          if (exists) return prev;
+          return [...prev, newMessage];
+        });
+      }
     });
 
     newSocket.on('error', (error: { message: string }) => {
