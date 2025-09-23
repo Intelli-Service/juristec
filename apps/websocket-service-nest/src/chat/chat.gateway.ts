@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Injectable } from '@nestjs/common';
 import { GeminiService } from '../lib/gemini.service';
+import { AIService } from '../lib/ai.service';
 import Conversation from '../models/Conversation';
 import Message from '../models/Message';
 
@@ -24,7 +25,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly geminiService: GeminiService) {}
+  constructor(
+    private readonly geminiService: GeminiService,
+    private readonly aiService: AIService
+  ) {}
 
   handleConnection(client: Socket) {
     console.log('Usuário conectado:', client.id);
@@ -49,6 +53,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           sender: msg.sender,
         })));
       } else {
+        // Criar nova conversa
+        await Conversation.create({ roomId });
         // Não emitir mensagem inicial - deixar o frontend controlar a experiência
         client.emit('load-history', []);
       }
@@ -86,6 +92,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         sender: 'ai',
       });
       await aiMessage.save();
+
+      // Classificar conversa após resposta da IA
+      await this.aiService.classifyConversation(roomId, messages.concat([{
+        text: aiResponseText,
+        sender: 'ai'
+      }]));
 
       this.server.to(roomId).emit('receive-message', { text: aiResponseText, sender: 'ai' });
     } catch (error) {

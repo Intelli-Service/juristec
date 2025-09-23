@@ -18,9 +18,15 @@ This is a monorepo for an online legal office platform connecting users to speci
 - ✅ **AI Integration**: Google Gemini API with Portuguese legal assistant prompt.
 - ✅ **WebSocket Service**: NestJS service with ChatGateway, conversation persistence, and message history.
 - ✅ **UI/UX**: Modern animations, professional design, mobile-responsive layout.
-- 🚧 **Authentication**: Basic device-based recognition (next phase).
-- 🚧 **Payment Integration**: Stripe setup (future implementation).
-- 🚧 **Lawyer Dashboard**: Not yet implemented.
+- ✅ **Authentication System**: NextAuth.js with MongoDB, JWT tokens, role-based permissions (super_admin, lawyer, moderator, client).
+- ✅ **Admin Dashboard**: AI configuration, user management, case assignment, reporting system.
+- ✅ **Lawyer Dashboard**: Case management, client communication, status updates.
+- ✅ **Database Models**: User, AIConfig, Conversation, Message with proper relationships and indexing.
+- ✅ **Security**: JWT validation, role-based guards, permission system, password hashing.
+- ✅ **Development Environment**: Docker Compose + nginx proxy simulating production ingress.
+- 🚧 **WebSocket Authentication**: Needs implementation for JWT validation in Socket.io.
+- 🚧 **Automated Testing**: Unit and integration tests for authentication flow.
+- 🚧 **Production Deployment**: Kubernetes manifests and CI/CD pipeline.
 
 ## Key Patterns
 - **Environment Variables**: Always use `.env` for sensitive data (e.g., `GOOGLE_API_KEY`, `MONGODB_URI`). Never hardcode secrets.
@@ -33,18 +39,55 @@ This is a monorepo for an online legal office platform connecting users to speci
 - **Error Handling**: Centralized logging, graceful degradation for AI failures.
 
 ## Development Workflow
-- **Setup**: `cd apps/next-app && npm install` then `npm run dev` (port 3000). For WebSocket: `cd apps/websocket-service-nest && npm run start:dev` (port 4000).
-- **Build/Test**: Use `npm run build` for production build. Tests not yet implemented; use mocks for automation only.
-- **Debugging**: Check browser console for client errors, server logs for API/WebSocket issues. AI responses logged in console.
-- **Commits**: Follow conventional commits (e.g., "feat: add chat component").
-- **Linting**: ESLint + Prettier enforced; run `npm run lint` before commits.
+
+### Docker Compose Environment (Recommended)
+- **Setup**: `docker-compose up --build -d` (runs all services in background)
+- **Access**: Application available at http://localhost:8080 (nginx proxy)
+- **Logs**: `docker-compose logs -f [service]` for real-time debugging
+- **Services**: nginx (proxy), frontend (Next.js :3000), backend (NestJS :4000)
+- **Hot Reload**: Code changes automatically reflected in containers
+- **Debugging**: `docker-compose exec [service] sh` to enter containers
+
+### Local Development (Alternative)
+- **Frontend**: `cd apps/next-app && npm run dev` (port 3000)
+- **Backend**: `cd apps/websocket-service-nest && npm run start:dev` (port 4000)
+- **Note**: Use Docker Compose for production-like environment and easier debugging
+
+### Database & Authentication
+- **MongoDB**: Using MongoDB Atlas (configured in .env files)
+- **Test Users**: Created via `npx tsx scripts/seed.ts` in frontend
+  - Admin: admin@demo.com / admin123
+  - Lawyer: lawyer@demo.com / lawyer123
+- **NextAuth**: Session-based auth with JWT tokens, role-based permissions
 
 ## Important Files
 - `docs/project-instructions.md`: Detailed development guide with premises and next steps.
 - `docs/architecture.md`: High-level architecture, technologies, and flows.
-- `apps/next-app/src/app/`: Page routes (landing page at `/`, chat at `/chat`).
+- `docker-compose.yml`: Complete development environment with nginx proxy.
+- `nginx/default.conf`: Nginx routing configuration (production-like setup).
+- `apps/next-app/src/app/`: Page routes (landing page at `/`, chat at `/chat`, admin at `/admin`).
 - `apps/next-app/src/components/`: Reusable UI components (Chat.tsx with WebSocket integration).
+- `apps/next-app/src/lib/auth.ts`: NextAuth.js configuration with role-based permissions.
 - `apps/websocket-service-nest/`: NestJS WebSocket service with ChatGateway and AI integration.
-- `apps/next-app/.env.example`: Template for environment variables (GOOGLE_API_KEY, NEXT_PUBLIC_WS_URL, MONGODB_URI).
+- `apps/websocket-service-nest/src/guards/`: Authentication guards for API protection.
+- `apps/next-app/.env.local` & `apps/websocket-service-nest/.env`: Environment variables and secrets.
 
-Focus on MVP completion: enhance chat experience, implement authentication, add lawyer dashboard. Prioritize user "wow" factor in UI/UX with professional legal design.
+## Current Progress & Next Steps
+
+### ✅ Completed
+1. **Authentication System**: NextAuth.js with MongoDB, JWT tokens, role-based permissions
+2. **Admin Dashboard**: Full CRUD for users, AI config, case management
+3. **Lawyer Dashboard**: Case assignment, client communication interface
+4. **Development Environment**: Docker Compose with nginx proxy (production-like)
+5. **API Security**: Guards, permissions, role validation on all protected endpoints
+
+### 🚧 In Progress
+1. **WebSocket Authentication**: Implement JWT validation in Socket.io connections
+2. **Frontend Integration**: Connect admin/lawyer dashboards to backend APIs
+3. **Chat Authentication**: Secure chat rooms with user sessions
+
+### 📋 Next Priorities
+1. **Complete WebSocket Auth**: Extract JWT from cookies in WebSocket connections
+2. **End-to-End Testing**: Login flow, protected routes, API calls through nginx
+3. **Production Deployment**: Kubernetes manifests, ingress setup, CI/CD pipeline
+4. **Advanced Features**: File uploads, payment integration, email notifications

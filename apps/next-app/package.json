@@ -6,12 +6,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@auth/mongodb-adapter": "^3.10.0",
     "@google/generative-ai": "^0.24.1",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.2",
+    "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.1",
     "next": "15.5.3",
+    "next-auth": "^4.24.11",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "socket.io": "^4.8.1",
@@ -20,12 +29,24 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
+    "@types/node-fetch": "^2.6.13",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "axios": "^1.12.2",
     "eslint": "^9",
     "eslint-config-next": "15.5.3",
+    "jest": "^30.1.3",
+    "jest-environment-jsdom": "^30.1.2",
+    "msw": "^2.11.3",
+    "node-fetch": "^3.3.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "undici": "^7.16.0",
+    "whatwg-fetch": "^3.6.20"
   }
 }

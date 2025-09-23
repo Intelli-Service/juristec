@@ -1,0 +1,70 @@
+services:
+  # Nginx Proxy - simula o ingress de produção
+  nginx:
+    image: nginx:alpine
+    container_name: juristec-proxy
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - juristec-network
+
+  # Frontend Next.js
+  frontend:
+    image: node:18-alpine
+    container_name: juristec-frontend
+    working_dir: /app
+    volumes:
+      - ./apps/next-app:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+    command: sh -c "npm install && npm run dev"
+    networks:
+      - juristec-network
+
+  # Backend NestJS
+  backend:
+    image: node:18-alpine
+    container_name: juristec-backend
+    working_dir: /app
+    volumes:
+      - ./apps/websocket-service-nest:/app
+      - /app/node_modules
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+    command: sh -c "npm install && npm run start:dev"
+    networks:
+      - juristec-network
+
+  # MongoDB (opcional - para não depender do MongoDB Atlas)
+  # mongodb:
+  #   image: mongo:7
+  #   container_name: juristec-mongodb
+  #   ports:
+  #     - "27017:27017"
+  #   environment:
+  #     - MONGO_INITDB_ROOT_USERNAME=admin
+  #     - MONGO_INITDB_ROOT_PASSWORD=password
+  #   volumes:
+  #     - mongodb_data:/data/db
+  #   networks:
+  #     - juristec-network
+
+networks:
+  juristec-network:
+    driver: bridge
+
+# volumes:
+#   mongodb_data:
