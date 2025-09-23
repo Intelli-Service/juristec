@@ -13,6 +13,7 @@ export class AdminController {
   @Get('ai-config')
   @Permissions('manage_ai_config')
   async getAIConfig(@Request() req: { user: JwtPayload }) {
+    console.log('[DEBUG] AdminController.getAIConfig - Request user:', req.user);
     return this.aiService.getCurrentConfig();
   }
 

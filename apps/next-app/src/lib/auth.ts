@@ -105,6 +105,15 @@ export const authOptions: NextAuthOptions = {
   },
   jwt: {
     maxAge: 24 * 60 * 60, // 24 hours
+    // Forçar JWT puro em vez de JWE
+    encode: async ({ secret, token }) => {
+      const jwt = require('jsonwebtoken')
+      return jwt.sign(token, secret)
+    },
+    decode: async ({ secret, token }) => {
+      const jwt = require('jsonwebtoken')
+      return jwt.verify(token, secret)
+    },
   },
   callbacks: {
     async jwt({ token, user }) {

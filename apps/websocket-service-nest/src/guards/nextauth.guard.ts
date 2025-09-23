@@ -1,11 +1,6 @@
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  UnauthorizedException,
-  ForbiddenException,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { JwtService } from '@nestjs/jwt';
 import { SetMetadata } from '@nestjs/common';
 
 export interface JwtPayload {
@@ -20,125 +15,98 @@ export interface JwtPayload {
 
 @Injectable()
 export class NextAuthGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(private jwtService: JwtService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
+    console.log('[DEBUG] NextAuthGuard - Request URL:', request.url);
+    console.log('[DEBUG] NextAuthGuard - Headers:', request.headers);
 
-    // Try to extract and validate JWT from NextAuth session cookie
-    const payload = await this.extractNextAuthToken(request);
-
-    if (!payload) {
-      throw new UnauthorizedException('Access token not found');
+    const token = this.extractTokenFromRequest(request);
+    if (!token) {
+      console.log('[DEBUG] NextAuthGuard - No token found');
+      throw new UnauthorizedException('No token provided');
     }
 
+    console.log('[DEBUG] NextAuthGuard - Token found, attempting validation...');
+
     try {
+      const payload = await this.validateToken(token);
       request.user = payload;
-
-      // Check required roles if specified
-      const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
-      if (requiredRoles && !requiredRoles.includes(payload.role)) {
-        throw new ForbiddenException('Insufficient role permissions');
-      }
-
-      // Check required permissions if specified
-      const requiredPermissions = this.reflector.get<string[]>('permissions', context.getHandler());
-      if (requiredPermissions) {
-        const hasPermission = requiredPermissions.some(permission =>
-          payload.permissions.includes(permission)
-        );
-        if (!hasPermission) {
-          throw new ForbiddenException('Insufficient permissions');
-        }
-      }
-
+      console.log('[DEBUG] NextAuthGuard - Token validated successfully, user:', payload);
       return true;
     } catch (error) {
-      if (error instanceof ForbiddenException) {
-        throw error;
-      }
-      throw new UnauthorizedException('Invalid or expired token');
+      console.log('[DEBUG] NextAuthGuard - Token validation failed:', error.message);
+      throw new UnauthorizedException('Invalid token');
     }
   }
 
-  private async extractNextAuthToken(request: any): Promise<JwtPayload | null> {
-    try {
-      // Try Authorization header first (for API calls)
-      const authHeader = request.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.substring(7);
-        return await this.decryptNextAuthJWE(token);
-      }
-
-      // Try to extract from NextAuth session cookie
-      const cookies = request.headers.cookie;
-      if (cookies) {
-        const sessionCookie = this.parseCookie(cookies, 'next-auth.session-token') ||
-                             this.parseCookie(cookies, '__Secure-next-auth.session-token');
-
-        if (sessionCookie) {
-          return await this.decryptNextAuthJWE(sessionCookie);
-        }
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Error extracting NextAuth token:', error);
-      return null;
+  private extractTokenFromRequest(request: any): string | null {
+    // Try Authorization header first
+    const authHeader = request.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.substring(7);
     }
+
+    // Try cookies
+    const cookies = request.headers.cookie;
+    if (cookies) {
+      const sessionCookie = this.parseCookie(cookies, 'next-auth.session-token');
+      if (sessionCookie) {
+        return sessionCookie;
+      }
+    }
+
+    return null;
   }
 
-  private async decryptNextAuthJWE(jweToken: string): Promise<JwtPayload | null> {
+  private async validateToken(token: string): Promise<JwtPayload> {
     try {
-      // Try JWT first (if NextAuth is configured to use simple JWT)
-      try {
-        const { default: jwt } = await import('jsonwebtoken');
-        const decoded = jwt.verify(jweToken, process.env.NEXTAUTH_SECRET!) as any;
-        return {
-          userId: decoded.userId || decoded.sub,
-          role: decoded.role,
-          permissions: decoded.permissions || [],
-          email: decoded.email,
-          name: decoded.name,
-          iat: decoded.iat,
-          exp: decoded.exp
-        };
-      } catch (jwtError) {
-        // If JWT fails, try JWE
-        console.log('JWT verification failed, trying JWE...');
-      }
-
-      // Fallback to JWE decryption
+      // First try JWE decryption (NextAuth default)
+      console.log('[DEBUG] Attempting JWE decryption...');
       const { jwtDecrypt } = await import('jose');
-
-      // Use Node.js crypto module
       const crypto = await import('crypto');
       if (!globalThis.crypto) {
         globalThis.crypto = crypto.webcrypto as any;
       }
 
-      const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET!);
+      const key = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'fallback-secret');
+      const { payload } = await jwtDecrypt(token, key);
 
-      const { payload } = await jwtDecrypt(jweToken, secret);
-
-      // Convert the payload to our JwtPayload format
-      // NextAuth stores user data directly in the payload
-      const sessionData = payload as any;
-
+      console.log('[DEBUG] JWE decrypted successfully');
       return {
-        userId: sessionData.userId || sessionData.sub,
-        role: sessionData.role,
-        permissions: sessionData.permissions || [],
-        email: sessionData.email,
-        name: sessionData.name,
-        iat: sessionData.iat,
-        exp: sessionData.exp
+        userId: (payload as any).userId || (payload as any).sub,
+        role: (payload as any).role,
+        permissions: (payload as any).permissions || [],
+        email: (payload as any).email,
+        name: (payload as any).name,
+        iat: (payload as any).iat,
+        exp: (payload as any).exp
       };
-    } catch (error) {
-      console.error('Error decrypting/verifying token:', error);
-      return null;
+    } catch (jweError) {
+      console.log('[DEBUG] JWE decryption failed, trying JWT verification...');
+
+      // Fallback to JWT verification
+      try {
+        const payload = this.jwtService.verify(token, { secret: process.env.NEXTAUTH_SECRET || 'fallback-secret' });
+        console.log('[DEBUG] JWT verified successfully');
+        return {
+          userId: (payload as any).sub || (payload as any).userId,
+          role: (payload as any).role,
+          permissions: (payload as any).permissions || [],
+          email: (payload as any).email,
+          name: (payload as any).name,
+          iat: (payload as any).iat,
+          exp: (payload as any).exp
+        };
+      } catch (jwtError) {
+        console.log('[DEBUG] JWT verification also failed');
+        throw jwtError;
+      }
     }
-  }  private parseCookie(cookieHeader: string, name: string): string | undefined {
+  }
+
+  private parseCookie(cookieHeader: string, name: string): string | undefined {
     const cookies = cookieHeader.split(';').map(c => c.trim());
     const cookie = cookies.find(c => c.startsWith(`${name}=`));
     return cookie ? decodeURIComponent(cookie.substring(name.length + 1)) : undefined;

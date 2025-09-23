@@ -8,7 +8,9 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UseGuards } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { NextAuthGuard } from '../guards/nextauth.guard';
 import { GeminiService } from '../lib/gemini.service';
 import { AIService } from '../lib/ai.service';
 import Conversation from '../models/Conversation';
@@ -21,17 +23,41 @@ import Message from '../models/Message';
   },
 })
 @Injectable()
+@UseGuards(NextAuthGuard)
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
   constructor(
     private readonly geminiService: GeminiService,
-    private readonly aiService: AIService
+    private readonly aiService: AIService,
+    private readonly jwtService: JwtService
   ) {}
 
-  handleConnection(client: Socket) {
-    console.log('Usuário conectado:', client.id);
+  async handleConnection(client: Socket) {
+    console.log('[DEBUG] WebSocket connection attempt - Client ID:', client.id);
+    console.log('[DEBUG] Handshake auth:', client.handshake.auth);
+    console.log('[DEBUG] Handshake headers:', client.handshake.headers);
+
+    try {
+      const token = client.handshake.auth.token || client.handshake.headers.authorization?.split(' ')[1];
+      console.log('[DEBUG] Extracted token:', token ? 'Present' : 'Not found');
+
+      if (!token) {
+        console.log('[DEBUG] No token provided, disconnecting client:', client.id);
+        client.disconnect();
+        return;
+      }
+
+      const payload = this.jwtService.verify(token, { secret: process.env.NEXTAUTH_SECRET || 'fallback-secret' });
+      console.log('[DEBUG] Token verified successfully, payload:', payload);
+
+      client.data.user = payload;
+      console.log('Usuário conectado:', client.id, 'User:', payload.email);
+    } catch (error) {
+      console.log('[DEBUG] Token verification failed for client:', client.id, 'Error:', error.message);
+      client.disconnect();
+    }
   }
 
   handleDisconnect(client: Socket) {

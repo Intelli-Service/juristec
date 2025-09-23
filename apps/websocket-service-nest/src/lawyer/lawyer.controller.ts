@@ -14,6 +14,7 @@ export class LawyerController {
   @Get('cases')
   @Permissions('view_available_cases', 'view_all_cases')
   async getMyCases(@Request() req: { user: JwtPayload }) {
+    console.log('[DEBUG] LawyerController.getMyCases - Request user:', req.user);
     const lawyerId = req.user.userId;
     return this.aiService.getCasesForLawyer(lawyerId);
   }
