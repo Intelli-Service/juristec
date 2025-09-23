@@ -120,8 +120,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { roomId, message } = data;
     console.log(`Mensagem na sala ${roomId}: ${message}`);
 
+    let conversation: any;
+
     try {
-      let conversation = await Conversation.findOne({ roomId });
+      conversation = await Conversation.findOne({ roomId });
       if (!conversation) {
         conversation = new Conversation({ roomId });
         await conversation.save();
@@ -157,10 +159,45 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
     } catch (error) {
       console.error('Erro ao processar mensagem:', error);
+
+      let errorMessage = 'Desculpe, ocorreu um erro interno. Tente novamente em alguns instantes.';
+      let shouldRetry = false;
+
+      // Tratar erros específicos da API do Google Gemini
+      if (error.message?.includes('503') || error.message?.includes('Service Unavailable')) {
+        errorMessage = 'O assistente está temporariamente indisponível devido à alta demanda. Aguarde alguns minutos e tente novamente.';
+        shouldRetry = true;
+      } else if (error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
+        errorMessage = 'Muitas solicitações foram feitas. Aguarde alguns minutos antes de tentar novamente.';
+        shouldRetry = true;
+      } else if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+        errorMessage = 'Erro de autenticação com o serviço de IA. Entre em contato com o suporte.';
+      } else if (error.message?.includes('400') || error.message?.includes('Bad Request')) {
+        errorMessage = 'A mensagem enviada não pôde ser processada. Tente reformular sua pergunta.';
+      }
+
+      // Criar mensagem de erro no banco de dados para rastreamento
+      try {
+        await this.messageService.createMessage({
+          conversationId: conversation._id.toString(),
+          text: errorMessage,
+          sender: 'system',
+          metadata: {
+            error: true,
+            originalError: error.message,
+            shouldRetry
+          },
+        });
+      } catch (dbError) {
+        console.error('Erro ao salvar mensagem de erro:', dbError);
+      }
+
       this.server.to(roomId).emit('receive-message', {
-        text: 'Erro interno',
+        text: errorMessage,
         sender: 'system',
-        messageId: `error-${Date.now()}`
+        messageId: `error-${Date.now()}`,
+        isError: true,
+        shouldRetry
       });
     }
   }

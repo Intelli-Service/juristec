@@ -6,7 +6,7 @@ import io, { Socket } from 'socket.io-client';
 interface Message {
   id: string;
   text: string;
-  sender: 'user' | 'ai';
+  sender: 'user' | 'ai' | 'system';
 }
 
 export default function Chat() {
@@ -17,6 +17,11 @@ export default function Chat() {
   const [roomId] = useState(() => `room-${Date.now()}`); // Room única por conversa
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [caseAssigned, setCaseAssigned] = useState<{
+    assigned: boolean;
+    lawyerName?: string;
+    lawyerId?: string;
+  }>({ assigned: false });
 
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000';
@@ -34,11 +39,11 @@ export default function Chat() {
       setIsInitialized(true);
     });
 
-    newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string }) => {
+    newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string; isError?: boolean; shouldRetry?: boolean }) => {
       const newMessage: Message = {
         id: data.messageId || Date.now().toString(),
         text: data.text,
-        sender: data.sender === 'lawyer' ? 'ai' : (data.sender as 'user' | 'ai'), // Mostrar mensagens do advogado como IA para o cliente
+        sender: (data.sender === 'lawyer' ? 'ai' : data.sender === 'system' ? 'system' : (data.sender as 'user' | 'ai' | 'system')), // Mostrar mensagens do advogado como IA para o cliente
       };
       setMessages((prev) => {
         const newMsgs = [...prev, newMessage];
@@ -46,6 +51,19 @@ export default function Chat() {
         return newMsgs;
       });
       setIsLoading(false);
+    });
+
+    // Listener para atualizações de status do caso
+    newSocket.on('case-updated', (data: { status: string; assignedTo?: string; lawyerName?: string }) => {
+      if (data.status === 'assigned' && data.assignedTo) {
+        setCaseAssigned({
+          assigned: true,
+          lawyerName: data.lawyerName || 'Advogado',
+          lawyerId: data.assignedTo,
+        });
+      } else if (data.status === 'open') {
+        setCaseAssigned({ assigned: false });
+      }
     });
 
     // Carregar do localStorage se existir
@@ -60,6 +78,30 @@ export default function Chat() {
       newSocket.disconnect();
     };
   }, [roomId]);
+
+  const getRespondentInfo = (sender: string) => {
+    if (sender === 'user') {
+      return { name: 'Você', role: '', color: 'text-slate-600' };
+    }
+
+    if (caseAssigned.assigned && sender === 'ai') {
+      // Quando o caso está atribuído, mostrar informações do advogado
+      return {
+        name: caseAssigned.lawyerName || 'Advogado',
+        role: 'Advogado Responsável',
+        color: 'text-purple-600',
+        icon: '👨‍⚖️'
+      };
+    }
+
+    // Caso padrão - IA
+    return {
+      name: 'Assistente Jurídico',
+      role: 'IA Inteligente',
+      color: 'text-emerald-600',
+      icon: '🤖'
+    };
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || !socket) return;
@@ -140,20 +182,45 @@ export default function Chat() {
             </div>
           )}
           {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${
-                message.sender === 'user' ? 'justify-end' : 'justify-start'
-              }`}
-            >
+            <div key={message.id} className="space-y-1">
+              {message.sender !== 'user' && message.sender !== 'system' && (
+                <div className="flex justify-start">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="text-lg">{getRespondentInfo(message.sender).icon}</span>
+                    <div className="text-xs text-slate-500">
+                      <span className="font-medium">{getRespondentInfo(message.sender).name}</span>
+                      <span className="mx-1">•</span>
+                      <span>{getRespondentInfo(message.sender).role}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {message.sender === 'system' && (
+                <div className="flex justify-center">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="text-sm">⚠️</span>
+                    <div className="text-xs text-amber-600">
+                      <span className="font-medium">Sistema</span>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div
-                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                  message.sender === 'user'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-white text-slate-800 shadow-md border border-slate-200'
+                className={`flex ${
+                  message.sender === 'user' ? 'justify-end' : 'justify-center'
                 }`}
               >
-                {message.text}
+                <div
+                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                    message.sender === 'user'
+                      ? 'bg-emerald-600 text-white'
+                      : message.sender === 'system'
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                      : 'bg-white text-slate-800 shadow-md border border-slate-200'
+                  }`}
+                >
+                  {message.text}
+                </div>
               </div>
             </div>
           ))}
