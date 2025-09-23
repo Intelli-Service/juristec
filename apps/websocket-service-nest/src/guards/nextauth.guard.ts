@@ -34,14 +34,19 @@ export class NextAuthGuard implements CanActivate {
   }
 
   private extractTokenFromRequest(request: any): string | null {
-    // Try Authorization header first
-    const authHeader = request.headers.authorization;
+    // Try Authorization header first (HTTP requests)
+    const authHeader = request.headers?.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       return authHeader.substring(7);
     }
 
-    // Try cookies
-    const cookies = request.headers.cookie;
+    // Try WebSocket auth token
+    if (request.handshake?.auth?.token) {
+      return request.handshake.auth.token;
+    }
+
+    // Try cookies (HTTP requests)
+    const cookies = request.headers?.cookie;
     if (cookies) {
       const sessionCookie = this.parseCookie(cookies, 'next-auth.session-token');
       if (sessionCookie) {

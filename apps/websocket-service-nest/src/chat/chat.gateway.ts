@@ -13,17 +13,18 @@ import { JwtService } from '@nestjs/jwt';
 import { NextAuthGuard } from '../guards/nextauth.guard';
 import { GeminiService } from '../lib/gemini.service';
 import { AIService } from '../lib/ai.service';
+import { MessageService } from '../lib/message.service';
 import Conversation from '../models/Conversation';
 import Message from '../models/Message';
 
 @WebSocketGateway({
   cors: {
-    origin: 'http://localhost:3000', // Allow Next.js
+    origin: ['http://localhost:3000', 'http://localhost:8080'], // Allow Next.js and nginx proxy
     methods: ['GET', 'POST'],
   },
 })
 @Injectable()
-@UseGuards(NextAuthGuard)
+// @UseGuards(NextAuthGuard) // Removido para permitir clientes anônimos
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
@@ -31,24 +32,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly geminiService: GeminiService,
     private readonly aiService: AIService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly messageService: MessageService
   ) {}
 
   async handleConnection(client: Socket) {
     try {
+      // Tentar autenticar se houver token, mas permitir conexões anônimas
       const token = client.handshake.auth.token || client.handshake.headers.authorization?.split(' ')[1];
 
-      if (!token) {
-        client.disconnect();
-        return;
+      if (token) {
+        const payload = this.jwtService.verify(token, { secret: process.env.NEXTAUTH_SECRET || 'fallback-secret' });
+        client.data.user = payload;
+        client.data.isAuthenticated = true;
+        console.log('Usuário autenticado conectado:', client.id, 'User:', payload.email);
+      } else {
+        client.data.isAuthenticated = false;
+        client.data.user = null;
+        console.log('Cliente anônimo conectado:', client.id);
       }
-
-      const payload = this.jwtService.verify(token, { secret: process.env.NEXTAUTH_SECRET || 'fallback-secret' });
-
-      client.data.user = payload;
-      console.log('Usuário conectado:', client.id, 'User:', payload.email);
     } catch (error) {
-      client.disconnect();
+      // Se o token for inválido, tratar como anônimo
+      client.data.isAuthenticated = false;
+      client.data.user = null;
+      console.log('Cliente anônimo conectado (token inválido):', client.id);
     }
   }
 
@@ -81,8 +88,35 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @SubscribeMessage('join-lawyer-room')
+  async handleJoinLawyerRoom(@MessageBody() roomId: string, @ConnectedSocket() client: Socket) {
+    // Verificar se o usuário é advogado e tem acesso ao caso
+    const conversation = await Conversation.findOne({ roomId });
+    if (!conversation) {
+      client.emit('error', { message: 'Caso não encontrado' });
+      return;
+    }
+
+    if (conversation.assignedTo !== client.data.user.userId && client.data.user.role !== 'super_admin') {
+      client.emit('error', { message: 'Acesso negado a este caso' });
+      return;
+    }
+
+    client.join(`lawyer-${roomId}`);
+    console.log(`Advogado ${client.data.user.email} entrou na sala do caso ${roomId}`);
+
+    // Carregar histórico completo da conversa
+    const messages = await Message.find({ conversationId: conversation._id }).sort({ createdAt: 1 });
+    client.emit('lawyer-history-loaded', messages.map(msg => ({
+      id: msg._id.toString(),
+      text: msg.text,
+      sender: msg.sender,
+      createdAt: msg.createdAt,
+    })));
+  }
+
   @SubscribeMessage('send-message')
-  async handleSendMessage(@MessageBody() data: { roomId: string; message: string }) {
+  async handleSendMessage(@MessageBody() data: { roomId: string; message: string }, @ConnectedSocket() client: Socket) {
     const { roomId, message } = data;
     console.log(`Mensagem na sala ${roomId}: ${message}`);
 
@@ -93,34 +127,82 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         await conversation.save();
       }
 
-      const userMessage = new Message({
-        conversationId: conversation._id,
+      // Criar mensagem do usuário usando o MessageService
+      const userMessage = await this.messageService.createMessage({
+        conversationId: conversation._id.toString(),
         text: message,
         sender: 'user',
+        senderId: client.data.user?.userId, // Pode ser null para usuários anônimos
       });
-      await userMessage.save();
 
       const messages = await Message.find({ conversationId: conversation._id }).sort({ createdAt: 1 });
 
       const aiResponseText = await this.geminiService.generateAIResponse(messages);
 
-      const aiMessage = new Message({
-        conversationId: conversation._id,
+      // Criar mensagem da IA usando o MessageService
+      const aiMessage = await this.messageService.createMessage({
+        conversationId: conversation._id.toString(),
         text: aiResponseText,
         sender: 'ai',
+        metadata: { generatedBy: 'gemini' },
       });
-      await aiMessage.save();
 
       // Classificar conversa após resposta da IA
-      await this.aiService.classifyConversation(roomId, messages.concat([{
-        text: aiResponseText,
-        sender: 'ai'
-      }]));
+      await this.aiService.classifyConversation(roomId, messages.concat([aiMessage]));
 
-      this.server.to(roomId).emit('receive-message', { text: aiResponseText, sender: 'ai' });
+      this.server.to(roomId).emit('receive-message', {
+        text: aiResponseText,
+        sender: 'ai',
+        messageId: aiMessage._id.toString()
+      });
     } catch (error) {
       console.error('Erro ao processar mensagem:', error);
-      this.server.to(roomId).emit('receive-message', { text: 'Erro interno', sender: 'ai' });
+      this.server.to(roomId).emit('receive-message', {
+        text: 'Erro interno',
+        sender: 'system',
+        messageId: `error-${Date.now()}`
+      });
+    }
+  }
+
+  @SubscribeMessage('send-lawyer-message')
+  @UseGuards(NextAuthGuard)
+  async handleSendLawyerMessage(@MessageBody() data: { roomId: string; message: string }, @ConnectedSocket() client: Socket) {
+    const { roomId, message } = data;
+
+    try {
+      const conversation = await Conversation.findOne({ roomId });
+      if (!conversation) {
+        throw new Error('Caso não encontrado');
+      }
+
+      // Criar mensagem do advogado usando o MessageService
+      const lawyerMessage = await this.messageService.createMessage({
+        conversationId: conversation._id.toString(),
+        text: message,
+        sender: 'lawyer',
+        senderId: client.data.user?.userId,
+        metadata: { lawyerRole: client.data.user?.role },
+      });
+
+      // Enviar para todos na sala do caso (cliente e outros advogados)
+      this.server.to(roomId).emit('receive-message', {
+        text: message,
+        sender: 'lawyer',
+        messageId: lawyerMessage._id.toString()
+      });
+
+      // Também enviar para advogados na sala específica do advogado
+      this.server.to(`lawyer-${roomId}`).emit('receive-lawyer-message', {
+        text: message,
+        sender: 'lawyer',
+        messageId: lawyerMessage._id.toString()
+      });
+    } catch (error) {
+      console.error('Erro ao enviar mensagem do advogado:', error);
+      this.server.to(`lawyer-${roomId}`).emit('error', {
+        message: 'Erro ao enviar mensagem'
+      });
     }
   }
 }

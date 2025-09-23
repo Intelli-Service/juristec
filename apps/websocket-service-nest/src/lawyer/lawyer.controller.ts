@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Param, UseGuards, Request, Body } from '@nestjs/common';
 import { AIService } from '../lib/ai.service';
+import { MessageService } from '../lib/message.service';
 import Conversation from '../models/Conversation';
 import Message from '../models/Message';
 import { NextAuthGuard, Roles, Permissions, JwtPayload } from '../guards/nextauth.guard';
@@ -8,7 +9,10 @@ import { NextAuthGuard, Roles, Permissions, JwtPayload } from '../guards/nextaut
 @UseGuards(NextAuthGuard)
 @Roles('lawyer', 'super_admin')
 export class LawyerController {
-  constructor(private aiService: AIService) {}
+  constructor(
+    private aiService: AIService,
+    private messageService: MessageService
+  ) {}
 
   // Dashboard do advogado - ver casos disponíveis e atribuídos
   @Get('cases')
@@ -30,17 +34,30 @@ export class LawyerController {
   @Get('cases/:roomId/messages')
   @Permissions('access_assigned_chats', 'access_client_chat')
   async getCaseMessages(@Param('roomId') roomId: string, @Request() req: { user: JwtPayload }) {
-    const conversation = await Conversation.findOne({ roomId });
-    if (!conversation) {
-      throw new Error('Caso não encontrado');
-    }
+    try {
+      const conversation = await Conversation.findOne({ roomId });
+      if (!conversation) {
+        throw new Error('Caso não encontrado');
+      }
 
-    // Check if lawyer has access to this case
-    if (req.user.role === 'lawyer' && conversation.assignedTo !== req.user.userId) {
-      throw new Error('Acesso negado a este caso');
-    }
+      // Usar MessageService para buscar mensagens com validações de permissões
+      const messages = await this.messageService.getMessages(
+        {
+          conversationId: conversation._id.toString(),
+          limit: 1000, // Limite alto para chat completo
+        },
+        {
+          userId: req.user.userId,
+          role: req.user.role,
+          permissions: req.user.permissions,
+        }
+      );
 
-    return Message.find({ conversationId: conversation._id }).sort({ createdAt: 1 });
+      return messages;
+    } catch (error) {
+      console.error('Erro ao buscar mensagens:', error);
+      throw error;
+    }
   }
 
   // Atualizar status do caso

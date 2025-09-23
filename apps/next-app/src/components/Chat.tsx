@@ -34,14 +34,14 @@ export default function Chat() {
       setIsInitialized(true);
     });
 
-    newSocket.on('receive-message', (data: { text: string; sender: string }) => {
-      const aiMessage: Message = {
-        id: Date.now().toString(),
+    newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string }) => {
+      const newMessage: Message = {
+        id: data.messageId || Date.now().toString(),
         text: data.text,
-        sender: 'ai',
+        sender: data.sender === 'lawyer' ? 'ai' : (data.sender as 'user' | 'ai'), // Mostrar mensagens do advogado como IA para o cliente
       };
       setMessages((prev) => {
-        const newMsgs = [...prev, aiMessage];
+        const newMsgs = [...prev, newMessage];
         localStorage.setItem(`chat-${roomId}`, JSON.stringify(newMsgs));
         return newMsgs;
       });
