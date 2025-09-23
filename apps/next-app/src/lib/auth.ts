@@ -104,18 +104,7 @@ export const authOptions: NextAuthOptions = {
     maxAge: 24 * 60 * 60, // 24 hours
   },
   jwt: {
-    // NextAuth.js usa automaticamente process.env.NEXTAUTH_SECRET
-    // Não precisamos especificar secret manualmente
     maxAge: 24 * 60 * 60, // 24 hours
-    // // Desabilitar JWE e usar JWT simples para compatibilidade com backend
-    // async encode({ token, secret }) {
-    //   const { default: jwt } = await import('jsonwebtoken')
-    //   return jwt.sign(token, secret)
-    // },
-    // async decode({ token, secret }) {
-    //   const { default: jwt } = await import('jsonwebtoken')
-    //   return jwt.verify(token, secret)
-    // }
   },
   callbacks: {
     async jwt({ token, user }) {
