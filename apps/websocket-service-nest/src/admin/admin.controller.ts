@@ -13,10 +13,11 @@ export class AdminController {
   @Get('ai-config')
   @Permissions('manage_ai_config')
   async getAIConfig(@Request() req: { user: JwtPayload }) {
-    console.log('[DEBUG] AdminController.getAIConfig - Request user:', req.user);
     return this.aiService.getCurrentConfig();
   }
 
+  @UseGuards(NextAuthGuard)
+  @Roles('super_admin', 'moderator')
   @Put('ai-config')
   @Permissions('manage_ai_config')
   async updateAIConfig(@Body() updates: any, @Request() req: { user: JwtPayload }) {
@@ -25,12 +26,16 @@ export class AdminController {
   }
 
   // Gestão de usuários
+  @UseGuards(NextAuthGuard)
+  @Roles('super_admin')
   @Get('users')
   @Permissions('manage_users')
   async getUsers(@Request() req: { user: JwtPayload }) {
     return User.find().select('-password');
   }
 
+  @UseGuards(NextAuthGuard)
+  @Roles('super_admin')
   @Post('users')
   @Permissions('manage_users')
   async createUser(@Body() userData: any, @Request() req: { user: JwtPayload }) {
@@ -38,12 +43,16 @@ export class AdminController {
     return user.save();
   }
 
+  @UseGuards(NextAuthGuard)
+  @Roles('super_admin')
   @Put('users/:id')
   @Permissions('manage_users')
   async updateUser(@Param('id') id: string, @Body() updates: any, @Request() req: { user: JwtPayload }) {
     return User.findByIdAndUpdate(id, updates, { new: true }).select('-password');
   }
 
+  @UseGuards(NextAuthGuard)
+  @Roles('super_admin')
   @Delete('users/:id')
   @Permissions('manage_users')
   async deleteUser(@Param('id') id: string, @Request() req: { user: JwtPayload }) {

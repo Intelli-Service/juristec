@@ -1,0 +1,59 @@
+// import { NextResponse, NextRequest } from 'next/server'
+// import { getToken } from 'next-auth/jwt'
+
+// export default async function middleware(req: NextRequest) {
+//   // Usar getToken com decode compatível com Edge Runtime
+//   const decode = async (params: { secret: string | Buffer; token?: string }) => {
+//     if (!params.token) return null
+//     try {
+//       // Usar Web Crypto API compatível com Edge Runtime
+//       const encoder = new TextEncoder()
+//       const key = await crypto.subtle.importKey(
+//         'raw',
+//         encoder.encode(params.secret as string),
+//         { name: 'HMAC', hash: 'SHA-256' },
+//         false,
+//         ['sign', 'verify']
+//       )
+
+//       const [header, payload, signature] = params.token.split('.')
+//       if (!header || !payload || !signature) return null
+
+//       const data = `${header}.${payload}`
+//       const signatureBytes = Uint8Array.from(atob(signature.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))
+//       const dataBytes = encoder.encode(data)
+
+//       const isValid = await crypto.subtle.verify('HMAC', key, signatureBytes, dataBytes)
+//       if (!isValid) return null
+
+//       const decodedPayload = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+//       return decodedPayload
+//     } catch (error) {
+//       return null
+//     }
+//   }
+
+//   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET, decode })
+
+//   const pathname = req.nextUrl.pathname
+
+//   // Admin routes - require super_admin or moderator role
+//   if (pathname.startsWith('/admin')) {
+//     if (!token || (!['super_admin', 'moderator'].includes(token.role as string))) {
+//       return NextResponse.redirect(new URL('/auth/signin?error=AccessDenied', req.url))
+//     }
+//   }
+
+//   // Lawyer routes - require lawyer role or admin
+//   if (pathname.startsWith('/lawyer')) {
+//     if (!token || (!['lawyer', 'super_admin'].includes(token.role as string))) {
+//       return NextResponse.redirect(new URL('/auth/signin?error=AccessDenied', req.url))
+//     }
+//   }
+
+//   return NextResponse.next()
+// }
+
+// export const config = {
+//   matcher: ['/admin/:path*', '/lawyer/:path*', '/auth/:path*']
+// }

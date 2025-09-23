@@ -18,24 +18,17 @@ export class NextAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    console.log('[DEBUG] NextAuthGuard - Request URL:', request.url);
-    console.log('[DEBUG] NextAuthGuard - Headers:', request.headers);
 
     const token = this.extractTokenFromRequest(request);
     if (!token) {
-      console.log('[DEBUG] NextAuthGuard - No token found');
       throw new UnauthorizedException('No token provided');
     }
-
-    console.log('[DEBUG] NextAuthGuard - Token found, attempting validation...');
 
     try {
       const payload = await this.validateToken(token);
       request.user = payload;
-      console.log('[DEBUG] NextAuthGuard - Token validated successfully, user:', payload);
       return true;
     } catch (error) {
-      console.log('[DEBUG] NextAuthGuard - Token validation failed:', error.message);
       throw new UnauthorizedException('Invalid token');
     }
   }
@@ -62,9 +55,7 @@ export class NextAuthGuard implements CanActivate {
   private async validateToken(token: string): Promise<JwtPayload> {
     try {
       // Verificar JWT diretamente
-      console.log('[DEBUG] Verifying JWT token...');
       const payload = this.jwtService.verify(token, { secret: process.env.NEXTAUTH_SECRET || 'fallback-secret' });
-      console.log('[DEBUG] JWT verified successfully');
 
       return {
         userId: (payload as any).sub || (payload as any).userId,
@@ -76,7 +67,6 @@ export class NextAuthGuard implements CanActivate {
         exp: (payload as any).exp
       };
     } catch (error) {
-      console.log('[DEBUG] JWT verification failed:', error.message);
       throw error;
     }
   }
