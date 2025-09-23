@@ -1,5 +1,4 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { JwtService } from '@nestjs/jwt';
 import { SetMetadata } from '@nestjs/common';
 
@@ -62,20 +61,13 @@ export class NextAuthGuard implements CanActivate {
 
   private async validateToken(token: string): Promise<JwtPayload> {
     try {
-      // First try JWE decryption (NextAuth default)
-      console.log('[DEBUG] Attempting JWE decryption...');
-      const { jwtDecrypt } = await import('jose');
-      const crypto = await import('crypto');
-      if (!globalThis.crypto) {
-        globalThis.crypto = crypto.webcrypto as any;
-      }
+      // Verificar JWT diretamente
+      console.log('[DEBUG] Verifying JWT token...');
+      const payload = this.jwtService.verify(token, { secret: process.env.NEXTAUTH_SECRET || 'fallback-secret' });
+      console.log('[DEBUG] JWT verified successfully');
 
-      const key = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'fallback-secret');
-      const { payload } = await jwtDecrypt(token, key);
-
-      console.log('[DEBUG] JWE decrypted successfully');
       return {
-        userId: (payload as any).userId || (payload as any).sub,
+        userId: (payload as any).sub || (payload as any).userId,
         role: (payload as any).role,
         permissions: (payload as any).permissions || [],
         email: (payload as any).email,
@@ -83,26 +75,9 @@ export class NextAuthGuard implements CanActivate {
         iat: (payload as any).iat,
         exp: (payload as any).exp
       };
-    } catch (jweError) {
-      console.log('[DEBUG] JWE decryption failed, trying JWT verification...');
-
-      // Fallback to JWT verification
-      try {
-        const payload = this.jwtService.verify(token, { secret: process.env.NEXTAUTH_SECRET || 'fallback-secret' });
-        console.log('[DEBUG] JWT verified successfully');
-        return {
-          userId: (payload as any).sub || (payload as any).userId,
-          role: (payload as any).role,
-          permissions: (payload as any).permissions || [],
-          email: (payload as any).email,
-          name: (payload as any).name,
-          iat: (payload as any).iat,
-          exp: (payload as any).exp
-        };
-      } catch (jwtError) {
-        console.log('[DEBUG] JWT verification also failed');
-        throw jwtError;
-      }
+    } catch (error) {
+      console.log('[DEBUG] JWT verification failed:', error.message);
+      throw error;
     }
   }
 
