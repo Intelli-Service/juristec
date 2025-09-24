@@ -1,13 +1,22 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { MongooseModule } from '@nestjs/mongoose';
 import { ChatGateway } from './chat.gateway';
 import { GeminiService } from '../lib/gemini.service';
 import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
-import { UserDataCollectionService } from '../lib/user-data-collection.service';
+import { IntelligentUserRegistrationService } from '../lib/intelligent-user-registration.service';
+import UserModel from '../models/User';
+import Conversation from '../models/Conversation';
 
 @Module({
-  imports: [JwtModule],
-  providers: [ChatGateway, GeminiService, AIService, MessageService, UserDataCollectionService],
+  imports: [
+    JwtModule,
+    MongooseModule.forFeature([
+      { name: UserModel.modelName, schema: UserModel.schema },
+      { name: Conversation.modelName, schema: Conversation.schema }
+    ])
+  ],
+  providers: [ChatGateway, GeminiService, AIService, MessageService, IntelligentUserRegistrationService],
 })
 export class ChatModule {}
