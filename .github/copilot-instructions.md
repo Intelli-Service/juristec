@@ -266,9 +266,10 @@ Quando o GitHub Copilot sugere alterações de código durante o review, siga es
    - Data: Concluída anteriormente
 
 3. **Issue #4**: Sistema de Anexos de Arquivos - Upload Seguro
-   - Status: ✅ **CONCLUÍDA** - PR #17 criado e aguardando merge
+   - Status: ✅ **CONCLUÍDA** - PR #17 mergeado com sucesso
    - Data: 24 de setembro de 2025
-   - Implementação: GCS + UI drag-and-drop + validação completa
+   - Implementação: GCS + UI drag-and-drop + validação completa + testes passando (9/9)
+   - Melhorias: Signed URLs para segurança, tratamento de erros aprimorado, UX melhorada
 
 4. **Issue #5**: Dashboard do Advogado - Gerenciamento de Casos
    - Status: Pendente
