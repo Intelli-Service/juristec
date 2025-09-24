@@ -97,25 +97,40 @@ Para **cada issue** aberta, siga este processo rigoroso:
 6. **Merge**: Squash merge com commit message padronizado
 
 #### 📋 Code Review Process
-**IMPORTANTE**: GitHub Copilot NÃO faz reviews automáticas de PRs. O processo correto é:
+**IMPORTANTE**: GitHub Copilot NÃO faz reviews automáticas de PRs através de comentários como "@copilot-review-requested". O processo correto é:
 
-1. **Análise Manual**: Use suas capacidades de análise de código para revisar:
+1. **Solicitar Review via API**: Use a função MCP `mcp_github_github_request_copilot_review` com os parâmetros:
+   - `owner`: Nome do proprietário do repositório
+   - `pullNumber`: Número do PR
+   - `repo`: Nome do repositório
+
+2. **Acompanhar Status**: Verifique se o Copilot foi adicionado como reviewer através da API:
+   ```bash
+   gh pr view {PR_NUMBER} --json requestedReviewers
+   ```
+
+3. **Ver Comentários**: Os comentários do review aparecerão como "review comments" (não comentários gerais):
+   ```bash
+   gh api repos/{owner}/{repo}/pulls/{PR_NUMBER}/comments
+   ```
+
+4. **Análise Manual**: Use suas capacidades de análise de código para revisar:
    - Qualidade do código e aderência às melhores práticas
    - Cobertura de testes e estratégia TDD
    - Integração com arquitetura existente
    - Segurança e performance
 
-2. **Comentários Construtivos**: Forneça feedback específico sobre:
+5. **Comentários Construtivos**: Forneça feedback específico sobre:
    - Problemas encontrados
    - Sugestões de melhoria
    - Pontos positivos destacados
 
-3. **Aprovação**: Quando satisfeito com a qualidade:
+6. **Aprovação**: Quando satisfeito com a qualidade:
    - Confirme que todos os testes passam
    - Valide integração com sistema existente
    - Aprove o PR ou solicite mudanças específicas
 
-**Nota**: Não use "@copilot-review-requested" - esta não é uma funcionalidade real do GitHub.
+**Nota**: Não use "@copilot-review-requested" em comentários - esta não é uma funcionalidade real do GitHub.
 
 ### 📊 Métricas de Sucesso
 - **Qualidade**: 0 bugs em produção, cobertura >80%
