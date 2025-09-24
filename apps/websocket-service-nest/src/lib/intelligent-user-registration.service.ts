@@ -38,7 +38,7 @@ export class IntelligentUserRegistrationService {
     private readonly aiService: AIService,
     private readonly messageService: MessageService,
     @InjectModel('User') private userModel: Model<IUser>,
-    @InjectModel(Conversation.name) private conversationModel: Model<any>
+    @InjectModel('Conversation') private conversationModel: Model<any>
   ) {}
 
   /**
@@ -47,14 +47,27 @@ export class IntelligentUserRegistrationService {
   async processUserMessage(
     message: string,
     conversationId: string,
-    userId?: string
+    userId?: string,
+    includeHistory: boolean = true
   ): Promise<IntelligentRegistrationResult> {
     try {
-      // Buscar histórico da conversa usando o método correto
-      const messages = await this.messageService.getMessages(
-        { conversationId, limit: 50 },
-        { userId: userId || '', role: 'client', permissions: [] }
-      );
+      let messages: any[] = [];
+
+      if (includeHistory && userId) {
+        // Buscar histórico da conversa apenas se solicitado e usuário autenticado
+        messages = await this.messageService.getMessages(
+          { conversationId, limit: 50 },
+          { userId, role: 'client', permissions: [] }
+        );
+      } else {
+        // Para usuários anônimos ou quando histórico não é necessário, usar apenas a mensagem atual
+        messages = [{
+          _id: `current-msg-${Date.now()}`,
+          text: message,
+          sender: 'user',
+          createdAt: new Date()
+        }];
+      }
 
       // Preparar mensagens para o Gemini
       const geminiMessages = messages.map(msg => ({
@@ -79,18 +92,24 @@ export class IntelligentUserRegistrationService {
 
       // Processar function calls se existirem
       if (result.functionCalls) {
+        console.log(`🔧 Executando ${result.functionCalls.length} function calls`);
         for (const functionCall of result.functionCalls) {
+          console.log(`🔧 Function call: ${functionCall.name}`, functionCall.parameters);
           if (functionCall.name === 'register_user') {
             await this.handleUserRegistration(functionCall.parameters, conversationId);
             userRegistered = true;
+            console.log('✅ Usuário registrado via function call');
           } else if (functionCall.name === 'update_conversation_status') {
             const statusResult = await this.handleStatusUpdate(functionCall.parameters, conversationId);
             statusUpdated = true;
             newStatus = statusResult.newStatus;
             lawyerNeeded = statusResult.lawyerNeeded;
             specializationRequired = statusResult.specializationRequired;
+            console.log('✅ Status da conversa atualizado via function call');
           }
         }
+      } else {
+        console.log('ℹ️ Nenhuma function call executada');
       }
 
       return {

@@ -37,7 +37,7 @@ describe('IntelligentUserRegistrationService', () => {
           useValue: {},
         },
         {
-          provide: getModelToken(Conversation.name),
+          provide: getModelToken('Conversation'),
           useValue: {
             findByIdAndUpdate: jest.fn(),
           },

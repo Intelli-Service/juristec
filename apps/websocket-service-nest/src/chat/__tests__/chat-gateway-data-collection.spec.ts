@@ -6,17 +6,23 @@ import { MessageService } from '../../lib/message.service';
 import { IntelligentUserRegistrationService } from '../../lib/intelligent-user-registration.service';
 import { JwtService } from '@nestjs/jwt';
 
-// Mock do mongoose
-jest.mock('mongoose', () => ({
+// Mock do mongoose - deve ser o primeiro mock
+jest.doMock('mongoose', () => ({
   connect: jest.fn(),
   connection: {
     readyState: 1,
   },
-  Schema: jest.fn().mockImplementation(() => ({
-    pre: jest.fn(),
-    post: jest.fn(),
-  })),
+  Schema: function() {
+    this.Types = {
+      ObjectId: jest.fn(),
+    };
+    this.pre = jest.fn();
+    this.post = jest.fn();
+  },
   model: jest.fn(),
+  Types: {
+    ObjectId: jest.fn(),
+  },
 }));
 
 // Mock dos modelos
@@ -24,11 +30,6 @@ jest.mock('../../models/Conversation', () => ({
   findOne: jest.fn(),
   create: jest.fn(),
   findByIdAndUpdate: jest.fn(),
-}));
-
-jest.mock('../../models/Message', () => ({
-  find: jest.fn(),
-  create: jest.fn(),
 }));
 
 describe('ChatGateway - User Data Collection Integration', () => {
@@ -73,6 +74,20 @@ describe('ChatGateway - User Data Collection Integration', () => {
               text: 'test message',
               sender: 'user',
             }),
+            getMessages: jest.fn().mockResolvedValue([
+              {
+                _id: 'msg-1',
+                text: 'Olá, preciso de ajuda jurídica',
+                sender: 'user',
+                createdAt: new Date('2025-01-01T10:00:00Z'),
+              },
+              {
+                _id: 'msg-2',
+                text: 'Claro, posso te ajudar. Qual é o seu problema?',
+                sender: 'ai',
+                createdAt: new Date('2025-01-01T10:01:00Z'),
+              },
+            ]),
           },
         },
         {
@@ -127,7 +142,8 @@ describe('ChatGateway - User Data Collection Integration', () => {
       expect(intelligentUserRegistrationService.processUserMessage).toHaveBeenCalledWith(
         'Olá, preciso de ajuda',
         'conversation-id',
-        undefined
+        undefined,
+        false
       );
 
       // Verificar se a mensagem de contato foi enviada
@@ -183,7 +199,8 @@ describe('ChatGateway - User Data Collection Integration', () => {
       expect(intelligentUserRegistrationService.processUserMessage).toHaveBeenCalledWith(
         'Olá, preciso de ajuda',
         'conversation-id',
-        undefined
+        undefined,
+        false
       );
     }, 10000);
   });

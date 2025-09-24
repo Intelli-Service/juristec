@@ -16,7 +16,6 @@ import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
 import { IntelligentUserRegistrationService } from '../lib/intelligent-user-registration.service';
 import Conversation from '../models/Conversation';
-import Message from '../models/Message';
 
 @WebSocketGateway({
   cors: {
@@ -66,14 +65,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join-room')
-  async handleJoinRoom(@MessageBody() roomId: string, @ConnectedSocket() client: Socket) {
+  async handleJoinRoom(@MessageBody() data: { roomId: string }, @ConnectedSocket() client: Socket) {
+    const roomId = data.roomId;
     client.join(roomId);
     console.log(`Usuário ${client.id} entrou na sala ${roomId}`);
 
     try {
       let conversation = await Conversation.findOne({ roomId });
       if (conversation) {
-        const messages = await Message.find({ conversationId: conversation._id }).sort({ createdAt: 1 });
+        const messages = await this.messageService.getMessages(
+          { conversationId: conversation._id },
+          { userId: 'system', role: 'system', permissions: ['read'] }
+        );
         client.emit('load-history', messages.map(msg => ({
           id: msg._id.toString(),
           text: msg.text,
@@ -122,7 +125,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       console.log(`Advogado ${client.data.user.email} entrou na sala do caso ${roomId}`);
 
       // Carregar histórico completo da conversa
-      const messages = await Message.find({ conversationId: conversation._id }).sort({ createdAt: 1 });
+      const messages = await this.messageService.getMessages(
+        { conversationId: conversation._id },
+        { userId: client.data.user._id, role: client.data.user.role, permissions: client.data.user.permissions }
+      );
       client.emit('lawyer-history-loaded', messages.map(msg => ({
         id: msg._id.toString(),
         text: msg.text,
@@ -172,11 +178,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Buscar mensagens para contexto (se o DB estiver funcionando)
       let messages: any[] = [];
-      try {
-        messages = await Message.find({ conversationId: conversation._id }).sort({ createdAt: 1 });
-      } catch (dbError) {
-        console.warn('Não foi possível carregar histórico de mensagens');
-        // Usar apenas a mensagem atual como contexto
+      // Tentar carregar histórico de mensagens (apenas se usuário autenticado)
+      if (client.data.isAuthenticated) {
+        try {
+          messages = await this.messageService.getMessages(
+            { conversationId: conversation._id },
+            { userId: client.data.user.id, role: client.data.user.role, permissions: client.data.user.permissions || [] }
+          );
+        } catch (dbError) {
+          console.warn('Não foi possível carregar histórico de mensagens');
+          // Usar apenas a mensagem atual como contexto
+          messages = [userMessage];
+        }
+      } else {
+        // Para usuários anônimos, usar apenas a mensagem atual
         messages = [userMessage];
       }
 
@@ -184,7 +199,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const registrationResult = await this.intelligentRegistrationService.processUserMessage(
         message,
         conversation._id.toString(),
-        client.data.user?.id
+        client.data.user?.id,
+        client.data.isAuthenticated // Passar se deve incluir histórico
       );
 
       // Usar a resposta da IA (que pode incluir function calls)

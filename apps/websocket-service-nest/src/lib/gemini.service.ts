@@ -156,30 +156,36 @@ export class GeminiService {
 
     // Última mensagem do usuário
     const lastMessage = messages[messages.length - 1];
+    console.log('🔍 Enviando para Gemini:', lastMessage.text);
+    console.log('🔍 System prompt ativo:', config?.systemPrompt?.substring(0, 200) + '...');
+
     const result = await chat.sendMessage(lastMessage.text);
 
     const response = result.response;
     const functionCalls: FunctionCall[] = [];
 
-    // Processar function calls se existirem
-    if (response.functionCalls && typeof response.functionCalls === 'function') {
-      const functionCallsFn = response.functionCalls;
-      const calls = functionCallsFn();
-      if (calls) {
-        for (const call of calls) {
-          if (call.name === 'register_user') {
-            functionCalls.push({
-              name: 'register_user',
-              parameters: call.args as RegisterUserFunctionCall['parameters']
-            });
-          } else if (call.name === 'update_conversation_status') {
-            functionCalls.push({
-              name: 'update_conversation_status',
-              parameters: call.args as UpdateConversationStatusFunctionCall['parameters']
-            });
-          }
+    // Debug: verificar estrutura da resposta
+    console.log('🔍 Resposta completa do Gemini:', JSON.stringify(response, null, 2));
+
+    // Verificar function calls na resposta
+    if (response.functionCalls && Array.isArray(response.functionCalls)) {
+      console.log(`🔧 Encontradas ${response.functionCalls.length} function calls`);
+      for (const call of response.functionCalls) {
+        console.log(`🔧 Function call: ${call.name}`, call.args);
+        if (call.name === 'register_user') {
+          functionCalls.push({
+            name: 'register_user',
+            parameters: call.args as RegisterUserFunctionCall['parameters']
+          });
+        } else if (call.name === 'update_conversation_status') {
+          functionCalls.push({
+            name: 'update_conversation_status',
+            parameters: call.args as UpdateConversationStatusFunctionCall['parameters']
+          });
         }
       }
+    } else {
+      console.log('ℹ️ Nenhuma function call na resposta');
     }
 
     return {
