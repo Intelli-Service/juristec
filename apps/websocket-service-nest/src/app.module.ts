@@ -5,6 +5,7 @@ import { ChatModule } from './chat/chat.module';
 import { AdminModule } from './admin/admin.module';
 import { LawyerModule } from './lawyer/lawyer.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { PaymentModule } from './payment/payment.module';
 import { MongodbService } from './lib/mongodb.service';
 import { AIService } from './lib/ai.service';
 import { GeminiService } from './lib/gemini.service';
@@ -21,6 +22,7 @@ import { GeminiService } from './lib/gemini.service';
     AdminModule,
     LawyerModule,
     UploadsModule,
+    PaymentModule,
   ],
   providers: [MongodbService, AIService],
 })
