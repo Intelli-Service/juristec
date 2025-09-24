@@ -4,6 +4,8 @@ import { GeminiService } from '../../lib/gemini.service';
 import { AIService } from '../../lib/ai.service';
 import { MessageService } from '../../lib/message.service';
 import { IntelligentUserRegistrationService } from '../../lib/intelligent-user-registration.service';
+import { FluidRegistrationService } from '../../lib/fluid-registration.service';
+import { VerificationService } from '../../lib/verification.service';
 import { JwtService } from '@nestjs/jwt';
 
 // Mock do mongoose - deve ser o primeiro mock
@@ -94,6 +96,21 @@ describe('ChatGateway - User Data Collection Integration', () => {
           provide: IntelligentUserRegistrationService,
           useValue: {
             processUserMessage: jest.fn(),
+          },
+        },
+        {
+          provide: FluidRegistrationService,
+          useValue: {
+            processFluidRegistration: jest.fn(),
+            verifyAndCompleteRegistration: jest.fn(),
+          },
+        },
+        {
+          provide: VerificationService,
+          useValue: {
+            generateCode: jest.fn(),
+            verifyCode: jest.fn(),
+            isVerified: jest.fn(),
           },
         },
         {

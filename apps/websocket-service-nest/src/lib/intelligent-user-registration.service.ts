@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { GeminiService, RegisterUserFunctionCall, UpdateConversationStatusFunctionCall } from './gemini.service';
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
+import { FluidRegistrationService } from './fluid-registration.service';
 import Conversation from '../models/Conversation';
 import { IUser } from '../models/User';
 import { InjectModel } from '@nestjs/mongoose';
@@ -37,6 +38,7 @@ export class IntelligentUserRegistrationService {
     private readonly geminiService: GeminiService,
     private readonly aiService: AIService,
     private readonly messageService: MessageService,
+    private readonly fluidRegistrationService: FluidRegistrationService,
     @InjectModel('User') private userModel: Model<IUser>,
     @InjectModel('Conversation') private conversationModel: Model<any>
   ) {}
@@ -142,24 +144,71 @@ export class IntelligentUserRegistrationService {
     conversationId: string
   ): Promise<void> {
     try {
-      // Criar ou atualizar usuário
+      // Usar o FluidRegistrationService para cadastro fluido
+      const contactInfo = {
+        email: params.email,
+        phone: params.phone,
+        name: params.name
+      };
+
+      const fluidResult = await this.fluidRegistrationService.processFluidRegistration(
+        contactInfo,
+        conversationId,
+        '' // roomId será determinado pelo serviço
+      );
+
+      if (fluidResult.success) {
+        console.log(`✅ Cadastro fluido processado: ${fluidResult.message}`);
+
+        // Se foi criado/verificado automaticamente, atualizar conversa
+        if (fluidResult.userId) {
+          await this.conversationModel.findByIdAndUpdate(conversationId, {
+            status: ConversationStatus.COLLECTING_DATA,
+            clientInfo: {
+              name: params.name,
+              email: params.email,
+              phone: params.phone,
+              userId: fluidResult.userId
+            },
+            priority: this.urgencyToPriorityMap[params.urgency_level] || 'low'
+          });
+        }
+      } else {
+        console.error(`❌ Erro no cadastro fluido: ${fluidResult.message}`);
+        // Fallback para criação direta se o fluido falhar
+        await this.fallbackUserRegistration(params, conversationId);
+      }
+
+    } catch (error) {
+      console.error('Erro ao registrar usuário:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fallback para registro direto (caso o fluido falhe)
+   */
+  private async fallbackUserRegistration(
+    params: RegisterUserFunctionCall['parameters'],
+    conversationId: string
+  ): Promise<void> {
+    try {
+      // Criar ou atualizar usuário diretamente
       const userData = {
         name: params.name,
-        email: params.email || `${uuidv4()}@example.invalid`, // Email temporário único se não fornecido, usando domínio reservado
+        email: params.email || `${uuidv4()}@example.invalid`,
         role: 'client' as const,
         profile: {
           bio: `Problema relatado: ${params.problem_description}. Nível de urgência: ${params.urgency_level}`
         }
       };
 
-      // Verificar se usuário já existe por email
       let user: IUser | null = null;
       if (params.email) {
         user = await this.userModel.findOne({ email: params.email });
       }
 
       if (user) {
-        // Atualizar usuário existente
         user.name = params.name;
         user.profile = {
           ...user.profile,
@@ -167,12 +216,10 @@ export class IntelligentUserRegistrationService {
         };
         await user.save();
       } else {
-        // Criar novo usuário
         const newUser = new this.userModel(userData);
         user = await newUser.save();
       }
 
-      // Atualizar conversa com ID do usuário
       await this.conversationModel.findByIdAndUpdate(conversationId, {
         userId: user._id,
         status: ConversationStatus.COLLECTING_DATA,
@@ -184,10 +231,10 @@ export class IntelligentUserRegistrationService {
         priority: this.urgencyToPriorityMap[params.urgency_level] || 'low'
       });
 
-      console.log(`Usuário registrado/atualizado: ${user.name}`);
+      console.log(`Usuário registrado via fallback: ${user.name}`);
 
     } catch (error) {
-      console.error('Erro ao registrar usuário:', error);
+      console.error('Erro no fallback de registro:', error);
       throw error;
     }
   }

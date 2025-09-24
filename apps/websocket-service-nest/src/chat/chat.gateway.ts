@@ -15,6 +15,8 @@ import { GeminiService } from '../lib/gemini.service';
 import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
 import { IntelligentUserRegistrationService } from '../lib/intelligent-user-registration.service';
+import { FluidRegistrationService } from '../lib/fluid-registration.service';
+import { VerificationService } from '../lib/verification.service';
 import Conversation from '../models/Conversation';
 
 @WebSocketGateway({
@@ -34,7 +36,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly aiService: AIService,
     private readonly jwtService: JwtService,
     private readonly messageService: MessageService,
-    private readonly intelligentRegistrationService: IntelligentUserRegistrationService
+    private readonly intelligentRegistrationService: IntelligentUserRegistrationService,
+    private readonly fluidRegistrationService: FluidRegistrationService,
+    private readonly verificationService: VerificationService
   ) {}
 
   async handleConnection(client: Socket) {
@@ -195,6 +199,43 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         messages = [userMessage];
       }
 
+      // Verificar se a mensagem é um código de verificação (6 dígitos)
+      const codeMatch = message.match(/^\d{6}$/);
+      if (codeMatch && !client.data.isAuthenticated) {
+        // Tentar verificar código para a conversa atual
+        const verificationResult = await this.fluidRegistrationService.verifyAndCompleteRegistration(
+          {}, // Contact info será buscada da conversa
+          message,
+          conversation._id.toString()
+        );
+
+        if (verificationResult.success) {
+          // Atualizar dados do cliente na conversa
+          await Conversation.findByIdAndUpdate(conversation._id, {
+            updatedAt: new Date()
+          });
+
+          this.server.to(roomId).emit('receive-message', {
+            text: verificationResult.message,
+            sender: 'system',
+            messageId: `verification-${Date.now()}`
+          });
+
+          // Se usuário foi verificado, atualizar dados do cliente
+          if (verificationResult.userId) {
+            client.data.user = { ...client.data.user, userId: verificationResult.userId };
+            client.data.isAuthenticated = true;
+          }
+        } else {
+          this.server.to(roomId).emit('receive-message', {
+            text: verificationResult.message,
+            sender: 'system',
+            messageId: `error-${Date.now()}`
+          });
+        }
+        return; // Não processar como mensagem normal da IA
+      }
+
       // Processar mensagem com cadastro inteligente
       const registrationResult = await this.intelligentRegistrationService.processUserMessage(
         message,
@@ -286,6 +327,65 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         messageId: `error-${Date.now()}`,
         isError: true,
         shouldRetry
+      });
+    }
+  }
+
+  @SubscribeMessage('verify-code')
+  async handleVerifyCode(@MessageBody() data: { roomId: string; code: string; email?: string; phone?: string }, @ConnectedSocket() client: Socket) {
+    const { roomId, code, email, phone } = data;
+
+    try {
+      const contactInfo = { email, phone };
+      const conversation = await Conversation.findOne({ roomId });
+
+      if (!conversation) {
+        client.emit('receive-message', {
+          text: 'Erro: Conversa não encontrada.',
+          sender: 'system',
+          messageId: `error-${Date.now()}`
+        });
+        return;
+      }
+
+      const result = await this.fluidRegistrationService.verifyAndCompleteRegistration(
+        contactInfo,
+        code,
+        conversation._id.toString()
+      );
+
+      if (result.success) {
+        // Atualizar dados do cliente na conversa
+        await Conversation.findByIdAndUpdate(conversation._id, {
+          'clientInfo.email': email,
+          'clientInfo.phone': phone,
+          updatedAt: new Date()
+        });
+
+        client.emit('receive-message', {
+          text: result.message,
+          sender: 'system',
+          messageId: `verification-${Date.now()}`
+        });
+
+        // Se usuário foi criado/verificado, atualizar dados do cliente
+        if (result.userId) {
+          client.data.user = { ...client.data.user, userId: result.userId };
+          client.data.isAuthenticated = true;
+        }
+      } else {
+        client.emit('receive-message', {
+          text: result.message,
+          sender: 'system',
+          messageId: `error-${Date.now()}`
+        });
+      }
+    } catch (error) {
+      console.error('Erro na verificação de código:', error);
+      client.emit('receive-message', {
+        text: 'Erro ao verificar código. Tente novamente.',
+        sender: 'system',
+        messageId: `error-${Date.now()}`
       });
     }
   }

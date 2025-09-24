@@ -4,6 +4,7 @@ import { IntelligentUserRegistrationService } from './intelligent-user-registrat
 import { GeminiService } from './gemini.service';
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
+import { FluidRegistrationService } from './fluid-registration.service';
 import Conversation from '../models/Conversation';
 
 describe('IntelligentUserRegistrationService', () => {
@@ -30,6 +31,12 @@ describe('IntelligentUserRegistrationService', () => {
           provide: MessageService,
           useValue: {
             getMessages: jest.fn(),
+          },
+        },
+        {
+          provide: FluidRegistrationService,
+          useValue: {
+            processFluidRegistration: jest.fn(),
           },
         },
         {
