@@ -304,8 +304,10 @@ Quando o GitHub Copilot sugere alterações de código durante o review, siga es
    - Melhorias: Signed URLs para segurança, tratamento de erros aprimorado, UX melhorada
 
 4. **Issue #5**: Dashboard do Advogado - Gerenciamento de Casos
-   - Status: Pendente
-   - Prioridade: ALTA - Interface essencial para advogados
+   - Status: ✅ **CONCLUÍDA** - PR #18 mergeado com sucesso
+   - Data: 24 de setembro de 2025
+   - Implementação: Dashboard completo + APIs backend + estatísticas + testes
+   - Melhorias: UX aprimorada, segurança validada, code review duplo implementado
 
 5. **Issue #8**: Integração de Pagamentos - Pagar.me
    - Status: Pendente
