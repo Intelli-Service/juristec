@@ -84,4 +84,121 @@ export class LawyerController {
       { new: true }
     );
   }
+
+  // Fechar caso
+  @Post('cases/:roomId/close')
+  @Permissions('close_cases')
+  async closeCase(
+    @Param('roomId') roomId: string,
+    @Body('resolution') resolution: string,
+    @Request() req: { user: JwtPayload }
+  ) {
+    const conversation = await Conversation.findOne({ roomId });
+    if (!conversation) {
+      throw new Error('Caso não encontrado');
+    }
+
+    // Check if lawyer has access to this case
+    if (req.user.role === 'lawyer' && conversation.assignedTo !== req.user.userId) {
+      throw new Error('Acesso negado a este caso');
+    }
+
+    return Conversation.findOneAndUpdate(
+      { roomId },
+      {
+        status: 'closed',
+        resolution,
+        closedAt: new Date(),
+        closedBy: req.user.userId,
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
+  }
+
+  // Transferir caso para outro advogado
+  @Post('cases/:roomId/transfer')
+  @Permissions('transfer_cases')
+  async transferCase(
+    @Param('roomId') roomId: string,
+    @Body('targetLawyerId') targetLawyerId: string,
+    @Body('reason') reason: string,
+    @Request() req: { user: JwtPayload }
+  ) {
+    const conversation = await Conversation.findOne({ roomId });
+    if (!conversation) {
+      throw new Error('Caso não encontrado');
+    }
+
+    // Check if lawyer has access to this case
+    if (req.user.role === 'lawyer' && conversation.assignedTo !== req.user.userId) {
+      throw new Error('Acesso negado a este caso');
+    }
+
+    return Conversation.findOneAndUpdate(
+      { roomId },
+      {
+        assignedTo: targetLawyerId,
+        transferHistory: [
+          ...(conversation.transferHistory || []),
+          {
+            from: req.user.userId,
+            to: targetLawyerId,
+            reason,
+            transferredAt: new Date()
+          }
+        ],
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
+  }
+
+  // Estatísticas do advogado
+  @Get('stats')
+  @Permissions('view_own_stats')
+  async getLawyerStats(@Request() req: { user: JwtPayload }) {
+    const lawyerId = req.user.userId;
+
+    const [
+      totalCases,
+      openCases,
+      closedCases,
+      assignedCases
+    ] = await Promise.all([
+      Conversation.countDocuments({ assignedTo: lawyerId }),
+      Conversation.countDocuments({ assignedTo: lawyerId, status: 'open' }),
+      Conversation.countDocuments({ assignedTo: lawyerId, status: 'closed' }),
+      Conversation.countDocuments({ assignedTo: lawyerId, status: 'assigned' })
+    ]);
+
+    // Casos fechados nos últimos 30 dias
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentClosedCases = await Conversation.countDocuments({
+      assignedTo: lawyerId,
+      status: 'closed',
+      closedAt: { $gte: thirtyDaysAgo }
+    });
+
+    return {
+      totalCases,
+      openCases,
+      closedCases,
+      assignedCases,
+      recentClosedCases,
+      successRate: totalCases > 0 ? Math.round((closedCases / totalCases) * 100) : 0
+    };
+  }
+
+  // Lista de advogados disponíveis para transferência
+  @Get('available-lawyers')
+  @Permissions('view_lawyer_list')
+  async getAvailableLawyers(@Request() req: { user: JwtPayload }) {
+    // Buscar usuários com role 'lawyer' ou 'super_admin'
+    // Nota: Esta implementação assume que existe um modelo User
+    // Por enquanto, retorna lista vazia - será implementado quando o modelo User estiver disponível
+    return [];
+  }
 }

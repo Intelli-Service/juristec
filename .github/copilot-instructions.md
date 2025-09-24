@@ -67,9 +67,12 @@ Para **cada issue** aberta, siga este processo otimizado:
 3. **Criar Branch**: `git checkout -b feature/issue-{numero}-{titulo-resumido}`
 4. **Desenvolvimento Ágil**: Implemente em ciclos curtos com testes contínuos
 5. **Testes Automatizados**: Execute `npm test` e valide funcionalidades
-6. **Pull Request**: Crie PR com descrição técnica detalhada
-7. **Auto-Merge**: Faça merge automático após validação dos testes
-8. **Issue Close**: Feche a issue automaticamente após merge
+6. **Code Review Interno**: Execute análise completa e valide todos os critérios de qualidade
+7. **Pull Request**: Crie PR apenas após aprovação do code review interno
+8. **Code Review Copilot**: Solicite review do GitHub Copilot via MCP tools
+9. **Implementar Feedback**: Aplique melhorias sugeridas e re-test
+10. **Merge Final**: Faça merge apenas após resolução de todos os pontos críticos
+11. **Issue Close**: Feche a issue automaticamente após merge bem-sucedido
 
 **OTIMIZAÇÕES DE VELOCIDADE:**
 - ⚡ **Desenvolvimento Paralelo**: Trabalhe em múltiplas issues simultaneamente quando não houver dependências
@@ -167,6 +170,35 @@ Quando o GitHub Copilot sugere alterações de código durante o review, siga es
 8. **Merge**: Prossiga com o merge do PR se tudo estiver funcionando
 
 **IMPORTANTE**: Nunca implemente sugestões automaticamente - sempre aguarde aprovação manual do usuário para garantir que as mudanças estão alinhadas com os requisitos e não introduzem regressões.
+
+### 🔄 Processo de Code Review Duplo (Obrigatório)
+
+**REGRAS DE CODE REVIEW IMPLEMENTADAS**:
+
+#### 📋 **FASE 1: Code Review Interno (Antes de Commits/PR)**
+1. **Análise de Qualidade**: Execute análise completa do código implementado
+2. **Validação de Requisitos**: Confirme que todos os requisitos da issue foram atendidos
+3. **Testes Abrangentes**: Execute todos os testes (unitários, integração, e2e)
+4. **Segurança**: Valide implementação de medidas de segurança apropriadas
+5. **Performance**: Verifique otimização e eficiência do código
+6. **Documentação**: Confirme documentação técnica atualizada
+7. **APENAS APÓS APROVAÇÃO**: Faça commits e crie Pull Request
+
+#### 🤖 **FASE 2: Code Review com GitHub Copilot (Após PR)**
+1. **Solicitar Review**: Use `mcp_github_github_request_copilot_review` com parâmetros corretos
+2. **Acompanhar Status**: Verifique status através das funções MCP do GitHub
+3. **Analisar Feedback**: Reveja todas as sugestões e comentários do Copilot
+4. **Implementar Melhorias**: Aplique melhorias identificadas (com aprovação manual)
+5. **Re-testar**: Execute testes novamente após implementações
+6. **Merge Final**: Só faça merge após resolução de todos os pontos críticos
+
+**CRITÉRIOS DE APROVAÇÃO**:
+- ✅ Todos os testes passando
+- ✅ Code review interno aprovado
+- ✅ Feedback do Copilot analisado e implementado
+- ✅ Segurança validada
+- ✅ Performance adequada
+- ✅ Documentação atualizada
 
 ### 🎯 Estratégias por Tipo de Issue
 

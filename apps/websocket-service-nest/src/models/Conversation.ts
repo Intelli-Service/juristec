@@ -17,6 +17,15 @@ interface IConversation extends mongoose.Document {
   };
   assignedTo?: string; // User ID do advogado
   assignedAt?: Date;
+  closedAt?: Date;
+  closedBy?: string;
+  resolution?: string;
+  transferHistory?: Array<{
+    from: string;
+    to: string;
+    reason: string;
+    transferredAt: Date;
+  }>;
   clientInfo: {
     name?: string;
     email?: string;
@@ -53,6 +62,15 @@ const ConversationSchema = new mongoose.Schema<IConversation>({
   },
   assignedTo: { type: String },
   assignedAt: { type: Date },
+  closedAt: { type: Date },
+  closedBy: { type: String },
+  resolution: { type: String },
+  transferHistory: [{
+    from: { type: String, required: true },
+    to: { type: String, required: true },
+    reason: { type: String, required: true },
+    transferredAt: { type: Date, default: Date.now }
+  }],
   clientInfo: {
     name: { type: String },
     email: { type: String },
