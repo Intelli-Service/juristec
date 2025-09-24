@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import io, { Socket } from 'socket.io-client';
 import FileUpload from './FileUpload';
+import { ChargeModal } from './ChargeModal';
+import { BillingNotificationComponent } from './BillingNotification';
+import { BillingNotification as BillingNotificationType } from '@/types/billing';
 
 interface Message {
   id: string;
@@ -34,6 +37,10 @@ export default function Chat() {
     lawyerName?: string;
     lawyerId?: string;
   }>({ assigned: false });
+  const [isLawyer, setIsLawyer] = useState(false);
+  const [showChargeModal, setShowChargeModal] = useState(false);
+  const [billingNotification, setBillingNotification] = useState<BillingNotificationType | null>(null);
+  const [isCreatingCharge, setIsCreatingCharge] = useState(false);
 
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000';
@@ -85,6 +92,32 @@ export default function Chat() {
       } else if (data.status === 'open') {
         setCaseAssigned({ assigned: false });
       }
+    });
+
+    // Listener para notificações de cobrança
+    newSocket.on('billing-notification', (data: BillingNotificationType) => {
+      setBillingNotification(data);
+    });
+
+    // Listener para confirmação de cobrança criada (advogado)
+    newSocket.on('charge-created', (data: { chargeId: string; message: string }) => {
+      setIsCreatingCharge(false);
+      setShowChargeModal(false);
+      alert(data.message);
+    });
+
+    // Listener para cobrança aceita (cliente)
+    newSocket.on('charge-accepted', (data: { chargeId: string; paymentId: string; message: string }) => {
+      setBillingNotification(null);
+      alert(data.message);
+      // Redirecionar para página de pagamento
+      window.location.href = `/payment/${roomId}?chargeId=${data.chargeId}`;
+    });
+
+    // Listener para cobrança rejeitada (cliente)
+    newSocket.on('charge-rejected', (data: { chargeId: string; message: string }) => {
+      setBillingNotification(null);
+      alert(data.message);
     });
 
     // Carregar do localStorage se existir
@@ -189,6 +222,54 @@ export default function Chat() {
     });
   };
 
+  const handleCreateCharge = async (chargeData: {
+    amount: number;
+    type: string;
+    title: string;
+    description: string;
+    reason: string;
+  }) => {
+    if (!socket) return;
+
+    setIsCreatingCharge(true);
+
+    socket.emit('create-charge', {
+      roomId,
+      amount: chargeData.amount,
+      type: chargeData.type,
+      title: chargeData.title,
+      description: chargeData.description,
+      reason: chargeData.reason,
+      metadata: {
+        caseCategory: 'general', // TODO: Obter da conversa
+        caseComplexity: 'medium'
+      }
+    });
+  };
+
+  const handleAcceptCharge = (chargeId: string) => {
+    if (!socket) return;
+
+    socket.emit('accept-charge', {
+      roomId,
+      chargeId
+    });
+  };
+
+  const handleRejectCharge = (chargeId: string, reason?: string) => {
+    if (!socket) return;
+
+    socket.emit('reject-charge', {
+      roomId,
+      chargeId,
+      reason
+    });
+  };
+
+  const dismissBillingNotification = () => {
+    setBillingNotification(null);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl bg-white rounded-lg shadow-xl overflow-hidden flex flex-col" style={{height: '80vh'}}>
@@ -208,6 +289,15 @@ export default function Chat() {
                 <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
                 <span>Online</span>
               </div>
+              {isLawyer && caseAssigned.assigned && (
+                <button
+                  onClick={() => setShowChargeModal(true)}
+                  className="px-3 py-1 bg-emerald-600 text-white text-sm rounded-md hover:bg-emerald-700 transition-colors"
+                  disabled={isCreatingCharge}
+                >
+                  {isCreatingCharge ? 'Criando...' : '💰 Cobrar Cliente'}
+                </button>
+              )}
               <a
                 href="/"
                 className="text-slate-300 hover:text-white transition-colors text-sm font-medium"
@@ -332,6 +422,25 @@ export default function Chat() {
           </div>
         </div>
       </div>
+
+      {/* Notificação de Cobrança */}
+      {billingNotification && (
+        <BillingNotificationComponent
+          notification={billingNotification}
+          onAccept={handleAcceptCharge}
+          onReject={handleRejectCharge}
+          onDismiss={dismissBillingNotification}
+          isLawyer={isLawyer}
+        />
+      )}
+
+      {/* Modal de Cobrança */}
+      <ChargeModal
+        isOpen={showChargeModal}
+        onClose={() => setShowChargeModal(false)}
+        onCreateCharge={handleCreateCharge}
+        isLoading={isCreatingCharge}
+      />
     </div>
   );
 }
