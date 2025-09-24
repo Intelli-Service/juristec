@@ -2,11 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import io, { Socket } from 'socket.io-client';
+import FileUpload from './FileUpload';
 
 interface Message {
   id: string;
   text: string;
   sender: 'user' | 'ai' | 'system' | 'lawyer';
+  attachments?: FileAttachment[];
+}
+
+interface FileAttachment {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  url: string;
 }
 
 export default function Chat() {
@@ -17,6 +28,7 @@ export default function Chat() {
   const [roomId] = useState(() => `room-${Date.now()}`); // Room única por conversa
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [caseAssigned, setCaseAssigned] = useState<{
     assigned: boolean;
     lawyerName?: string;
@@ -112,13 +124,48 @@ export default function Chat() {
     };
   };
 
+  const uploadFile = async (file: File): Promise<FileAttachment | null> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('conversationId', roomId);
+      formData.append('userId', 'user-' + roomId); // Usar um ID de usuário temporário
+
+      const response = await fetch('/api/uploads', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao fazer upload do arquivo');
+      }
+
+      const result = await response.json();
+      return result.data;
+    } catch (error) {
+      console.error('Erro no upload:', error);
+      return null;
+    }
+  };
+
   const sendMessage = async () => {
-    if (!input.trim() || !socket) return;
+    if ((!input.trim() && !selectedFile) || !socket) return;
+
+    let attachments: FileAttachment[] = [];
+
+    // Upload file if selected
+    if (selectedFile) {
+      const uploadedFile = await uploadFile(selectedFile);
+      if (uploadedFile) {
+        attachments = [uploadedFile];
+      }
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
       text: input,
       sender: 'user',
+      attachments,
     };
 
     setMessages((prev) => {
@@ -127,6 +174,7 @@ export default function Chat() {
       return newMsgs;
     });
     setInput('');
+    setSelectedFile(null);
     setIsLoading(true);
 
     // Marcar que a conversa começou após o primeiro envio
@@ -134,7 +182,11 @@ export default function Chat() {
       setHasStartedConversation(true);
     }
 
-    socket.emit('send-message', { roomId, message: input });
+    socket.emit('send-message', {
+      roomId,
+      message: input,
+      attachments
+    });
   };
 
   return (
@@ -252,7 +304,14 @@ export default function Chat() {
         </div>
 
         {/* Input Container */}
-        <div className="p-4 bg-white border-t border-slate-200">
+        <div className="p-4 bg-white border-t border-slate-200 space-y-3">
+          {/* File Upload */}
+          <FileUpload
+            onFileSelect={setSelectedFile}
+            disabled={isLoading}
+          />
+
+          {/* Text Input and Send Button */}
           <div className="flex space-x-2">
             <input
               type="text"
@@ -265,7 +324,7 @@ export default function Chat() {
             />
             <button
               onClick={sendMessage}
-              disabled={isLoading || !input.trim()}
+              disabled={isLoading || (!input.trim() && !selectedFile)}
               className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
               {isLoading ? 'Enviando...' : 'Enviar'}
