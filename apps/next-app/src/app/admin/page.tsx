@@ -218,6 +218,12 @@ export default function AdminDashboard() {
               >
                 📊 Relatórios
               </button>
+              <Link
+                href="/admin/analytics"
+                className="w-full text-left px-4 py-2 rounded-lg transition-colors text-slate-600 hover:bg-slate-100 block"
+              >
+                📈 Analytics
+              </Link>
             </div>
           </div>
         </nav>
