@@ -76,4 +76,5 @@ ConversationSchema.index({ 'classification.complexity': 1 });
 ConversationSchema.index({ priority: 1 });
 ConversationSchema.index({ createdAt: -1 });
 
+export { ConversationSchema };
 export default mongoose.models.Conversation || mongoose.model<IConversation>('Conversation', ConversationSchema);

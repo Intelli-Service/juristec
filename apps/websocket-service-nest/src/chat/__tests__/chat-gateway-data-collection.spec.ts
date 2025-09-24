@@ -3,20 +3,26 @@ import { ChatGateway } from '../chat.gateway';
 import { GeminiService } from '../../lib/gemini.service';
 import { AIService } from '../../lib/ai.service';
 import { MessageService } from '../../lib/message.service';
-import { UserDataCollectionService } from '../../lib/user-data-collection.service';
+import { IntelligentUserRegistrationService } from '../../lib/intelligent-user-registration.service';
 import { JwtService } from '@nestjs/jwt';
 
-// Mock do mongoose
-jest.mock('mongoose', () => ({
+// Mock do mongoose - deve ser o primeiro mock
+jest.doMock('mongoose', () => ({
   connect: jest.fn(),
   connection: {
     readyState: 1,
   },
-  Schema: jest.fn().mockImplementation(() => ({
-    pre: jest.fn(),
-    post: jest.fn(),
-  })),
+  Schema: function() {
+    this.Types = {
+      ObjectId: jest.fn(),
+    };
+    this.pre = jest.fn();
+    this.post = jest.fn();
+  },
   model: jest.fn(),
+  Types: {
+    ObjectId: jest.fn(),
+  },
 }));
 
 // Mock dos modelos
@@ -26,14 +32,9 @@ jest.mock('../../models/Conversation', () => ({
   findByIdAndUpdate: jest.fn(),
 }));
 
-jest.mock('../../models/Message', () => ({
-  find: jest.fn(),
-  create: jest.fn(),
-}));
-
 describe('ChatGateway - User Data Collection Integration', () => {
   let gateway: ChatGateway;
-  let userDataCollectionService: UserDataCollectionService;
+  let intelligentUserRegistrationService: IntelligentUserRegistrationService;
 
   beforeEach(async () => {
     // Mock do Conversation model
@@ -73,15 +74,26 @@ describe('ChatGateway - User Data Collection Integration', () => {
               text: 'test message',
               sender: 'user',
             }),
+            getMessages: jest.fn().mockResolvedValue([
+              {
+                _id: 'msg-1',
+                text: 'Olá, preciso de ajuda jurídica',
+                sender: 'user',
+                createdAt: new Date('2025-01-01T10:00:00Z'),
+              },
+              {
+                _id: 'msg-2',
+                text: 'Claro, posso te ajudar. Qual é o seu problema?',
+                sender: 'ai',
+                createdAt: new Date('2025-01-01T10:01:00Z'),
+              },
+            ]),
           },
         },
         {
-          provide: UserDataCollectionService,
+          provide: IntelligentUserRegistrationService,
           useValue: {
             processUserMessage: jest.fn(),
-            extractContactInfo: jest.fn(),
-            shouldCollectContactInfo: jest.fn(),
-            generateContactRequest: jest.fn(),
           },
         },
         {
@@ -94,15 +106,16 @@ describe('ChatGateway - User Data Collection Integration', () => {
     }).compile();
 
     gateway = module.get<ChatGateway>(ChatGateway);
-    userDataCollectionService = module.get<UserDataCollectionService>(UserDataCollectionService);
+    intelligentUserRegistrationService = module.get<IntelligentUserRegistrationService>(IntelligentUserRegistrationService);
   });
 
   describe('User Data Collection Integration', () => {
     it('should request contact info when appropriate', async () => {
       // Mock do serviço de coleta de dados
-      jest.spyOn(userDataCollectionService, 'processUserMessage').mockResolvedValue({
-        shouldRequestContact: true,
-        contactRequestMessage: 'Por favor, informe seu contato',
+      jest.spyOn(intelligentUserRegistrationService, 'processUserMessage').mockResolvedValue({
+        response: 'Olá! Para te ajudar melhor, preciso de algumas informações. Qual é o seu nome?',
+        userRegistered: false,
+        statusUpdated: false
       });
 
       // Simular socket e server
@@ -126,20 +139,17 @@ describe('ChatGateway - User Data Collection Integration', () => {
       );
 
       // Verificar se processUserMessage foi chamado
-      expect(userDataCollectionService.processUserMessage).toHaveBeenCalledWith(
+      expect(intelligentUserRegistrationService.processUserMessage).toHaveBeenCalledWith(
         'Olá, preciso de ajuda',
-        expect.objectContaining({
-          email: null,
-          phone: null,
-          conversationCount: expect.any(Number),
-        }),
-        'conversation-id'
+        'conversation-id',
+        undefined,
+        false
       );
 
       // Verificar se a mensagem de contato foi enviada
       expect(mockServer.to).toHaveBeenCalledWith('test-room');
       expect(mockServer.emit).toHaveBeenCalledWith('receive-message', {
-        text: 'Por favor, informe seu contato',
+        text: 'Olá! Para te ajudar melhor, preciso de algumas informações. Qual é o seu nome?',
         sender: 'ai',
         messageId: 'msg-id',
       });
@@ -156,8 +166,10 @@ describe('ChatGateway - User Data Collection Integration', () => {
       });
 
       // Mock do serviço de coleta de dados - usuário já tem dados
-      jest.spyOn(userDataCollectionService, 'processUserMessage').mockResolvedValue({
-        shouldRequestContact: false,
+      jest.spyOn(intelligentUserRegistrationService, 'processUserMessage').mockResolvedValue({
+        response: 'Obrigado pelas informações. Como posso te ajudar?',
+        userRegistered: true,
+        statusUpdated: false
       });
 
       // Mock do GeminiService
@@ -183,8 +195,13 @@ describe('ChatGateway - User Data Collection Integration', () => {
         mockSocket as any
       );
 
-      // Verificar se a resposta da IA foi gerada (não foi interrompida pela coleta de dados)
-      expect(generateResponseSpy).toHaveBeenCalled();
+      // Verificar se processUserMessage foi chamado (sempre é chamado agora)
+      expect(intelligentUserRegistrationService.processUserMessage).toHaveBeenCalledWith(
+        'Olá, preciso de ajuda',
+        'conversation-id',
+        undefined,
+        false
+      );
     }, 10000);
   });
 });
