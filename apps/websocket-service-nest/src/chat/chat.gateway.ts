@@ -17,6 +17,7 @@ import { MessageService } from '../lib/message.service';
 import { IntelligentUserRegistrationService } from '../lib/intelligent-user-registration.service';
 import { FluidRegistrationService } from '../lib/fluid-registration.service';
 import { VerificationService } from '../lib/verification.service';
+import { BillingService } from '../lib/billing.service';
 import Conversation from '../models/Conversation';
 
 @WebSocketGateway({
@@ -38,7 +39,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly messageService: MessageService,
     private readonly intelligentRegistrationService: IntelligentUserRegistrationService,
     private readonly fluidRegistrationService: FluidRegistrationService,
-    private readonly verificationService: VerificationService
+    private readonly verificationService: VerificationService,
+    private readonly billingService: BillingService
   ) {}
 
   async handleConnection(client: Socket) {
@@ -445,6 +447,67 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('error', {
         message: 'Erro ao enviar mensagem'
       });
+    }
+  }
+
+  /**
+   * Notifica sobre cobrança criada
+   */
+  async notifyChargeCreated(roomId: string, charge: any) {
+    try {
+      // Notificar cliente sobre nova cobrança
+      this.server.to(roomId).emit('charge-created', {
+        chargeId: charge._id,
+        amount: charge.amount,
+        title: charge.title,
+        description: charge.description,
+        reason: charge.reason,
+        type: charge.type,
+        expiresAt: charge.expiresAt,
+        splitConfig: charge.splitConfig,
+        createdAt: charge.createdAt
+      });
+
+      // Notificar advogados sobre cobrança criada
+      this.server.to(`lawyer-${roomId}`).emit('charge-created-lawyer', {
+        chargeId: charge._id,
+        amount: charge.amount,
+        title: charge.title,
+        description: charge.description,
+        clientId: charge.clientId,
+        status: charge.status,
+        createdAt: charge.createdAt
+      });
+
+      console.log(`Notificação de cobrança enviada para caso ${roomId}: R$ ${(charge.amount / 100).toFixed(2)}`);
+    } catch (error) {
+      console.error('Erro ao notificar cobrança criada:', error);
+    }
+  }
+
+  /**
+   * Notifica sobre atualização de cobrança
+   */
+  async notifyChargeUpdated(roomId: string, charge: any) {
+    try {
+      // Notificar cliente sobre atualização da cobrança
+      this.server.to(roomId).emit('charge-updated', {
+        chargeId: charge._id,
+        status: charge.status,
+        updatedAt: charge.updatedAt
+      });
+
+      // Notificar advogados sobre atualização da cobrança
+      this.server.to(`lawyer-${roomId}`).emit('charge-updated-lawyer', {
+        chargeId: charge._id,
+        status: charge.status,
+        clientId: charge.clientId,
+        updatedAt: charge.updatedAt
+      });
+
+      console.log(`Notificação de atualização de cobrança enviada para caso ${roomId}: ${charge.status}`);
+    } catch (error) {
+      console.error('Erro ao notificar atualização de cobrança:', error);
     }
   }
 }
