@@ -3,9 +3,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ICharge, ChargeStatus, ChargeType } from '../models/Charge';
 import Conversation from '../models/Conversation';
-import { PaymentService } from './payment.service';
-import { ChatGateway } from '../chat/chat.gateway';
-import { PaymentMethod } from '../models/Payment';
 
 export interface CreateChargeDto {
   conversationId: string;
@@ -38,9 +35,7 @@ export interface UpdateChargeStatusDto {
 export class BillingService {
   constructor(
     @InjectModel('Charge') private chargeModel: Model<ICharge>,
-    @InjectModel('Conversation') private conversationModel: Model<any>,
-    private readonly paymentService: PaymentService,
-    private readonly chatGateway: ChatGateway
+    @InjectModel('Conversation') private conversationModel: Model<any>
   ) {}
 
   /**
@@ -102,7 +97,8 @@ export class BillingService {
     });
 
     // Notificar via WebSocket
-    await this.chatGateway.notifyChargeCreated(createChargeDto.conversationId, charge);
+    // TODO: Implementar notificação via WebSocket
+    // await this.chatGateway.notifyChargeCreated(createChargeDto.conversationId, charge);
 
     return charge;
   }
@@ -153,7 +149,8 @@ export class BillingService {
     );
 
     // Notificar via WebSocket sobre atualização de cobrança
-    await this.chatGateway.notifyChargeUpdated(updatedCharge!.conversationId, updatedCharge);
+    // TODO: Implementar notificação via WebSocket
+    // await this.chatGateway.notifyChargeUpdated(updatedCharge!.conversationId, updatedCharge);
 
     return updatedCharge!;
   }
@@ -183,30 +180,19 @@ export class BillingService {
     });
 
     // Criar pagamento no Pagar.me
-    const payment = await this.paymentService.createPayment({
-      conversationId: charge.conversationId,
-      clientId: charge.clientId,
-      lawyerId: charge.lawyerId,
-      amount: charge.amount,
-      paymentMethod: PaymentMethod.PIX, // Método padrão, cliente pode alterar
-      metadata: {
-        caseCategory: charge.metadata?.caseCategory,
-        caseComplexity: charge.metadata?.caseComplexity,
-        lawyerSpecialization: charge.type
-      }
-    });
+    // TODO: Implementar integração com serviço de pagamento
+    // const payment = await this.paymentService.createPayment({...});
 
-    // Vincular pagamento à cobrança
-    await this.chargeModel.findByIdAndUpdate(chargeId, {
-      paymentId: payment._id.toString()
-    });
+    // Por enquanto, apenas atualizar o status da cobrança
+    // await this.chargeModel.findByIdAndUpdate(chargeId, {
+    // });
 
     // Notificar via WebSocket sobre cobrança aceita
-    await this.chatGateway.notifyChargeUpdated(charge.conversationId, charge);
+    // TODO: Implementar notificação via WebSocket
+    // await this.chatGateway.notifyChargeUpdated(charge.conversationId, charge);
 
     return {
-      charge,
-      payment
+      charge
     };
   }
 
