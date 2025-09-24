@@ -132,6 +132,20 @@ Para **cada issue** aberta, siga este processo rigoroso:
 
 **Nota**: Não use "@copilot-review-requested" em comentários - esta não é uma funcionalidade real do GitHub.
 
+#### 🔄 **Workflow para Sugestões do Copilot**
+Quando o GitHub Copilot sugere alterações de código durante o review, siga este processo:
+
+1. **Análise das Sugestões**: Reveja cada sugestão do Copilot e avalie se faz sentido implementar
+2. **Comunicação**: Informe ao usuário quais sugestões precisam ser aprovadas, explicando o benefício de cada uma
+3. **Aprovação Manual**: Aguarde o usuário confirmar que aprovou as sugestões pela interface visual do GitHub (botão "Commit suggestion" nos comentários do review)
+4. **Sincronização**: Só então sincronize a branch local com `git pull origin {branch-name}`
+5. **Testes**: Execute novamente todos os testes para garantir que as alterações não quebraram nada
+6. **Validação**: Confirme que as melhorias foram aplicadas corretamente
+7. **Commit Final**: Crie commit documentando as melhorias implementadas
+8. **Merge**: Prossiga com o merge do PR se tudo estiver funcionando
+
+**IMPORTANTE**: Nunca implemente sugestões automaticamente - sempre aguarde aprovação manual do usuário para garantir que as mudanças estão alinhadas com os requisitos e não introduzem regressões.
+
 ### 📊 Métricas de Sucesso
 - **Qualidade**: 0 bugs em produção, cobertura >80%
 - **Performance**: Lighthouse score >90
