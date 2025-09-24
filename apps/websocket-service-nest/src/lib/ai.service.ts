@@ -217,4 +217,30 @@ TRIAGEM DE CASOS:
       throw error;
     }
   }
+
+  /**
+   * Atualiza dados do usuário em uma conversa
+   */
+  async updateUserData(conversationId: string, userData: { email?: string | null; phone?: string | null; name?: string }) {
+    try {
+      const updateData: Partial<{ userEmail: string | null; userPhone: string | null; userName: string }> = {};
+
+      if (userData.email !== undefined) {
+        updateData.userEmail = userData.email;
+      }
+
+      if (userData.phone !== undefined) {
+        updateData.userPhone = userData.phone;
+      }
+
+      if (userData.name !== undefined) {
+        updateData.userName = userData.name;
+      }
+
+      await Conversation.findByIdAndUpdate(conversationId, updateData);
+    } catch (error) {
+      console.error('Erro ao atualizar dados do usuário:', error);
+      throw error;
+    }
+  }
 }
