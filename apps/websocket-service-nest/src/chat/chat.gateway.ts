@@ -14,6 +14,7 @@ import { NextAuthGuard } from '../guards/nextauth.guard';
 import { GeminiService } from '../lib/gemini.service';
 import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
+import { UserDataCollectionService } from '../lib/user-data-collection.service';
 import Conversation from '../models/Conversation';
 import Message from '../models/Message';
 
@@ -33,7 +34,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly geminiService: GeminiService,
     private readonly aiService: AIService,
     private readonly jwtService: JwtService,
-    private readonly messageService: MessageService
+    private readonly messageService: MessageService,
+    private readonly userDataCollectionService: UserDataCollectionService
   ) {}
 
   async handleConnection(client: Socket) {
@@ -176,6 +178,36 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         console.warn('Não foi possível carregar histórico de mensagens');
         // Usar apenas a mensagem atual como contexto
         messages = [userMessage];
+      }
+
+      // Coletar dados do usuário se necessário
+      const userData = {
+        email: conversation.userEmail || null,
+        phone: conversation.userPhone || null,
+        conversationCount: messages.length
+      };
+
+      const dataCollection = await this.userDataCollectionService.processUserMessage(
+        message,
+        userData,
+        conversation._id.toString()
+      );
+
+      // Se deve solicitar contato, enviar mensagem especial
+      if (dataCollection.shouldRequestContact && dataCollection.contactRequestMessage) {
+        const contactMessage = await this.messageService.createMessage({
+          conversationId: conversation._id.toString(),
+          text: dataCollection.contactRequestMessage,
+          sender: 'ai',
+          metadata: { contactRequest: true },
+        });
+
+        this.server.to(roomId).emit('receive-message', {
+          text: dataCollection.contactRequestMessage,
+          sender: 'ai',
+          messageId: contactMessage._id.toString()
+        });
+        return; // Não processar mais a mensagem
       }
 
       // Gerar resposta da IA
