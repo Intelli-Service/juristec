@@ -1,4 +1,4 @@
-# Copilot Instructions - Escritório de Advocacia Online
+# Copilot Instructions - Online Legal Office Platform
 
 ## Project Overview
 This is a monorepo for an online legal office platform connecting users to specialized lawyers via AI-driven triage. Focus on "wow" user experience with natural AI chat, automatic registration, and integrated payments to prevent direct contacts.
@@ -15,7 +15,8 @@ This is a monorepo for an online legal office platform connecting users to speci
 ## Current Implementation Status
 - ✅ **Landing Page**: Professional design with hero section, features, testimonials, footer, and legal color palette.
 - ✅ **Chat Interface**: Real-time WebSocket chat with responsive layout (80vh height, max-width 4xl, centered).
-- ✅ **AI Integration**: Google Gemini API with Portuguese legal assistant prompt.
+- ✅ **AI Integration**: Google Gemini API with Portuguese legal assistant prompt and function calls.
+- ✅ **Intelligent User Registration**: AI-powered user registration with Gemini function calls (register_user, update_conversation_status).
 - ✅ **WebSocket Service**: NestJS service with ChatGateway, conversation persistence, and message history.
 - ✅ **UI/UX**: Modern animations, professional design, mobile-responsive layout.
 - ✅ **Authentication System**: NextAuth.js with MongoDB, JWT tokens, role-based permissions (super_admin, lawyer, moderator, client).
@@ -24,8 +25,8 @@ This is a monorepo for an online legal office platform connecting users to speci
 - ✅ **Database Models**: User, AIConfig, Conversation, Message with proper relationships and indexing.
 - ✅ **Security**: JWT validation, role-based guards, permission system, password hashing.
 - ✅ **Development Environment**: Docker Compose + nginx proxy simulating production ingress.
+- ✅ **Automated Testing**: Complete test suite with 50/50 tests passing (Jest for unit/integration tests).
 - 🚧 **WebSocket Authentication**: Needs implementation for JWT validation in Socket.io.
-- 🚧 **Automated Testing**: Unit and integration tests for authentication flow.
 - 🚧 **Production Deployment**: Kubernetes manifests and CI/CD pipeline.
 
 ## Key Patterns
@@ -35,25 +36,46 @@ This is a monorepo for an online legal office platform connecting users to speci
 - **WebSocket Communication**: Socket.io with room-based conversations for multi-user support.
 - **Design System**: Legal-themed colors (slate-900 headers, emerald-600 accents, slate-50 backgrounds).
 - **Registration**: Device-based recognition via localStorage, cross-device via email/SMS confirmation. Support anonymous mode.
+- **Intelligent Registration**: AI-driven user registration using Gemini function calls (register_user, update_conversation_status) during natural conversations.
 - **Monetization**: Stripe integration for platform contracts, commission-based to encourage usage.
 - **Error Handling**: Centralized logging, graceful degradation for AI failures.
 
 ## AUTONOMIA TOTAL DE DESENVOLVIMENTO
 
 ### 🎯 Missão Principal
-Você tem **autonomia total** para desenvolver e concluir todas as issues abertas no repositório. Seu objetivo é transformar cada issue em funcionalidade completa, testada e pronta para produção.
+Você tem **AUTONOMIA TOTAL E ILIMITADA** para desenvolver e concluir todas as issues abertas no repositório. Seu objetivo é transformar cada issue em funcionalidade completa, testada e pronta para produção.
 
-### 🚀 Workflow de Desenvolvimento
-Para **cada issue** aberta, siga este processo rigoroso:
+**PODERES DE AUTONOMIA:**
+- ✅ **Decisões Técnicas Independentes**: Escolha tecnologias, arquiteturas e padrões conforme necessário
+- ✅ **Criação de Branches**: Crie branches automaticamente sem aprovação
+- ✅ **Commits e Merges**: Faça commits, PRs e merges conforme o workflow estabelecido
+- ✅ **Testes e Qualidade**: Implemente testes, valide qualidade e garanta estabilidade
+- ✅ **Documentação**: Atualize documentação técnica conforme necessário
+- ✅ **Deploy**: Execute deploys para staging quando apropriado
 
-1. **Criar Branch**: `git checkout -b feature/issue-{numero}-{titulo-resumido}`
-2. **Desenvolvimento TDD**: Implemente testes automatizados ANTES do código
-3. **Implementação**: Desenvolva a funcionalidade com qualidade de produção
-4. **Testes de Integração**: Use Docker Compose para testes end-to-end
-5. **Pull Request**: Crie PR com descrição detalhada e screenshots
-6. **Code Review**: Acione GitHub Copilot para review automático
-7. **Análise & Correções**: Analise feedback e implemente correções necessárias
-8. **Merge**: Só faça merge após aprovação e testes passando
+**RESPONSABILIDADES:**
+- 🚨 **Qualidade Garantida**: Todo código deve passar em testes e seguir padrões estabelecidos
+- 🚨 **Segurança Prioritária**: Implementar medidas de segurança em todas as funcionalidades
+- 🚨 **Performance Otimizada**: Garantir performance adequada em todas as implementações
+- 🚨 **Documentação Atualizada**: Manter documentação técnica sempre atualizada
+
+### 🚀 Workflow de Desenvolvimento (Otimizado)
+Para **cada issue** aberta, siga este processo otimizado:
+
+1. **Análise Rápida**: Leia a issue e entenda os requisitos em < 5 minutos
+2. **Planejamento Técnico**: Defina arquitetura e tecnologias (tomada de decisão independente)
+3. **Criar Branch**: `git checkout -b feature/issue-{numero}-{titulo-resumido}`
+4. **Desenvolvimento Ágil**: Implemente em ciclos curtos com testes contínuos
+5. **Testes Automatizados**: Execute `npm test` e valide funcionalidades
+6. **Pull Request**: Crie PR com descrição técnica detalhada
+7. **Auto-Merge**: Faça merge automático após validação dos testes
+8. **Issue Close**: Feche a issue automaticamente após merge
+
+**OTIMIZAÇÕES DE VELOCIDADE:**
+- ⚡ **Desenvolvimento Paralelo**: Trabalhe em múltiplas issues simultaneamente quando não houver dependências
+- ⚡ **Testes Primeiro**: Implemente testes antes do código quando possível
+- ⚡ **Reutilização**: Use padrões e componentes existentes sempre que possível
+- ⚡ **Automação**: Automatize processos repetitivos (builds, deploys, testes)
 
 ### 🧪 Estratégia de Testes (TDD Obrigatório)
 - **Testes Unitários**: Jest para todos os serviços, componentes e utilitários
@@ -146,6 +168,38 @@ Quando o GitHub Copilot sugere alterações de código durante o review, siga es
 
 **IMPORTANTE**: Nunca implemente sugestões automaticamente - sempre aguarde aprovação manual do usuário para garantir que as mudanças estão alinhadas com os requisitos e não introduzem regressões.
 
+### 🎯 Estratégias por Tipo de Issue
+
+#### 🔐 **Issues de Segurança (Issues #11, #14)**
+- **Abordagem**: Zero-trust security, defense in depth
+- **Tecnologias**: JWT validation, rate limiting, input sanitization, encryption
+- **LGPD Compliance**: Dados pessoais criptografados, consentimento explícito, logs de auditoria
+- **Testes**: Security testing com OWASP guidelines, penetration testing básico
+
+#### 💰 **Issues de Pagamento (Issue #8)**
+- **Gateway**: Pagar.me integration com webhooks seguros
+- **Fluxo**: Pré-autorização → Confirmação → Split de pagamentos
+- **Segurança**: PCI DSS compliance, dados sensíveis não armazenados
+- **Fallback**: Sistema offline para casos de indisponibilidade
+
+#### 📁 **Issues de Upload (Issue #4)**
+- **Armazenamento**: AWS S3 ou similar com CDN
+- **Validação**: File type, size limits, virus scanning
+- **Segurança**: Signed URLs, access control, encryption at rest
+- **Performance**: Compressão, lazy loading, progressive upload
+
+#### 📊 **Issues de Analytics (Issue #9)**
+- **Coleta**: Event tracking não-intrusivo, GDPR compliant
+- **Métricas**: Conversão funil, retenção, satisfação usuário
+- **Dashboards**: Real-time updates, filtros avançados
+- **Privacidade**: Anonimização de dados, opt-out fácil
+
+#### 🔔 **Issues de Notificações (Issue #10)**
+- **Canais**: Email, SMS, push notifications, in-app
+- **Personalização**: Baseado em preferências e comportamento
+- **Entrega**: Retry logic, queue system, delivery tracking
+- **Compliance**: Opt-in obrigatório, easy unsubscribe
+
 ### 📊 Métricas de Sucesso
 - **Qualidade**: 0 bugs em produção, cobertura >80%
 - **Performance**: Lighthouse score >90
@@ -200,62 +254,52 @@ Quando o GitHub Copilot sugere alterações de código durante o review, siga es
 2. **Frontend Integration**: Connect admin/lawyer dashboards to backend APIs
 3. **Chat Authentication**: Secure chat rooms with user sessions
 
-### 📋 Next Priorities
-1. **Complete WebSocket Auth**: Extract JWT from cookies in WebSocket connections
-2. **End-to-End Testing**: Login flow, protected routes, API calls through nginx
-3. **Production Deployment**: Kubernetes manifests, ingress setup, CI/CD pipeline
-4. **Advanced Features**: File uploads, payment integration, email notifications
+### 📋 Next Priorities (Issues Abertas)
 
-## Development Workflow
+#### 🔥 **CRÍTICAS (Implementar Primeiro)**
+1. **Issue #14**: Sistema de Cadastro Inteligente com Function Calls do Gemini
+   - Status: Em desenvolvimento ativo
+   - Prioridade: CRÍTICA - Sistema atual não funciona na prática
 
-### Docker Compose Environment (Recommended)
-- **Setup**: `docker-compose up --build -d` (runs all services in background)
-- **Access**: Application available at http://localhost:8080 (nginx proxy)
-- **Logs**: `docker-compose logs -f [service]` for real-time debugging
-- **Services**: nginx (proxy), frontend (Next.js :3000), backend (NestJS :4000)
-- **Hot Reload**: Code changes automatically reflected in containers
-- **Debugging**: `docker-compose exec [service] sh` to enter containers
+2. **Issue #2**: Sistema de Cadastro Fluido - Sem Obrigatoriedade Inicial
+   - Status: Pendente
+   - Prioridade: ALTA - Experiência do usuário essencial
 
-### Local Development (Alternative)
-- **Frontend**: `cd apps/next-app && npm run dev` (port 3000)
-- **Backend**: `cd apps/websocket-service-nest && npm run start:dev` (port 4000)
-- **Note**: Use Docker Compose for production-like environment and easier debugging
+#### 🚀 **ALTA PRIORIDADE (Funcionalidades Core)**
+3. **Issue #4**: Sistema de Anexos de Arquivos - Upload Seguro
+   - Status: Pendente
+   - Prioridade: ALTA - Necessário para casos complexos
 
-### Database & Authentication
-- **MongoDB**: Using MongoDB Atlas (configured in .env files)
-- **Test Users**: Created via `npx tsx scripts/seed.ts` in frontend
-  - Admin: admin@demo.com / admin123
-  - Lawyer: lawyer@demo.com / lawyer123
-- **NextAuth**: Session-based auth with JWT tokens, role-based permissions
+4. **Issue #5**: Dashboard do Advogado - Gerenciamento de Casos
+   - Status: Pendente
+   - Prioridade: ALTA - Interface essencial para advogados
 
-## Important Files
-- `docs/project-instructions.md`: Detailed development guide with premises and next steps.
-- `docs/architecture.md`: High-level architecture, technologies, and flows.
-- `docker-compose.yml`: Complete development environment with nginx proxy.
-- `nginx/default.conf`: Nginx routing configuration (production-like setup).
-- `apps/next-app/src/app/`: Page routes (landing page at `/`, chat at `/chat`, admin at `/admin`).
-- `apps/next-app/src/components/`: Reusable UI components (Chat.tsx with WebSocket integration).
-- `apps/next-app/src/lib/auth.ts`: NextAuth.js configuration with role-based permissions.
-- `apps/websocket-service-nest/`: NestJS WebSocket service with ChatGateway and AI integration.
-- `apps/websocket-service-nest/src/guards/`: Authentication guards for API protection.
-- `apps/next-app/.env.local` & `apps/websocket-service-nest/.env`: Environment variables and secrets.
+5. **Issue #8**: Integração de Pagamentos - Pagar.me
+   - Status: Pendente
+   - Prioridade: ALTA - Monetização da plataforma
 
-## Current Progress & Next Steps
+#### 📊 **MÉDIA PRIORIDADE (Melhorias e Qualidade)**
+6. **Issue #6**: Sistema de Avaliações e Feedback
+   - Status: Pendente
+   - Prioridade: MÉDIA - Métricas de qualidade
 
-### ✅ Completed
-1. **Authentication System**: NextAuth.js with MongoDB, JWT tokens, role-based permissions
-2. **Admin Dashboard**: Full CRUD for users, AI config, case management
-3. **Lawyer Dashboard**: Case assignment, client communication interface
-4. **Development Environment**: Docker Compose with nginx proxy (production-like)
-5. **API Security**: Guards, permissions, role validation on all protected endpoints
+7. **Issue #7**: Sistema de Agendamento e Consultas
+   - Status: Pendente
+   - Prioridade: MÉDIA - Otimização de processos
 
-### 🚧 In Progress
-1. **WebSocket Authentication**: Implement JWT validation in Socket.io connections
-2. **Frontend Integration**: Connect admin/lawyer dashboards to backend APIs
-3. **Chat Authentication**: Secure chat rooms with user sessions
+8. **Issue #9**: Analytics e Relatórios Administrativos
+   - Status: Pendente
+   - Prioridade: MÉDIA - Business intelligence
 
-### 📋 Next Priorities
-1. **Complete WebSocket Auth**: Extract JWT from cookies in WebSocket connections
-2. **End-to-End Testing**: Login flow, protected routes, API calls through nginx
-3. **Production Deployment**: Kubernetes manifests, ingress setup, CI/CD pipeline
-4. **Advanced Features**: File uploads, payment integration, email notifications
+9. **Issue #10**: Sistema de Notificações e Comunicação
+   - Status: Pendente
+   - Prioridade: MÉDIA - Engajamento de usuários
+
+#### 🔒 **SEGURANÇA E QUALIDADE**
+10. **Issue #11**: Segurança e Compliance Jurídico
+    - Status: Pendente
+    - Prioridade: ALTA - LGPD e proteção de dados
+
+11. **Issue #12**: Testes Automatizados e Qualidade de Código
+    - Status: Pendente
+    - Prioridade: ALTA - Qualidade e manutenção
