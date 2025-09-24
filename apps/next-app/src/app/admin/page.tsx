@@ -20,11 +20,25 @@ interface AIConfig {
   };
 }
 
+interface BillingReport {
+  totalCharges: number;
+  totalRevenue: number;
+  paidCharges: number;
+  pendingCharges: number;
+  rejectedCharges: number;
+  averageChargeValue: number;
+  chargesByType: { [key: string]: number };
+  chargesByStatus: { [key: string]: number };
+  monthlyRevenue: { month: string; revenue: number }[];
+  topLawyers: { lawyerId: string; lawyerName: string; totalCharges: number; totalRevenue: number }[];
+}
+
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('ai-config');
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null);
+  const [billingReport, setBillingReport] = useState<BillingReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -42,8 +56,31 @@ export default function AdminDashboard() {
 
     if (session) {
       loadAIConfig();
+      if (activeTab === 'reports') {
+        loadBillingReport();
+      }
     }
-  }, [session, status, router]);
+  }, [session, status, router, activeTab]);
+
+  const loadBillingReport = async () => {
+    try {
+      const response = await fetch('/api/admin/billing-reports', {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setBillingReport(data);
+    } catch (error) {
+      console.error('Erro ao carregar relatório de cobrança:', error);
+    }
+  };
 
   if (status === 'loading' || !session) {
     return (
@@ -330,11 +367,183 @@ export default function AdminDashboard() {
           )}
 
           {activeTab === 'reports' && (
-            <div className="max-w-4xl">
-              <h1 className="text-2xl font-bold text-slate-800 mb-6">Relatórios</h1>
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <p className="text-slate-600">Funcionalidade em desenvolvimento...</p>
-              </div>
+            <div className="max-w-7xl">
+              <h1 className="text-2xl font-bold text-slate-800 mb-6">Relatórios de Cobrança</h1>
+
+              {!billingReport ? (
+                <div className="bg-white rounded-lg shadow-md p-6">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto"></div>
+                    <p className="mt-2 text-slate-600">Carregando relatórios...</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Overview Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-slate-600">Total de Receita</p>
+                          <p className="text-2xl font-bold text-emerald-600">
+                            R$ {billingReport.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                          <span className="text-2xl">💰</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-slate-600">Cobranças Pagas</p>
+                          <p className="text-2xl font-bold text-green-600">{billingReport.paidCharges}</p>
+                        </div>
+                        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                          <span className="text-2xl">✅</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-slate-600">Cobranças Pendentes</p>
+                          <p className="text-2xl font-bold text-yellow-600">{billingReport.pendingCharges}</p>
+                        </div>
+                        <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                          <span className="text-2xl">⏳</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-slate-600">Valor Médio</p>
+                          <p className="text-2xl font-bold text-blue-600">
+                            R$ {billingReport.averageChargeValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-2xl">📊</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Charts Row */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Charges by Status */}
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                      <h3 className="text-lg font-semibold text-slate-800 mb-4">Cobranças por Status</h3>
+                      <div className="space-y-3">
+                        {Object.entries(billingReport.chargesByStatus).map(([status, count]) => (
+                          <div key={status} className="flex items-center justify-between">
+                            <span className="text-sm text-slate-600 capitalize">{status}</span>
+                            <div className="flex items-center space-x-2">
+                              <div className="w-24 bg-slate-200 rounded-full h-2">
+                                <div
+                                  className="bg-emerald-600 h-2 rounded-full"
+                                  style={{
+                                    width: `${(count / billingReport.totalCharges) * 100}%`
+                                  }}
+                                ></div>
+                              </div>
+                              <span className="text-sm font-medium text-slate-800 w-8 text-right">{count}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Charges by Type */}
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                      <h3 className="text-lg font-semibold text-slate-800 mb-4">Cobranças por Tipo</h3>
+                      <div className="space-y-3">
+                        {Object.entries(billingReport.chargesByType).map(([type, count]) => (
+                          <div key={type} className="flex items-center justify-between">
+                            <span className="text-sm text-slate-600 capitalize">{type.replace('_', ' ')}</span>
+                            <div className="flex items-center space-x-2">
+                              <div className="w-24 bg-slate-200 rounded-full h-2">
+                                <div
+                                  className="bg-blue-600 h-2 rounded-full"
+                                  style={{
+                                    width: `${(count / billingReport.totalCharges) * 100}%`
+                                  }}
+                                ></div>
+                              </div>
+                              <span className="text-sm font-medium text-slate-800 w-8 text-right">{count}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Monthly Revenue Chart */}
+                  <div className="bg-white rounded-lg shadow-md p-6">
+                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Receita Mensal</h3>
+                    <div className="h-64 flex items-end justify-between space-x-2">
+                      {billingReport.monthlyRevenue.map((month, index) => (
+                        <div key={month.month} className="flex-1 flex flex-col items-center">
+                          <div
+                            className="w-full bg-emerald-600 rounded-t"
+                            style={{
+                              height: `${(month.revenue / Math.max(...billingReport.monthlyRevenue.map(m => m.revenue))) * 200}px`,
+                              minHeight: '4px'
+                            }}
+                          ></div>
+                          <span className="text-xs text-slate-600 mt-2">{month.month}</span>
+                          <span className="text-xs font-medium text-slate-800">
+                            R$ {month.revenue.toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Top Lawyers */}
+                  <div className="bg-white rounded-lg shadow-md p-6">
+                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Top Advogados</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-slate-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Advogado</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Cobranças</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Receita</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {billingReport.topLawyers.map((lawyer, index) => (
+                            <tr key={lawyer.lawyerId} className="hover:bg-slate-50">
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center mr-3">
+                                    <span className="text-sm font-medium text-emerald-800">
+                                      {lawyer.lawyerName.charAt(0).toUpperCase()}
+                                    </span>
+                                  </div>
+                                  <span className="text-sm font-medium text-slate-900">{lawyer.lawyerName}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">
+                                {lawyer.totalCharges}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-emerald-600">
+                                R$ {lawyer.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>
