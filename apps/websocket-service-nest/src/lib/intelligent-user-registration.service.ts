@@ -126,7 +126,7 @@ export class IntelligentUserRegistrationService {
       // Criar ou atualizar usuário
       const userData = {
         name: params.name,
-        email: params.email || `${uuidv4()}@temp.juristec.com`, // Email temporário único se não fornecido
+        email: params.email || `${uuidv4()}@example.invalid`, // Email temporário único se não fornecido, usando domínio reservado
         role: 'client' as const,
         profile: {
           bio: `Problema relatado: ${params.problem_description}. Nível de urgência: ${params.urgency_level}`
