@@ -68,11 +68,10 @@ Para **cada issue** aberta, siga este processo otimizado:
 4. **Desenvolvimento Ágil**: Implemente em ciclos curtos com testes contínuos
 5. **Testes Automatizados**: Execute `npm test` e valide funcionalidades
 6. **Code Review Interno**: Execute análise completa e valide todos os critérios de qualidade
-7. **Pull Request**: Crie PR apenas após aprovação do code review interno
-8. **Code Review Copilot**: Solicite review do GitHub Copilot via MCP tools
-9. **Implementar Feedback**: Aplique melhorias sugeridas e re-test
-10. **Merge Final**: Faça merge apenas após resolução de todos os pontos críticos
-11. **Issue Close**: Feche a issue automaticamente após merge bem-sucedido
+7. **Pull Request**: Crie PR (GitHub Copilot será automaticamente solicitado para review)
+8. **Implementar Feedback**: Aplique melhorias sugeridas pelo Copilot e re-test
+9. **Aguardar Merge**: O merge será feito manualmente após aprovação
+10. **Issue Close**: A issue será fechada automaticamente após merge
 
 **OTIMIZAÇÕES DE VELOCIDADE:**
 - ⚡ **Desenvolvimento Paralelo**: Trabalhe em múltiplas issues simultaneamente quando não houver dependências
@@ -117,10 +116,11 @@ Para **cada issue** aberta, siga este processo otimizado:
 1. **Título**: `feat/issue-{numero}: {descrição concisa}`
 2. **Descrição**: Problema, solução, screenshots, testes realizados
 3. **Labels**: `enhancement`, `feature`, `testing`
-4. **Code Review**: Execute análise completa do código usando ferramentas disponíveis
+4. **Code Review Interno**: Execute análise completa do código antes de criar PR
 5. **Checks**: Todos os testes devem passar
 6. **Repositório Limpo**: OBRIGATÓRIO - Verificar e resolver todos os arquivos pendentes
-7. **Merge**: Squash merge com commit message padronizado
+7. **GitHub Copilot Review**: Será solicitado automaticamente pelo GitHub
+8. **Aguardar Merge**: O merge será feito manualmente após aprovação dos reviews
 
 ### 🧹 **REGRA CRÍTICA: REPOSITÓRIO LIMPO**
 
@@ -172,40 +172,25 @@ git commit -m "test: add analytics service unit tests"
 - ✅ Branch pronta para merge sem problemas
 
 #### 📋 Code Review Process
-**IMPORTANTE**: GitHub Copilot NÃO faz reviews automáticas de PRs através de comentários como "@copilot-review-requested". O processo correto é:
+**ATUALIZADO**: GitHub Copilot foi configurado para fazer reviews automáticas de PRs. O processo simplificado é:
 
-1. **Solicitar Review via API**: Use a função MCP `mcp_github_github_request_copilot_review` com os parâmetros:
-   - `owner`: Nome do proprietário do repositório
-   - `pullNumber`: Número do PR
-   - `repo`: Nome do repositório
-
-2. **Acompanhar Status**: Verifique se o Copilot foi adicionado como reviewer através da API:
-   ```bash
-   gh pr view {PR_NUMBER} --json requestedReviewers
-   ```
-
-3. **Ver Comentários**: Os comentários do review aparecerão como "review comments" (não comentários gerais):
-   ```bash
-   gh api repos/{owner}/{repo}/pulls/{PR_NUMBER}/comments
-   ```
-
-4. **Análise Manual**: Use suas capacidades de análise de código para revisar:
+1. **Code Review Interno**: Execute análise completa antes de criar o PR:
    - Qualidade do código e aderência às melhores práticas
    - Cobertura de testes e estratégia TDD
    - Integração com arquitetura existente
    - Segurança e performance
 
-5. **Comentários Construtivos**: Forneça feedback específico sobre:
-   - Problemas encontrados
-   - Sugestões de melhoria
-   - Pontos positivos destacados
+2. **Criar Pull Request**: Após aprovação do code review interno, crie o PR normalmente
 
-6. **Aprovação**: Quando satisfeito com a qualidade:
-   - Confirme que todos os testes passam
-   - Valide integração com sistema existente
-   - Aprove o PR ou solicite mudanças específicas
+3. **Review Automático**: GitHub Copilot será automaticamente solicitado como reviewer
 
-**Nota**: Não use "@copilot-review-requested" em comentários - esta não é uma funcionalidade real do GitHub.
+4. **Acompanhar Feedback**: Os comentários do Copilot aparecerão automaticamente no PR
+
+5. **Implementar Sugestões**: Aplique melhorias sugeridas quando apropriado
+
+6. **Aguardar Aprovação**: O merge será feito manualmente após todas as aprovações
+
+**Nota**: Não é mais necessário usar funções MCP para solicitar code review do Copilot.
 
 #### 🔄 **Workflow para Sugestões do Copilot**
 Quando o GitHub Copilot sugere alterações de código durante o review, siga este processo:
@@ -223,7 +208,7 @@ Quando o GitHub Copilot sugere alterações de código durante o review, siga es
 
 ### 🔄 Processo de Code Review Duplo (Obrigatório)
 
-**REGRAS DE CODE REVIEW IMPLEMENTADAS**:
+**REGRAS DE CODE REVIEW ATUALIZADAS**:
 
 #### 📋 **FASE 1: Code Review Interno (Antes de Commits/PR)**
 1. **Análise de Qualidade**: Execute análise completa do código implementado
@@ -234,13 +219,12 @@ Quando o GitHub Copilot sugere alterações de código durante o review, siga es
 6. **Documentação**: Confirme documentação técnica atualizada
 7. **APENAS APÓS APROVAÇÃO**: Faça commits e crie Pull Request
 
-#### 🤖 **FASE 2: Code Review com GitHub Copilot (Após PR)**
-1. **Solicitar Review**: Use `mcp_github_github_request_copilot_review` com parâmetros corretos
-2. **Acompanhar Status**: Verifique status através das funções MCP do GitHub
-3. **Analisar Feedback**: Reveja todas as sugestões e comentários do Copilot
-4. **Implementar Melhorias**: Aplique melhorias identificadas (com aprovação manual)
-5. **Re-testar**: Execute testes novamente após implementações
-6. **Merge Final**: Só faça merge após resolução de todos os pontos críticos
+#### 🤖 **FASE 2: Code Review Automático GitHub Copilot (Após PR)**
+1. **Review Automático**: GitHub Copilot será automaticamente solicitado como reviewer
+2. **Analisar Feedback**: Reveja todas as sugestões e comentários do Copilot
+3. **Implementar Melhorias**: Aplique melhorias identificadas (com aprovação manual)
+4. **Re-testar**: Execute testes novamente após implementações
+5. **Aguardar Merge**: O merge será feito manualmente após todas as aprovações
 
 **CRITÉRIOS DE APROVAÇÃO**:
 - ✅ Todos os testes passando
