@@ -19,8 +19,26 @@ interface Conversation {
     lastUpdated: string;
   };
   assignedTo?: string;
+  closedAt?: string;
+  closedBy?: string;
+  resolution?: string;
+  transferHistory?: Array<{
+    from: string;
+    to: string;
+    reason: string;
+    transferredAt: string;
+  }>;
   createdAt: string;
   updatedAt: string;
+}
+
+interface LawyerStats {
+  totalCases: number;
+  openCases: number;
+  closedCases: number;
+  assignedCases: number;
+  recentClosedCases: number;
+  successRate: number;
 }
 
 export default function LawyerDashboard() {
@@ -28,7 +46,13 @@ export default function LawyerDashboard() {
   const router = useRouter();
   const [cases, setCases] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all, open, assigned
+  const [filter, setFilter] = useState('all'); // all, open, assigned, closed
+  const [stats, setStats] = useState<LawyerStats | null>(null);
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedCase, setSelectedCase] = useState<Conversation | null>(null);
+  const [resolution, setResolution] = useState('');
+  const [transferReason, setTransferReason] = useState('');
 
   useEffect(() => {
     if (status === 'loading') return; // Still loading
@@ -45,6 +69,7 @@ export default function LawyerDashboard() {
 
     if (session) {
       loadCases();
+      loadStats();
     }
   }, [session, status, router]);
 
@@ -81,6 +106,73 @@ export default function LawyerDashboard() {
     }
   };
 
+  const loadStats = async () => {
+    try {
+      const response = await fetch('/api/lawyer/stats', {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar estatísticas:', error);
+    }
+  };
+
+  const closeCase = async (roomId: string, resolutionText: string) => {
+    try {
+      const response = await fetch(`/api/lawyer/cases/${roomId}/close`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resolution: resolutionText }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      loadCases(); // Recarregar lista
+      loadStats(); // Recarregar estatísticas
+      setShowCloseModal(false);
+      setSelectedCase(null);
+      setResolution('');
+      alert('Caso fechado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao fechar caso:', error);
+      alert('Erro ao fechar caso');
+    }
+  };
+
+  const transferCase = async (roomId: string, targetLawyerId: string, reason: string) => {
+    try {
+      const response = await fetch(`/api/lawyer/cases/${roomId}/transfer`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetLawyerId, reason }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      loadCases(); // Recarregar lista
+      setShowTransferModal(false);
+      setSelectedCase(null);
+      setTransferReason('');
+      alert('Caso transferido com sucesso!');
+    } catch (error) {
+      console.error('Erro ao transferir caso:', error);
+      alert('Erro ao transferir caso');
+    }
+  };
+
   const assignCase = async (roomId: string) => {
     try {
       const response = await fetch(`/api/lawyer/cases/${roomId}/assign`, {
@@ -104,7 +196,8 @@ export default function LawyerDashboard() {
   const filteredCases = cases.filter(case_ => {
     if (filter === 'all') return true;
     if (filter === 'open') return case_.status === 'open';
-    if (filter === 'assigned') return case_.assignedTo;
+    if (filter === 'assigned') return case_.assignedTo && case_.status !== 'closed';
+    if (filter === 'closed') return case_.status === 'closed';
     return true;
   });
 
@@ -165,6 +258,36 @@ export default function LawyerDashboard() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-800 mb-4">Meus Casos</h1>
 
+          {/* Estatísticas */}
+          {stats && (
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+              <div className="bg-white rounded-lg shadow-md p-4">
+                <div className="text-2xl font-bold text-slate-800">{stats.totalCases}</div>
+                <div className="text-sm text-slate-600">Total de Casos</div>
+              </div>
+              <div className="bg-blue-50 rounded-lg shadow-md p-4">
+                <div className="text-2xl font-bold text-blue-600">{stats.openCases}</div>
+                <div className="text-sm text-slate-600">Casos Abertos</div>
+              </div>
+              <div className="bg-purple-50 rounded-lg shadow-md p-4">
+                <div className="text-2xl font-bold text-purple-600">{stats.assignedCases}</div>
+                <div className="text-sm text-slate-600">Em Andamento</div>
+              </div>
+              <div className="bg-green-50 rounded-lg shadow-md p-4">
+                <div className="text-2xl font-bold text-green-600">{stats.closedCases}</div>
+                <div className="text-sm text-slate-600">Casos Fechados</div>
+              </div>
+              <div className="bg-emerald-50 rounded-lg shadow-md p-4">
+                <div className="text-2xl font-bold text-emerald-600">{stats.recentClosedCases}</div>
+                <div className="text-sm text-slate-600">Fechados (30d)</div>
+              </div>
+              <div className="bg-slate-50 rounded-lg shadow-md p-4">
+                <div className="text-2xl font-bold text-slate-800">{stats.successRate}%</div>
+                <div className="text-sm text-slate-600">Taxa de Sucesso</div>
+              </div>
+            </div>
+          )}
+
           {/* Filtros */}
           <div className="flex space-x-2 mb-4">
             <button
@@ -195,7 +318,17 @@ export default function LawyerDashboard() {
                   : 'bg-white text-slate-600 hover:bg-slate-100'
               }`}
             >
-              Atribuídos ({cases.filter(c => c.assignedTo).length})
+              Em Andamento ({cases.filter(c => c.assignedTo && c.status !== 'closed').length})
+            </button>
+            <button
+              onClick={() => setFilter('closed')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                filter === 'closed'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-white text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Fechados ({cases.filter(c => c.status === 'closed').length})
             </button>
           </div>
         </div>
@@ -241,14 +374,48 @@ export default function LawyerDashboard() {
                     >
                       Pegar Caso
                     </button>
-                  ) : case_.assignedTo ? (
-                    <div className="text-center">
-                      <div className="text-emerald-600 font-medium text-sm mb-2">
+                  ) : case_.assignedTo && case_.status !== 'closed' ? (
+                    <div className="flex flex-col space-y-2">
+                      <div className="text-emerald-600 font-medium text-sm text-center mb-2">
                         Caso atribuído a você
                       </div>
                       <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
-                        <a href={`/lawyer/chat/${case_.roomId}`}>Ver Chat Completo</a>
+                        <a href={`/lawyer/chat/${case_.roomId}`} className="text-white no-underline">Ver Chat Completo</a>
                       </button>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => {
+                            setSelectedCase(case_);
+                            setShowCloseModal(true);
+                          }}
+                          className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs font-medium"
+                        >
+                          Fechar Caso
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedCase(case_);
+                            setShowTransferModal(true);
+                          }}
+                          className="px-3 py-1 bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors text-xs font-medium"
+                        >
+                          Transferir
+                        </button>
+                      </div>
+                    </div>
+                  ) : case_.status === 'closed' ? (
+                    <div className="text-center">
+                      <div className="text-green-600 font-medium text-sm mb-2">
+                        Caso Fechado
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {case_.closedAt ? new Date(case_.closedAt).toLocaleDateString('pt-BR') : 'Data não disponível'}
+                      </div>
+                      {case_.resolution && (
+                        <div className="text-xs text-slate-600 mt-1 max-w-32 truncate" title={case_.resolution}>
+                          {case_.resolution}
+                        </div>
+                      )}
                     </div>
                   ) : null}
                 </div>
@@ -262,12 +429,119 @@ export default function LawyerDashboard() {
             <div className="text-slate-400 text-lg">Nenhum caso encontrado</div>
             <div className="text-slate-500 text-sm mt-2">
               {filter === 'open' ? 'Não há casos abertos no momento.' :
-               filter === 'assigned' ? 'Você não tem casos atribuídos.' :
+               filter === 'assigned' ? 'Você não tem casos em andamento.' :
+               filter === 'closed' ? 'Você não tem casos fechados.' :
                'Nenhum caso disponível.'}
             </div>
           </div>
         )}
       </div>
+
+      {/* Modal Fechar Caso */}
+      {showCloseModal && selectedCase && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Fechar Caso</h3>
+            <p className="text-slate-600 mb-4">
+              Você está prestes a fechar o caso <strong>#{selectedCase.roomId.slice(-6)}</strong>.
+              Esta ação não pode ser desfeita.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Resolução do Caso
+              </label>
+              <textarea
+                value={resolution}
+                onChange={(e) => setResolution(e.target.value)}
+                className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                rows={4}
+                placeholder="Descreva como o caso foi resolvido..."
+                required
+              />
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowCloseModal(false);
+                  setSelectedCase(null);
+                  setResolution('');
+                }}
+                className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => closeCase(selectedCase.roomId, resolution)}
+                disabled={!resolution.trim()}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Fechar Caso
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Transferir Caso */}
+      {showTransferModal && selectedCase && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Transferir Caso</h3>
+            <p className="text-slate-600 mb-4">
+              Transferir o caso <strong>#{selectedCase.roomId.slice(-6)}</strong> para outro advogado.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Motivo da Transferência
+              </label>
+              <textarea
+                value={transferReason}
+                onChange={(e) => setTransferReason(e.target.value)}
+                className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                rows={3}
+                placeholder="Explique o motivo da transferência..."
+                required
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Advogado Destino
+              </label>
+              <select className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                <option value="">Selecione um advogado...</option>
+                {/* TODO: Carregar lista de advogados disponíveis */}
+                <option value="lawyer1">Advogado Silva</option>
+                <option value="lawyer2">Advogada Santos</option>
+              </select>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowTransferModal(false);
+                  setSelectedCase(null);
+                  setTransferReason('');
+                }}
+                className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  // TODO: Implementar transferência
+                  alert('Funcionalidade de transferência será implementada em breve');
+                  setShowTransferModal(false);
+                  setSelectedCase(null);
+                  setTransferReason('');
+                }}
+                disabled={!transferReason.trim()}
+                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Transferir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
