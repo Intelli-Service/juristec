@@ -10,7 +10,8 @@ import { GeminiService } from './lib/gemini.service';
 
 @Module({
   imports: [
-    MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/chat'),
+    // Only connect to MongoDB if URI is provided
+    ...(process.env.MONGODB_URI ? [MongooseModule.forRoot(process.env.MONGODB_URI)] : []),
     JwtModule.register({
       secret: process.env.NEXTAUTH_SECRET,
       signOptions: { expiresIn: '1h' },
@@ -25,6 +26,10 @@ export class AppModule implements OnModuleInit {
   constructor(private readonly mongodbService: MongodbService) {}
 
   async onModuleInit() {
-    await this.mongodbService.connect();
+    if (process.env.MONGODB_URI) {
+      await this.mongodbService.connect();
+    } else {
+      console.log('MongoDB disabled - running without database persistence');
+    }
   }
 }
