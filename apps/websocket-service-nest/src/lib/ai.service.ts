@@ -223,7 +223,7 @@ TRIAGEM DE CASOS:
    */
   async updateUserData(conversationId: string, userData: { email?: string | null; phone?: string | null; name?: string }) {
     try {
-      const updateData: any = {};
+      const updateData: Partial<{ userEmail: string | null; userPhone: string | null; userName: string }> = {};
 
       if (userData.email !== undefined) {
         updateData.userEmail = userData.email;

@@ -15,17 +15,19 @@ export interface UserData {
 
 @Injectable()
 export class UserDataCollectionService {
+  private static readonly EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+  private static readonly PHONE_REGEX = /(\(?\d{2}\)?\s?)?\d{4,5}-?\d{4}/g;
+  private static readonly MINIMUM_MESSAGES_BEFORE_CONTACT_REQUEST = 3;
+  private static readonly CONTACT_REQUEST_MESSAGE = `Para te ajudar melhor e manter seu histórico de conversas seguro, poderia me informar seu email ou WhatsApp? Assim posso garantir que você tenha acesso às suas conversas em outros dispositivos e receber notificações importantes sobre seu caso.`;
+
   constructor(private readonly aiService: AIService) {}
 
   /**
    * Extrai informações de contato de uma mensagem do usuário
    */
   extractContactInfo(message: string): ContactInfo {
-    const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
-    const phoneRegex = /(\(?\d{2}\)?\s?)?\d{4,5}-?\d{4}/g;
-
-    const emails = message.match(emailRegex);
-    const phones = message.match(phoneRegex);
+    const emails = message.match(UserDataCollectionService.EMAIL_REGEX);
+    const phones = message.match(UserDataCollectionService.PHONE_REGEX);
 
     return {
       email: emails ? emails[0] : null,
@@ -43,14 +45,14 @@ export class UserDataCollectionService {
     }
 
     // Só coletar após algumas mensagens para não ser invasivo
-    return messageCount >= 3;
+    return messageCount >= UserDataCollectionService.MINIMUM_MESSAGES_BEFORE_CONTACT_REQUEST;
   }
 
   /**
    * Gera mensagem solicitando informações de contato
    */
   generateContactRequest(): string {
-    return `Para te ajudar melhor e manter seu histórico de conversas seguro, poderia me informar seu email ou WhatsApp? Assim posso garantir que você tenha acesso às suas conversas em outros dispositivos e receber notificações importantes sobre seu caso.`;
+    return UserDataCollectionService.CONTACT_REQUEST_MESSAGE;
   }
 
   /**

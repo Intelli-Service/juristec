@@ -92,9 +92,30 @@ Para **cada issue** aberta, siga este processo rigoroso:
 1. **Título**: `feat/issue-{numero}: {descrição concisa}`
 2. **Descrição**: Problema, solução, screenshots, testes realizados
 3. **Labels**: `enhancement`, `feature`, `testing`
-4. **Reviewers**: Acione Copilot automaticamente
+4. **Code Review**: Execute análise completa do código usando ferramentas disponíveis
 5. **Checks**: Todos os testes devem passar
 6. **Merge**: Squash merge com commit message padronizado
+
+#### 📋 Code Review Process
+**IMPORTANTE**: GitHub Copilot NÃO faz reviews automáticas de PRs. O processo correto é:
+
+1. **Análise Manual**: Use suas capacidades de análise de código para revisar:
+   - Qualidade do código e aderência às melhores práticas
+   - Cobertura de testes e estratégia TDD
+   - Integração com arquitetura existente
+   - Segurança e performance
+
+2. **Comentários Construtivos**: Forneça feedback específico sobre:
+   - Problemas encontrados
+   - Sugestões de melhoria
+   - Pontos positivos destacados
+
+3. **Aprovação**: Quando satisfeito com a qualidade:
+   - Confirme que todos os testes passam
+   - Valide integração com sistema existente
+   - Aprove o PR ou solicite mudanças específicas
+
+**Nota**: Não use "@copilot-review-requested" - esta não é uma funcionalidade real do GitHub.
 
 ### 📊 Métricas de Sucesso
 - **Qualidade**: 0 bugs em produção, cobertura >80%
