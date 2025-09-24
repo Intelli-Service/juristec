@@ -38,6 +38,124 @@ This is a monorepo for an online legal office platform connecting users to speci
 - **Monetization**: Stripe integration for platform contracts, commission-based to encourage usage.
 - **Error Handling**: Centralized logging, graceful degradation for AI failures.
 
+## AUTONOMIA TOTAL DE DESENVOLVIMENTO
+
+### 🎯 Missão Principal
+Você tem **autonomia total** para desenvolver e concluir todas as issues abertas no repositório. Seu objetivo é transformar cada issue em funcionalidade completa, testada e pronta para produção.
+
+### 🚀 Workflow de Desenvolvimento
+Para **cada issue** aberta, siga este processo rigoroso:
+
+1. **Criar Branch**: `git checkout -b feature/issue-{numero}-{titulo-resumido}`
+2. **Desenvolvimento TDD**: Implemente testes automatizados ANTES do código
+3. **Implementação**: Desenvolva a funcionalidade com qualidade de produção
+4. **Testes de Integração**: Use Docker Compose para testes end-to-end
+5. **Pull Request**: Crie PR com descrição detalhada e screenshots
+6. **Code Review**: Acione GitHub Copilot para review automático
+7. **Análise & Correções**: Analise feedback e implemente correções necessárias
+8. **Merge**: Só faça merge após aprovação e testes passando
+
+### 🧪 Estratégia de Testes (TDD Obrigatório)
+- **Testes Unitários**: Jest para todos os serviços, componentes e utilitários
+- **Testes de Integração**: Docker Compose + curl para APIs completas
+- **Testes E2E**: Playwright/Cypress para fluxos críticos
+- **Cobertura Mínima**: 80% de cobertura em todas as funcionalidades
+- **Testes Automatizados**: Execute `npm test` e `docker-compose test` antes de cada PR
+
+### 🏗️ Ambiente de Desenvolvimento
+- **Docker Compose**: Ambiente padrão para desenvolvimento e testes
+- **Hot Reload**: Desenvolvimento local com sincronização automática
+- **Debugging**: Use `docker-compose logs -f` para troubleshooting
+- **Builds**: Sempre teste builds completos antes de PR
+
+### 🤖 Uso de Agentes e Ferramentas
+- **GitHub Copilot**: Use para code review automático em PRs
+- **GH CLI**: Para operações Git e gerenciamento de issues/PRs
+- **Outros Agentes**: Use MCP tools disponíveis para acelerar desenvolvimento
+- **Decisões Técnicas**: Tome decisões como Product Manager - arquitetura, tecnologias, prioridades
+
+### 📋 Critérios de Qualidade
+- **Código Limpo**: ESLint, Prettier, TypeScript strict mode
+- **Performance**: Otimize queries, lazy loading, caching
+- **Segurança**: JWT, validação, sanitização, rate limiting
+- **Acessibilidade**: WCAG 2.1 AA compliance
+- **Mobile-First**: Responsive design obrigatório
+- **SEO**: Meta tags, performance, Core Web Vitals
+
+### 🎨 Padrões de UI/UX
+- **Tema Jurídico**: Navy blue, slate gray, emerald green
+- **Micro-interações**: Loading states, feedback visual, animações suaves
+- **Responsividade**: Mobile-first, tablet, desktop
+- **Acessibilidade**: Alt texts, keyboard navigation, screen readers
+
+### 🔄 Processo de Pull Request
+1. **Título**: `feat/issue-{numero}: {descrição concisa}`
+2. **Descrição**: Problema, solução, screenshots, testes realizados
+3. **Labels**: `enhancement`, `feature`, `testing`
+4. **Reviewers**: Acione Copilot automaticamente
+5. **Checks**: Todos os testes devem passar
+6. **Merge**: Squash merge com commit message padronizado
+
+### 📊 Métricas de Sucesso
+- **Qualidade**: 0 bugs em produção, cobertura >80%
+- **Performance**: Lighthouse score >90
+- **Usabilidade**: Taxa de conversão >70% no funil
+- **Manutenibilidade**: Código limpo, bem documentado, testado
+
+## Development Workflow
+
+### Docker Compose Environment (Recommended)
+- **Setup**: `docker-compose up --build -d` (runs all services in background)
+- **Access**: Application available at http://localhost:8080 (nginx proxy)
+- **Logs**: `docker-compose logs -f [service]` for real-time debugging
+- **Services**: nginx (proxy), frontend (Next.js :3000), backend (NestJS :4000)
+- **Hot Reload**: Code changes automatically reflected in containers
+- **Debugging**: `docker-compose exec [service] sh` to enter containers
+
+### Local Development (Alternative)
+- **Frontend**: `cd apps/next-app && npm run dev` (port 3000)
+- **Backend**: `cd apps/websocket-service-nest && npm run start:dev` (port 4000)
+- **Note**: Use Docker Compose for production-like environment and easier debugging
+
+### Database & Authentication
+- **MongoDB**: Using MongoDB Atlas (configured in .env files)
+- **Test Users**: Created via `npx tsx scripts/seed.ts` in frontend
+  - Admin: admin@demo.com / admin123
+  - Lawyer: lawyer@demo.com / lawyer123
+- **NextAuth**: Session-based auth with JWT tokens, role-based permissions
+
+## Important Files
+- `docs/project-instructions.md`: Detailed development guide with premises and next steps.
+- `docs/architecture.md`: High-level architecture, technologies, and flows.
+- `docker-compose.yml`: Complete development environment with nginx proxy.
+- `nginx/default.conf`: Nginx routing configuration (production-like setup).
+- `apps/next-app/src/app/`: Page routes (landing page at `/`, chat at `/chat`, admin at `/admin`).
+- `apps/next-app/src/components/`: Reusable UI components (Chat.tsx with WebSocket integration).
+- `apps/next-app/src/lib/auth.ts`: NextAuth.js configuration with role-based permissions.
+- `apps/websocket-service-nest/`: NestJS WebSocket service with ChatGateway and AI integration.
+- `apps/websocket-service-nest/src/guards/`: Authentication guards for API protection.
+- `apps/next-app/.env.local` & `apps/websocket-service-nest/.env`: Environment variables and secrets.
+
+## Current Progress & Next Steps
+
+### ✅ Completed
+1. **Authentication System**: NextAuth.js with MongoDB, JWT tokens, role-based permissions
+2. **Admin Dashboard**: Full CRUD for users, AI config, case management
+3. **Lawyer Dashboard**: Case assignment, client communication interface
+4. **Development Environment**: Docker Compose with nginx proxy (production-like)
+5. **API Security**: Guards, permissions, role validation on all protected endpoints
+
+### 🚧 In Progress
+1. **WebSocket Authentication**: Implement JWT validation in Socket.io connections
+2. **Frontend Integration**: Connect admin/lawyer dashboards to backend APIs
+3. **Chat Authentication**: Secure chat rooms with user sessions
+
+### 📋 Next Priorities
+1. **Complete WebSocket Auth**: Extract JWT from cookies in WebSocket connections
+2. **End-to-End Testing**: Login flow, protected routes, API calls through nginx
+3. **Production Deployment**: Kubernetes manifests, ingress setup, CI/CD pipeline
+4. **Advanced Features**: File uploads, payment integration, email notifications
+
 ## Development Workflow
 
 ### Docker Compose Environment (Recommended)
