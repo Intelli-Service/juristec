@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ChatModule } from './chat/chat.module';
 import { AdminModule } from './admin/admin.module';
 import { LawyerModule } from './lawyer/lawyer.module';
+import { UploadsModule } from './uploads/uploads.module';
 import { MongodbService } from './lib/mongodb.service';
 import { AIService } from './lib/ai.service';
 import { GeminiService } from './lib/gemini.service';
@@ -19,6 +20,7 @@ import { GeminiService } from './lib/gemini.service';
     ChatModule,
     AdminModule,
     LawyerModule,
+    UploadsModule,
   ],
   providers: [MongodbService, AIService],
 })

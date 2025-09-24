@@ -256,19 +256,19 @@ Quando o GitHub Copilot sugere alterações de código durante o review, siga es
 
 ### 📋 Next Priorities (Issues Abertas)
 
-#### 🔥 **CRÍTICAS (Implementar Primeiro)**
+#### ✅ **CONCLUÍDAS (Issues Fechadas)**
 1. **Issue #14**: Sistema de Cadastro Inteligente com Function Calls do Gemini
-   - Status: Em desenvolvimento ativo
-   - Prioridade: CRÍTICA - Sistema atual não funciona na prática
+   - Status: ✅ **CONCLUÍDA** - Sistema implementado e funcional
+   - Data: Concluída anteriormente
 
 2. **Issue #2**: Sistema de Cadastro Fluido - Sem Obrigatoriedade Inicial
-   - Status: Pendente
-   - Prioridade: ALTA - Experiência do usuário essencial
+   - Status: ✅ **CONCLUÍDA** - Sistema implementado e funcional
+   - Data: Concluída anteriormente
 
-#### 🚀 **ALTA PRIORIDADE (Funcionalidades Core)**
 3. **Issue #4**: Sistema de Anexos de Arquivos - Upload Seguro
-   - Status: Pendente
-   - Prioridade: ALTA - Necessário para casos complexos
+   - Status: ✅ **CONCLUÍDA** - PR #17 criado e aguardando merge
+   - Data: 24 de setembro de 2025
+   - Implementação: GCS + UI drag-and-drop + validação completa
 
 4. **Issue #5**: Dashboard do Advogado - Gerenciamento de Casos
    - Status: Pendente

@@ -9,6 +9,7 @@ dotenv.config();
 import { NestFactory } from '@nestjs/core';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './app.module';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -17,6 +18,10 @@ async function bootstrap() {
   console.log(`PORT: ${process.env.PORT || '4000 (default)'}`);
 
   const app = await NestFactory.create(AppModule);
+
+  // Configurar limites para uploads
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ extended: true, limit: '50mb' }));
 
   // Configurar CORS para permitir acesso do proxy e frontend
   app.enableCors({
