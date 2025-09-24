@@ -6,6 +6,7 @@ import Conversation from '../models/Conversation';
 import { IUser } from '../models/User';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { v4 as uuidv4 } from 'uuid';
 
 export enum ConversationStatus {
   COLLECTING_DATA = 'collecting_data',
@@ -25,6 +26,13 @@ export interface IntelligentRegistrationResult {
 
 @Injectable()
 export class IntelligentUserRegistrationService {
+  private readonly urgencyToPriorityMap: Record<string, 'low' | 'medium' | 'high' | 'urgent'> = {
+    'low': 'low',
+    'medium': 'medium',
+    'high': 'high',
+    'urgent': 'urgent'
+  };
+
   constructor(
     private readonly geminiService: GeminiService,
     private readonly aiService: AIService,
@@ -118,7 +126,7 @@ export class IntelligentUserRegistrationService {
       // Criar ou atualizar usuário
       const userData = {
         name: params.name,
-        email: params.email || `temp_${Date.now()}@example.com`, // Email temporário se não fornecido
+        email: params.email || `${uuidv4()}@temp.juristec.com`, // Email temporário único se não fornecido
         role: 'client' as const,
         profile: {
           bio: `Problema relatado: ${params.problem_description}. Nível de urgência: ${params.urgency_level}`
@@ -154,9 +162,7 @@ export class IntelligentUserRegistrationService {
           email: params.email,
           phone: params.phone
         },
-        priority: params.urgency_level === 'urgent' ? 'urgent' :
-                 params.urgency_level === 'high' ? 'high' :
-                 params.urgency_level === 'medium' ? 'medium' : 'low'
+        priority: this.urgencyToPriorityMap[params.urgency_level] || 'low'
       });
 
       console.log(`Usuário registrado/atualizado: ${user.name}`);

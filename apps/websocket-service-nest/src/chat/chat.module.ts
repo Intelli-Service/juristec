@@ -13,8 +13,8 @@ import Conversation from '../models/Conversation';
   imports: [
     JwtModule,
     MongooseModule.forFeature([
-      { name: UserModel.modelName, schema: UserModel.schema },
-      { name: Conversation.modelName, schema: Conversation.schema }
+      { name: 'User', schema: UserModel.schema },
+      { name: 'Conversation', schema: Conversation.schema }
     ])
   ],
   providers: [ChatGateway, GeminiService, AIService, MessageService, IntelligentUserRegistrationService],

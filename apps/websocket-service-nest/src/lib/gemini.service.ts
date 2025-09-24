@@ -162,8 +162,9 @@ export class GeminiService {
     const functionCalls: FunctionCall[] = [];
 
     // Processar function calls se existirem
-    if (response.functionCalls && response.functionCalls()) {
-      const calls = response.functionCalls();
+    if (response.functionCalls && typeof response.functionCalls === 'function') {
+      const functionCallsFn = response.functionCalls;
+      const calls = functionCallsFn();
       if (calls) {
         for (const call of calls) {
           if (call.name === 'register_user') {
