@@ -119,7 +119,57 @@ Para **cada issue** aberta, siga este processo otimizado:
 3. **Labels**: `enhancement`, `feature`, `testing`
 4. **Code Review**: Execute análise completa do código usando ferramentas disponíveis
 5. **Checks**: Todos os testes devem passar
-6. **Merge**: Squash merge com commit message padronizado
+6. **Repositório Limpo**: OBRIGATÓRIO - Verificar e resolver todos os arquivos pendentes
+7. **Merge**: Squash merge com commit message padronizado
+
+### 🧹 **REGRA CRÍTICA: REPOSITÓRIO LIMPO**
+
+**OBRIGATÓRIO EM TODA TAREFA**: O repositório local deve estar completamente limpo ao final de cada issue/tarefa.
+
+#### **Verificação de Limpeza (Executar SEMPRE)**
+```bash
+git status
+# DEVE retornar: "working tree clean"
+# NUNCA pode ter: "Changes not staged", "Untracked files", "Changes staged"
+```
+
+#### **Processo de Limpeza Obrigatório**
+1. **Análise**: `git status` - Identificar todos os arquivos pendentes
+2. **Categorização**: Separar arquivos por tipo (código, config, temporários)
+3. **Decisão**: Para cada arquivo:
+   - **Código/Features**: Commit com mensagem descritiva
+   - **Configuração**: Commit separado para configs
+   - **Temporários/Build**: Adicionar ao `.gitignore` e descartar
+   - **Testes**: Commit junto com código relacionado
+4. **Execução**: Fazer commits específicos para cada categoria
+5. **Validação**: `git status` deve retornar "working tree clean"
+
+#### **Commits de Limpeza (Exemplos)**
+```bash
+# Para arquivos de feature esquecidos
+git commit -m "feat: add missing analytics components"
+
+# Para configurações
+git commit -m "config: update nginx and environment settings"
+
+# Para correções de build
+git commit -m "fix: resolve dependency injection issues"
+
+# Para testes
+git commit -m "test: add analytics service unit tests"
+```
+
+#### **NUNCA deixar pendente**:
+- ❌ Arquivos modificados sem commit
+- ❌ Arquivos novos sem tracking
+- ❌ Arquivos staged sem commit
+- ❌ Merge conflicts não resolvidos
+
+#### **SEMPRE garantir**:
+- ✅ `git status` = "working tree clean"
+- ✅ Todos os commits têm mensagens descritivas
+- ✅ Histórico git organizado e legível
+- ✅ Branch pronta para merge sem problemas
 
 #### 📋 Code Review Process
 **IMPORTANTE**: GitHub Copilot NÃO faz reviews automáticas de PRs através de comentários como "@copilot-review-requested". O processo correto é:
