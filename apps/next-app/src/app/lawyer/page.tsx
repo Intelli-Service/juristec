@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useNotifications } from '../../hooks/useNotifications';
 
 interface Conversation {
   _id: string;
@@ -53,6 +54,8 @@ export default function LawyerDashboard() {
   const [selectedCase, setSelectedCase] = useState<Conversation | null>(null);
   const [resolution, setResolution] = useState('');
   const [transferReason, setTransferReason] = useState('');
+
+  const notifications = useNotifications();
 
   useEffect(() => {
     if (status === 'loading') return; // Still loading
@@ -142,10 +145,10 @@ export default function LawyerDashboard() {
       setShowCloseModal(false);
       setSelectedCase(null);
       setResolution('');
-      alert('Caso fechado com sucesso!');
+      notifications.success('Caso fechado!', 'O caso foi resolvido com sucesso.');
     } catch (error) {
       console.error('Erro ao fechar caso:', error);
-      alert('Erro ao fechar caso');
+      notifications.error('Erro ao fechar caso', 'Tente novamente.');
     }
   };
 
@@ -166,10 +169,10 @@ export default function LawyerDashboard() {
       setShowTransferModal(false);
       setSelectedCase(null);
       setTransferReason('');
-      alert('Caso transferido com sucesso!');
+      notifications.success('Caso transferido!', 'O caso foi transferido para outro advogado.');
     } catch (error) {
       console.error('Erro ao transferir caso:', error);
-      alert('Erro ao transferir caso');
+      notifications.error('Erro ao transferir caso', 'Tente novamente.');
     }
   };
 
@@ -186,10 +189,10 @@ export default function LawyerDashboard() {
       }
       
       loadCases(); // Recarregar lista
-      alert('Caso atribuído com sucesso!');
+      notifications.success('Caso atribuído!', 'Você agora é responsável por este caso.');
     } catch (error) {
       console.error('Erro ao atribuir caso:', error);
-      alert('Erro ao atribuir caso');
+      notifications.error('Erro ao atribuir caso', 'Tente novamente.');
     }
   };
 
@@ -528,7 +531,7 @@ export default function LawyerDashboard() {
               <button
                 onClick={() => {
                   // TODO: Implementar transferência
-                  alert('Funcionalidade de transferência será implementada em breve');
+                  notifications.info('Em breve!', 'Funcionalidade de transferência será implementada em breve.');
                   setShowTransferModal(false);
                   setSelectedCase(null);
                   setTransferReason('');

@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface Message {
   id: string;
@@ -39,6 +40,7 @@ export default function LawyerChatPage() {
   const router = useRouter();
   const params = useParams();
   const roomId = params.roomId as string;
+  const notifications = useNotifications();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -180,7 +182,7 @@ export default function LawyerChatPage() {
 
     newSocket.on('error', (error: { message: string }) => {
       console.error('Erro do WebSocket:', error);
-      alert(`Erro: ${error.message}`);
+      notifications.error('Erro de Conexão', error.message);
     });
 
     return () => {
@@ -203,7 +205,7 @@ export default function LawyerChatPage() {
       });
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
-      alert('Erro ao enviar mensagem');
+      notifications.error('Erro ao Enviar', 'Não foi possível enviar sua mensagem. Tente novamente.');
       setIsLoading(false);
     }
   };
