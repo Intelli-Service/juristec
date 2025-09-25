@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNotifications } from '../hooks/useNotifications';
 import { AlertCircle, CheckCircle, Upload, X } from 'lucide-react';
 
@@ -23,6 +23,16 @@ export default function FileUpload({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { error: showErrorToast, success: showSuccessToast } = useNotifications();
 
@@ -92,11 +102,14 @@ export default function FileUpload({
     // Simulate upload progress for better UX
     setIsUploading(true);
     let progress = 0;
-    const progressInterval = setInterval(() => {
+    progressIntervalRef.current = setInterval(() => {
       progress += Math.random() * 15;
       if (progress >= 100) {
         progress = 100;
-        clearInterval(progressInterval);
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+          progressIntervalRef.current = null;
+        }
         setIsUploading(false);
         setUploadSuccess(true);
         showSuccessToast('Arquivo selecionado', `${file.name} está pronto para envio.`);

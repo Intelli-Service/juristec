@@ -38,7 +38,9 @@ export function ToastProvider({ children }: ToastProviderProps) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const showToast = (toast: Omit<ToastItem, 'id'>) => {
-    const id = Math.random().toString(36).substring(2, 9);
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).substring(2, 9);
     const newToast: ToastItem = { ...toast, id };
 
     setToasts(prev => [...prev, newToast]);

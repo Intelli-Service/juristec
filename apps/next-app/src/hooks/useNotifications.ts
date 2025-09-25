@@ -3,6 +3,12 @@
 import { useToast } from '../components/ToastProvider';
 import { ToastType } from '../components/Toast';
 
+// Duration constants for better maintainability
+const DEFAULT_SUCCESS_DURATION = 4000;
+const DEFAULT_ERROR_DURATION = 6000;
+const DEFAULT_WARNING_DURATION = 5000;
+const DEFAULT_INFO_DURATION = 4000;
+
 export function useNotifications() {
   const { showToast } = useToast();
 
@@ -12,7 +18,7 @@ export function useNotifications() {
       title,
       message,
       action,
-      duration: action ? 0 : 4000, // Keep longer if has action
+      duration: action ? 0 : DEFAULT_SUCCESS_DURATION, // Keep longer if has action
     });
   };
 
@@ -22,7 +28,7 @@ export function useNotifications() {
       title,
       message,
       action,
-      duration: action ? 0 : 6000, // Keep longer for errors
+      duration: action ? 0 : DEFAULT_ERROR_DURATION, // Keep longer for errors
     });
   };
 
@@ -32,7 +38,7 @@ export function useNotifications() {
       title,
       message,
       action,
-      duration: action ? 0 : 5000,
+      duration: action ? 0 : DEFAULT_WARNING_DURATION,
     });
   };
 
@@ -42,7 +48,7 @@ export function useNotifications() {
       title,
       message,
       action,
-      duration: action ? 0 : 4000,
+      duration: action ? 0 : DEFAULT_INFO_DURATION,
     });
   };
 

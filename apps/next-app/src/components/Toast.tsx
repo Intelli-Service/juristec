@@ -39,6 +39,13 @@ const iconStyles = {
   info: 'text-blue-600',
 };
 
+const focusRingStyles = {
+  success: 'focus:ring-emerald-500',
+  error: 'focus:ring-red-500',
+  warning: 'focus:ring-amber-500',
+  info: 'focus:ring-blue-500',
+};
+
 export default function Toast({
   id,
   type,
@@ -126,7 +133,7 @@ export default function Toast({
               className={`
                 inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2
                 opacity-60 hover:opacity-100 transition-opacity
-                ${iconStyles[type]} focus:ring-${type === 'success' ? 'emerald' : type === 'error' ? 'red' : type === 'warning' ? 'amber' : 'blue'}-500
+                ${iconStyles[type]} ${focusRingStyles[type]}
               `}
               aria-label="Fechar notificação"
             >
