@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import io, { Socket } from 'socket.io-client';
 import FileUpload from './FileUpload';
 import { useNotifications } from '../hooks/useNotifications';
+import FeedbackModal, { FeedbackData } from './feedback/FeedbackModal';
+import { useFeedback } from '../hooks/useFeedback';
 
 interface Message {
   id: string;
@@ -44,8 +46,44 @@ export default function Chat() {
     description: '',
     reason: ''
   });
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   const notifications = useNotifications();
+
+  // Hook para feedback
+  const feedbackHook = useFeedback({
+    userId: 'user-' + roomId, // Usar ID consistente
+    conversationId: roomId,
+    lawyerId: caseAssigned.lawyerId,
+    onSuccess: () => {
+      setFeedbackSubmitted(true);
+      setShowFeedbackModal(false);
+      notifications.success('Avaliação enviada', 'Obrigado pelo seu feedback!');
+    },
+    onError: (error) => {
+      notifications.error('Erro na avaliação', error);
+    }
+  });
+
+  // Lógica para mostrar feedback após algumas interações
+  useEffect(() => {
+    const shouldShowFeedback =
+      hasStartedConversation &&
+      messages.length >= 4 && // Pelo menos 4 mensagens (2 trocas)
+      !feedbackSubmitted &&
+      !showFeedbackModal &&
+      messages.some(msg => msg.sender === 'lawyer' || caseAssigned.assigned); // Se teve interação com advogado
+
+    if (shouldShowFeedback) {
+      // Pequeno delay para não interromper a conversa
+      const timer = setTimeout(() => {
+        setShowFeedbackModal(true);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, hasStartedConversation, feedbackSubmitted, showFeedbackModal, caseAssigned.assigned]);
 
   const handleCreateCharge = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -237,17 +275,15 @@ export default function Chat() {
     if (!hasStartedConversation) {
       setHasStartedConversation(true);
     }
+  };
 
-    socket.emit('send-message', {
-      roomId,
-      message: input,
-      attachments
-    });
+  const handleFeedbackSubmit = async (feedbackData: FeedbackData) => {
+    await feedbackHook.submitFeedback(feedbackData);
   };
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl bg-white rounded-lg shadow-xl overflow-hidden flex flex-col" style={{height: '80vh'}}>
+        <div className="w-full max-w-4xl bg-white rounded-lg shadow-xl overflow-hidden flex flex-col" style={{height: '80vh'}}>
         {/* Header */}
         <header className="bg-slate-900 shadow-lg border-b border-slate-800 px-4 py-4">
           <div className="flex items-center justify-between">
@@ -507,6 +543,15 @@ export default function Chat() {
           </div>
         </div>
       )}
+
+      {/* Feedback Modal */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        onSubmit={handleFeedbackSubmit}
+        conversationTitle="Conversa Jurídica"
+        lawyerName={caseAssigned.lawyerName}
+      />
     </div>
   );
 }
