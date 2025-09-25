@@ -52,8 +52,12 @@ export class UploadsService {
       stream.on('error', reject);
 
       stream.on('finish', async () => {
-        // Make file publicly accessible
-        await blob.makePublic();
+        // Generate signed URL for secure access (expires in 1 hour)
+        const [signedUrl] = await blob.getSignedUrl({
+          version: 'v4',
+          action: 'read',
+          expires: Date.now() + 60 * 60 * 1000, // 1 hour
+        });
 
         // Save metadata to database
         const fileAttachment = new this.fileAttachmentModel({
@@ -61,13 +65,17 @@ export class UploadsService {
           originalName: file.originalname,
           mimeType: file.mimetype,
           size: file.size,
-          url: `https://storage.googleapis.com/${this.bucket}/${gcsPath}`,
+          url: signedUrl, // Use signed URL instead of public URL
           gcsPath,
           conversationId,
           userId,
         });
 
         const savedFile = await fileAttachment.save();
+
+        // Log upload for audit trail
+        console.log(`[AUDIT] File uploaded: ${uniqueFilename} by user ${userId} at ${new Date().toISOString()}`);
+
         resolve(savedFile);
       });
 
@@ -75,10 +83,25 @@ export class UploadsService {
     });
   }
 
-  async getFilesByConversation(conversationId: string): Promise<FileAttachment[]> {
-    return this.fileAttachmentModel
+  async getFilesByConversation(conversationId: string, userId?: string): Promise<FileAttachment[]> {
+    const files = await this.fileAttachmentModel
       .find({ conversationId, isDeleted: false })
       .sort({ createdAt: -1 });
+
+    // Generate fresh signed URLs for all files
+    for (const file of files) {
+      const [signedUrl] = await this.storage.bucket(this.bucket).file(file.gcsPath).getSignedUrl({
+        version: 'v4',
+        action: 'read',
+        expires: Date.now() + 60 * 60 * 1000, // 1 hour
+      });
+      file.url = signedUrl;
+
+      // Log access for audit trail
+      console.log(`[AUDIT] File access: ${file.filename} by user ${userId || 'unknown'} at ${new Date().toISOString()}`);
+    }
+
+    return files;
   }
 
   async deleteFile(fileId: string, userId: string): Promise<void> {
@@ -101,6 +124,9 @@ export class UploadsService {
       { _id: fileId },
       { isDeleted: true },
     );
+
+    // Log deletion for audit trail
+    console.log(`[AUDIT] File deleted: ${file.filename} by user ${userId} at ${new Date().toISOString()}`);
   }
 
   private validateFile(file: Express.Multer.File): void {

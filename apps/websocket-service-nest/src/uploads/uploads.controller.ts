@@ -9,6 +9,7 @@ import {
   UseGuards,
   Body,
   BadRequestException,
+  Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
@@ -24,15 +25,17 @@ export class UploadsController {
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
     @Body('conversationId') conversationId: string,
-    @Body('userId') userId: string,
+    @Request() req: any,
   ) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
 
-    if (!conversationId || !userId) {
-      throw new BadRequestException('conversationId and userId are required');
+    if (!conversationId) {
+      throw new BadRequestException('conversationId is required');
     }
+
+    const userId = req.user.userId; // Extract from JWT token
 
     try {
       const result = await this.uploadsService.uploadFile(file, conversationId, userId);
@@ -46,8 +49,12 @@ export class UploadsController {
   }
 
   @Get('conversation/:conversationId')
-  async getFilesByConversation(@Param('conversationId') conversationId: string) {
-    const files = await this.uploadsService.getFilesByConversation(conversationId);
+  async getFilesByConversation(
+    @Param('conversationId') conversationId: string,
+    @Request() req: any,
+  ) {
+    const userId = req.user.userId; // Extract from JWT token
+    const files = await this.uploadsService.getFilesByConversation(conversationId, userId);
     return {
       success: true,
       data: files,
@@ -57,11 +64,9 @@ export class UploadsController {
   @Delete(':fileId')
   async deleteFile(
     @Param('fileId') fileId: string,
-    @Body('userId') userId: string,
+    @Request() req: any,
   ) {
-    if (!userId) {
-      throw new BadRequestException('userId is required');
-    }
+    const userId = req.user.userId; // Extract from JWT token
 
     try {
       await this.uploadsService.deleteFile(fileId, userId);
