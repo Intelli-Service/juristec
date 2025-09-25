@@ -174,7 +174,7 @@ export class BillingService {
     }
 
     // Atualizar status da cobrança
-    await this.updateChargeStatus({
+    const updatedCharge = await this.updateChargeStatus({
       chargeId,
       status: ChargeStatus.ACCEPTED
     });
@@ -192,7 +192,7 @@ export class BillingService {
     // await this.chatGateway.notifyChargeUpdated(charge.conversationId, charge);
 
     return {
-      charge
+      charge: updatedCharge
     };
   }
 
