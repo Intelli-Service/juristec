@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import io, { Socket } from 'socket.io-client';
 import FileUpload from './FileUpload';
+import { useNotifications } from '../hooks/useNotifications';
 
 interface Message {
   id: string;
@@ -44,6 +45,8 @@ export default function Chat() {
     reason: ''
   });
 
+  const notifications = useNotifications();
+
   const handleCreateCharge = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -79,10 +82,10 @@ export default function Chat() {
       setShowChargeModal(false);
 
       // Show success message
-      alert('Cobrança criada com sucesso! O cliente foi notificado.');
+      notifications.success('Cobrança criada com sucesso!', 'O cliente foi notificado.');
     } catch (error) {
       console.error('Erro ao criar cobrança:', error);
-      alert('Erro ao criar cobrança. Tente novamente.');
+      notifications.error('Erro ao criar cobrança', 'Tente novamente.');
     } finally {
       setIsCreatingCharge(false);
     }

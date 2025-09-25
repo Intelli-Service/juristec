@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CreditCard, Smartphone, FileText, Loader2 } from 'lucide-react';
+import { useNotifications } from '../hooks/useNotifications';
 
 interface PaymentCheckoutProps {
   conversationId: string;
@@ -43,6 +44,8 @@ export function PaymentCheckout({
     cardCvv: '',
     installments: 1,
   });
+
+  const notifications = useNotifications();
 
   const formatAmount = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -178,11 +181,11 @@ export function PaymentCheckout({
 
       const result = await response.json();
 
-      alert('Pagamento processado com sucesso!');
+      notifications.success('Pagamento processado!', 'Seu pagamento foi aprovado com sucesso.');
       onPaymentSuccess?.(result);
     } catch (error) {
       console.error('Erro no pagamento:', error);
-      alert('Erro ao processar pagamento. Tente novamente.');
+      notifications.error('Erro no pagamento', 'Tente novamente ou entre em contato com o suporte.');
       onPaymentError?.({ message: error instanceof Error ? error.message : 'Erro desconhecido' });
     } finally {
       setIsProcessing(false);

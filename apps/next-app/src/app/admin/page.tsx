@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface AIConfig {
   systemPrompt: string;
@@ -36,6 +37,7 @@ interface BillingReport {
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const notifications = useNotifications();
   const [activeTab, setActiveTab] = useState('ai-config');
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null);
   const [billingReport, setBillingReport] = useState<BillingReport | null>(null);
@@ -130,10 +132,10 @@ export default function AdminDashboard() {
       
       const updated = await response.json();
       setAiConfig(updated);
-      alert('Configuração atualizada com sucesso!');
+      notifications.success('Configuração Atualizada', 'As configurações foram salvas com sucesso!');
     } catch (error) {
       console.error('Erro ao atualizar configuração:', error);
-      alert('Erro ao atualizar configuração');
+      notifications.error('Erro na Configuração', 'Não foi possível atualizar as configurações. Tente novamente.');
     }
   };
 
