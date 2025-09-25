@@ -259,6 +259,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           console.log(`Conversa ${roomId} necessita advogado especializado em: ${registrationResult.specializationRequired}`);
         }
       }
+      if (registrationResult.shouldShowFeedback) {
+        console.log(`Feedback deve ser mostrado para conversa ${roomId}. Razão: ${registrationResult.feedbackReason}`);
+        // Emitir evento para o frontend mostrar o modal de feedback
+        client.emit('show-feedback-modal', {
+          reason: registrationResult.feedbackReason,
+          context: 'Conversa concluída com sucesso'
+        });
+      }
 
       // Salvar resposta da IA
       let aiMessage;

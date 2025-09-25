@@ -9,6 +9,8 @@ import { PaymentModule } from './payment/payment.module';
 import { BillingModule } from './billing/billing.module';
 import { WebhookModule } from './webhook/webhook.module';
 import { FeedbackModule } from './feedback/feedback.module';
+import { MongodbService } from './lib/mongodb.service';
+import { AIService } from './lib/ai.service';
 
 @Module({
   imports: [
@@ -25,7 +27,6 @@ import { FeedbackModule } from './feedback/feedback.module';
     PaymentModule,
     BillingModule,
     WebhookModule,
-    AnalyticsModule,
     FeedbackModule,
   ],
   providers: [MongodbService, AIService],

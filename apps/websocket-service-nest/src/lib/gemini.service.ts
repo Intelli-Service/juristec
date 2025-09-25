@@ -16,14 +16,23 @@ export interface RegisterUserFunctionCall {
 export interface UpdateConversationStatusFunctionCall {
   name: 'update_conversation_status';
   parameters: {
-    status: 'collecting_data' | 'analyzing_case' | 'connecting_lawyer' | 'resolved';
+    status: 'active' | 'resolved_by_ai' | 'assigned_to_lawyer' | 'completed' | 'abandoned';
     lawyer_needed: boolean;
     specialization_required?: string;
     notes?: string;
   };
 }
 
-export type FunctionCall = RegisterUserFunctionCall | UpdateConversationStatusFunctionCall;
+export interface DetectConversationCompletionFunctionCall {
+  name: 'detect_conversation_completion';
+  parameters: {
+    should_show_feedback: boolean;
+    completion_reason: 'resolved_by_ai' | 'assigned_to_lawyer' | 'user_satisfied' | 'user_abandoned';
+    feedback_context?: string;
+  };
+}
+
+export type FunctionCall = RegisterUserFunctionCall | UpdateConversationStatusFunctionCall | DetectConversationCompletionFunctionCall;
 
 @Injectable()
 export class GeminiService {
@@ -82,8 +91,8 @@ export class GeminiService {
                   status: {
                     type: SchemaType.STRING,
                     format: 'enum',
-                    enum: ['collecting_data', 'analyzing_case', 'connecting_lawyer', 'resolved'],
-                    description: 'Status atual da conversa'
+                    enum: ['active', 'resolved_by_ai', 'assigned_to_lawyer', 'completed', 'abandoned'],
+                    description: 'Status atual da conversa para controle de feedback inteligente'
                   },
                   lawyer_needed: {
                     type: SchemaType.BOOLEAN,
@@ -99,6 +108,30 @@ export class GeminiService {
                   }
                 },
                 required: ['status', 'lawyer_needed']
+              }
+            },
+            {
+              name: 'detect_conversation_completion',
+              description: 'Detecta quando uma conversa deve mostrar feedback baseado no contexto e intenção do usuário',
+              parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  should_show_feedback: {
+                    type: SchemaType.BOOLEAN,
+                    description: 'Se deve mostrar o modal de feedback para esta conversa'
+                  },
+                  completion_reason: {
+                    type: SchemaType.STRING,
+                    format: 'enum',
+                    enum: ['resolved_by_ai', 'assigned_to_lawyer', 'user_satisfied', 'user_abandoned'],
+                    description: 'Razão pela qual a conversa deve mostrar feedback'
+                  },
+                  feedback_context: {
+                    type: SchemaType.STRING,
+                    description: 'Contexto adicional sobre por que o feedback deve ser mostrado'
+                  }
+                },
+                required: ['should_show_feedback', 'completion_reason']
               }
             }
           ]
@@ -181,6 +214,11 @@ export class GeminiService {
           functionCalls.push({
             name: 'update_conversation_status',
             parameters: call.args as UpdateConversationStatusFunctionCall['parameters']
+          });
+        } else if (call.name === 'detect_conversation_completion') {
+          functionCalls.push({
+            name: 'detect_conversation_completion',
+            parameters: call.args as DetectConversationCompletionFunctionCall['parameters']
           });
         }
       }

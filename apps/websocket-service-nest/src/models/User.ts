@@ -9,8 +9,13 @@ export enum UserRole {
 
 export enum CaseStatus {
   OPEN = 'open',
-  ASSIGNED = 'assigned',
-  CLOSED = 'closed',
+  ACTIVE = 'active',           // Conversa em andamento
+  RESOLVED_BY_AI = 'resolved_by_ai',     // Resolvida apenas por IA
+  ASSIGNED = 'assigned',       // Mantém compatibilidade
+  ASSIGNED_TO_LAWYER = 'assigned_to_lawyer', // Atribuída a advogado
+  COMPLETED = 'completed',     // Finalizada com sucesso
+  CLOSED = 'closed',           // Mantém compatibilidade
+  ABANDONED = 'abandoned',     // Abandonada pelo usuário
   PENDING_REVIEW = 'pending_review'
 }
 
