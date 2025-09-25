@@ -107,8 +107,31 @@ export class IntelligentUserRegistrationService {
             specializationRequired = statusResult.specializationRequired;
             console.log('✅ Status da conversa atualizado via function call');
           } else if (functionCall.name === 'detect_conversation_completion') {
-            shouldShowFeedback = functionCall.parameters.should_show_feedback;
-            feedbackReason = functionCall.parameters.completion_reason;
+            // Validação de parâmetros para evitar erros de runtime
+            if (
+              functionCall.parameters &&
+              typeof functionCall.parameters === 'object'
+            ) {
+              if (typeof functionCall.parameters.should_show_feedback === 'boolean') {
+                shouldShowFeedback = functionCall.parameters.should_show_feedback;
+              } else {
+                shouldShowFeedback = false;
+                console.warn('⚠️ should_show_feedback ausente ou tipo inválido em detect_conversation_completion');
+              }
+              if (
+                typeof functionCall.parameters.completion_reason === 'string' &&
+                functionCall.parameters.completion_reason.length > 0
+              ) {
+                feedbackReason = functionCall.parameters.completion_reason;
+              } else {
+                feedbackReason = undefined;
+                console.warn('⚠️ completion_reason ausente ou tipo inválido em detect_conversation_completion');
+              }
+            } else {
+              shouldShowFeedback = false;
+              feedbackReason = undefined;
+              console.warn('⚠️ Parâmetros ausentes ou inválidos em detect_conversation_completion');
+            }
             console.log(`✅ Detecção de conclusão de conversa: feedback=${shouldShowFeedback}, reason=${feedbackReason}`);
           }
         }

@@ -8,13 +8,16 @@ export enum UserRole {
 }
 
 export enum CaseStatus {
-  OPEN = 'open',
-  ACTIVE = 'active',           // Conversa em andamento
-  RESOLVED_BY_AI = 'resolved_by_ai',     // Resolvida apenas por IA
-  ASSIGNED = 'assigned',       // Mantém compatibilidade
-  ASSIGNED_TO_LAWYER = 'assigned_to_lawyer', // Atribuída a advogado
-  COMPLETED = 'completed',     // Finalizada com sucesso
-  CLOSED = 'closed',           // Mantém compatibilidade
+  // Status legados (manter compatibilidade)
+  OPEN = 'open',           // Conversa iniciada, aguardando processamento
+  ASSIGNED = 'assigned',   // Atribuída a um advogado (legado - usar ASSIGNED_TO_LAWYER)
+  CLOSED = 'closed',       // Finalizada (legado - usar COMPLETED)
+
+  // Novos status para sistema de feedback inteligente
+  ACTIVE = 'active',           // Conversa em andamento, sendo processada
+  RESOLVED_BY_AI = 'resolved_by_ai',     // Resolvida apenas por IA (gatilho de feedback)
+  ASSIGNED_TO_LAWYER = 'assigned_to_lawyer', // Atribuída a advogado (gatilho de feedback)
+  COMPLETED = 'completed',     // Finalizada com sucesso (gatilho de feedback)
   ABANDONED = 'abandoned',     // Abandonada pelo usuário
   PENDING_REVIEW = 'pending_review'
 }
