@@ -8,10 +8,7 @@ import { UploadsModule } from './uploads/uploads.module';
 import { PaymentModule } from './payment/payment.module';
 import { BillingModule } from './billing/billing.module';
 import { WebhookModule } from './webhook/webhook.module';
-import { AnalyticsModule } from './admin/analytics.module';
-import { MongodbService } from './lib/mongodb.service';
-import { AIService } from './lib/ai.service';
-import { GeminiService } from './lib/gemini.service';
+import { FeedbackModule } from './feedback/feedback.module';
 
 @Module({
   imports: [
@@ -29,6 +26,7 @@ import { GeminiService } from './lib/gemini.service';
     BillingModule,
     WebhookModule,
     AnalyticsModule,
+    FeedbackModule,
   ],
   providers: [MongodbService, AIService],
 })
