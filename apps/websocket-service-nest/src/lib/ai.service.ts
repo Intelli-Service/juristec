@@ -21,6 +21,7 @@ export class AIService {
 FUNÇÕES DISPONÍVEIS (USE SEMPRE QUE POSSÍVEL):
 - register_user: CHAME IMEDIATAMENTE quando tiver nome + contato (email/telefone) + problema do usuário
 - update_conversation_status: CHAME após registrar usuário para classificar o caso
+- detect_conversation_completion: CHAME quando detectar que a conversa deve mostrar feedback
 
 INSTRUÇÕES DE FUNCTION CALLS:
 1. QUANDO CHAMAR register_user:
@@ -28,10 +29,12 @@ INSTRUÇÕES DE FUNCTION CALLS:
    - Exemplo: "João Silva, joao@email.com, contrato de trabalho" = CHAME register_user
    - NÃO espere mais informações, use o que tem disponível
 
-2. QUANDO CHAMAR update_conversation_status:
-   - Após registrar usuário, sempre chame para definir próximos passos
-   - Defina lawyer_needed=true se caso complexo ou precisar ação judicial
-   - Especialização: "Direito Trabalhista", "Direito Civil", "Direito Penal", etc.
+3. QUANDO CHAMAR detect_conversation_completion:
+   - Quando resolver um problema jurídico simples apenas com orientação
+   - Quando o usuário indicar satisfação ou que o problema foi resolvido
+   - Quando encaminhar para advogado após análise completa
+   - Quando o usuário agradecer ou indicar que não precisa de mais ajuda
+   - completion_reason: 'resolved_by_ai' (resolvido por IA), 'assigned_to_lawyer' (encaminhado), 'user_satisfied' (usuário satisfeito), 'user_abandoned' (usuário desistiu)
 
 IMPORTANTE: Use as function calls sempre que as condições forem atendidas. Não mencione as funções na resposta de texto.
 
@@ -59,7 +62,9 @@ EXEMPLOS DE USO DAS FUNCTIONS:
 - Após analisar caso complexo: "Este caso precisa de advogado trabalhista"
   → Chame update_conversation_status com lawyer_needed=true e specialization_required
 - Caso simples resolvido: "Posso te ajudar com isso"
-  → Chame update_conversation_status com status=resolved`,
+  → Chame update_conversation_status com status=resolved_by_ai + detect_conversation_completion
+- Usuário satisfeito: "Obrigado, isso resolveu meu problema"
+  → Chame detect_conversation_completion com should_show_feedback=true`,
           behaviorSettings: {
             maxTokens: 1000,
             temperature: 0.7,

@@ -1,28 +1,24 @@
 import { Injectable } from '@nestjs/common';
-import { GeminiService, RegisterUserFunctionCall, UpdateConversationStatusFunctionCall } from './gemini.service';
+import { GeminiService, RegisterUserFunctionCall, UpdateConversationStatusFunctionCall, DetectConversationCompletionFunctionCall } from './gemini.service';
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
 import { FluidRegistrationService } from './fluid-registration.service';
 import Conversation from '../models/Conversation';
 import { IUser } from '../models/User';
+import { CaseStatus } from '../models/User';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
-
-export enum ConversationStatus {
-  COLLECTING_DATA = 'collecting_data',
-  ANALYZING_CASE = 'analyzing_case',
-  CONNECTING_LAWYER = 'connecting_lawyer',
-  RESOLVED = 'resolved'
-}
 
 export interface IntelligentRegistrationResult {
   response: string;
   userRegistered?: boolean;
   statusUpdated?: boolean;
-  newStatus?: ConversationStatus;
+  newStatus?: CaseStatus;
   lawyerNeeded?: boolean;
   specializationRequired?: string;
+  shouldShowFeedback?: boolean;
+  feedbackReason?: string;
 }
 
 @Injectable()
@@ -88,9 +84,11 @@ export class IntelligentUserRegistrationService {
 
       let userRegistered = false;
       let statusUpdated = false;
-      let newStatus: ConversationStatus | undefined;
+      let newStatus: CaseStatus | undefined;
       let lawyerNeeded: boolean | undefined;
       let specializationRequired: string | undefined;
+      let shouldShowFeedback = false;
+      let feedbackReason: string | undefined;
 
       // Processar function calls se existirem
       if (result.functionCalls) {
@@ -108,6 +106,33 @@ export class IntelligentUserRegistrationService {
             lawyerNeeded = statusResult.lawyerNeeded;
             specializationRequired = statusResult.specializationRequired;
             console.log('✅ Status da conversa atualizado via function call');
+          } else if (functionCall.name === 'detect_conversation_completion') {
+            // Validação de parâmetros para evitar erros de runtime
+            if (
+              functionCall.parameters &&
+              typeof functionCall.parameters === 'object'
+            ) {
+              if (typeof functionCall.parameters.should_show_feedback === 'boolean') {
+                shouldShowFeedback = functionCall.parameters.should_show_feedback;
+              } else {
+                shouldShowFeedback = false;
+                console.warn('⚠️ should_show_feedback ausente ou tipo inválido em detect_conversation_completion');
+              }
+              if (
+                typeof functionCall.parameters.completion_reason === 'string' &&
+                functionCall.parameters.completion_reason.length > 0
+              ) {
+                feedbackReason = functionCall.parameters.completion_reason;
+              } else {
+                feedbackReason = undefined;
+                console.warn('⚠️ completion_reason ausente ou tipo inválido em detect_conversation_completion');
+              }
+            } else {
+              shouldShowFeedback = false;
+              feedbackReason = undefined;
+              console.warn('⚠️ Parâmetros ausentes ou inválidos em detect_conversation_completion');
+            }
+            console.log(`✅ Detecção de conclusão de conversa: feedback=${shouldShowFeedback}, reason=${feedbackReason}`);
           }
         }
       } else {
@@ -120,7 +145,9 @@ export class IntelligentUserRegistrationService {
         statusUpdated,
         newStatus,
         lawyerNeeded,
-        specializationRequired
+        specializationRequired,
+        shouldShowFeedback,
+        feedbackReason
       };
 
     } catch (error) {
@@ -163,7 +190,7 @@ export class IntelligentUserRegistrationService {
         // Se foi criado/verificado automaticamente, atualizar conversa
         if (fluidResult.userId) {
           await this.conversationModel.findByIdAndUpdate(conversationId, {
-            status: ConversationStatus.COLLECTING_DATA,
+            status: CaseStatus.ACTIVE,
             clientInfo: {
               name: params.name,
               email: params.email,
@@ -222,7 +249,7 @@ export class IntelligentUserRegistrationService {
 
       await this.conversationModel.findByIdAndUpdate(conversationId, {
         userId: user._id,
-        status: ConversationStatus.COLLECTING_DATA,
+        status: CaseStatus.ACTIVE,
         clientInfo: {
           name: params.name,
           email: params.email,
@@ -245,7 +272,7 @@ export class IntelligentUserRegistrationService {
   private async handleStatusUpdate(
     params: UpdateConversationStatusFunctionCall['parameters'],
     conversationId: string
-  ): Promise<{ newStatus: ConversationStatus; lawyerNeeded: boolean; specializationRequired?: string }> {
+  ): Promise<{ newStatus: CaseStatus; lawyerNeeded: boolean; specializationRequired?: string }> {
     try {
       const updateData: any = {
         status: params.status,
@@ -272,7 +299,7 @@ export class IntelligentUserRegistrationService {
       console.log(`Status da conversa ${conversationId} atualizado para: ${params.status}`);
 
       return {
-        newStatus: params.status as ConversationStatus,
+        newStatus: params.status as CaseStatus,
         lawyerNeeded: params.lawyer_needed,
         specializationRequired: params.specialization_required
       };
@@ -294,7 +321,7 @@ export class IntelligentUserRegistrationService {
   /**
    * Obtém estatísticas de conversas por status
    */
-  async getConversationStats(): Promise<Record<ConversationStatus, number>> {
+  async getConversationStats(): Promise<Record<CaseStatus, number>> {
     const stats = await this.conversationModel.aggregate([
       {
         $group: {
@@ -304,16 +331,21 @@ export class IntelligentUserRegistrationService {
       }
     ]);
 
-    const result: Record<ConversationStatus, number> = {
-      [ConversationStatus.COLLECTING_DATA]: 0,
-      [ConversationStatus.ANALYZING_CASE]: 0,
-      [ConversationStatus.CONNECTING_LAWYER]: 0,
-      [ConversationStatus.RESOLVED]: 0
+    const result: Record<CaseStatus, number> = {
+      [CaseStatus.OPEN]: 0,
+      [CaseStatus.ACTIVE]: 0,
+      [CaseStatus.RESOLVED_BY_AI]: 0,
+      [CaseStatus.ASSIGNED]: 0,
+      [CaseStatus.ASSIGNED_TO_LAWYER]: 0,
+      [CaseStatus.COMPLETED]: 0,
+      [CaseStatus.CLOSED]: 0,
+      [CaseStatus.ABANDONED]: 0,
+      [CaseStatus.PENDING_REVIEW]: 0
     };
 
     stats.forEach(stat => {
       if (stat._id in result) {
-        result[stat._id as ConversationStatus] = stat.count;
+        result[stat._id as CaseStatus] = stat.count;
       }
     });
 

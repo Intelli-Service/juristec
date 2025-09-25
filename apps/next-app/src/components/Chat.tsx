@@ -66,24 +66,9 @@ export default function Chat() {
     }
   });
 
-  // Lógica para mostrar feedback após algumas interações
-  useEffect(() => {
-    const shouldShowFeedback =
-      hasStartedConversation &&
-      messages.length >= 4 && // Pelo menos 4 mensagens (2 trocas)
-      !feedbackSubmitted &&
-      !showFeedbackModal &&
-      messages.some(msg => msg.sender === 'lawyer' || caseAssigned.assigned); // Se teve interação com advogado
-
-    if (shouldShowFeedback) {
-      // Pequeno delay para não interromper a conversa
-      const timer = setTimeout(() => {
-        setShowFeedbackModal(true);
-      }, 2000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [messages.length, hasStartedConversation, feedbackSubmitted, showFeedbackModal, caseAssigned.assigned]);
+  // Lógica para mostrar feedback baseada em decisão inteligente da IA
+  // O feedback agora é controlado pelo evento WebSocket 'show-feedback-modal'
+  // que é emitido quando a IA detecta que uma conversa deve mostrar feedback
 
   const handleCreateCharge = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,6 +163,17 @@ export default function Chat() {
         });
       } else if (data.status === 'open') {
         setCaseAssigned({ assigned: false });
+      }
+    });
+
+    // Listener para mostrar modal de feedback baseado em decisão da IA
+    newSocket.on('show-feedback-modal', (data: { reason: string; context: string }) => {
+      console.log('🎯 IA detectou que deve mostrar feedback:', data);
+      if (!feedbackSubmitted && !showFeedbackModal) {
+        // Pequeno delay para não interromper a conversa
+        setTimeout(() => {
+          setShowFeedbackModal(true);
+        }, 2000);
       }
     });
 
