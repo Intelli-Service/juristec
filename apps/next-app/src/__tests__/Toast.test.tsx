@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { jest } from '@jest/globals'
 import Toast, { ToastProps } from '../components/Toast'
 
@@ -108,7 +108,9 @@ describe('Toast Component', () => {
 
     expect(screen.getByRole('alert')).toBeInTheDocument()
 
-    jest.advanceTimersByTime(1000)
+    act(() => {
+      jest.advanceTimersByTime(1000)
+    })
 
     await waitFor(() => {
       expect(defaultProps.onClose).toHaveBeenCalledWith('test-toast')
@@ -151,12 +153,16 @@ describe('Toast Component', () => {
 
     // Hover - should pause
     fireEvent.mouseEnter(toast)
-    jest.advanceTimersByTime(1500)
+    act(() => {
+      jest.advanceTimersByTime(1500)
+    })
     expect(defaultProps.onClose).not.toHaveBeenCalled()
 
     // Mouse leave - should resume
     fireEvent.mouseLeave(toast)
-    jest.advanceTimersByTime(500)
+    act(() => {
+      jest.advanceTimersByTime(500)
+    })
 
     await waitFor(() => {
       expect(defaultProps.onClose).toHaveBeenCalledWith('test-toast')

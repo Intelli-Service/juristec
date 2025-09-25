@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { jest } from '@jest/globals'
 import { ToastProvider, useToast } from '../components/ToastProvider'
 
@@ -133,7 +133,9 @@ describe('ToastProvider', () => {
     })
 
     // Avança tempo além da duração padrão (4000ms)
-    jest.advanceTimersByTime(5000)
+    act(() => {
+      jest.advanceTimersByTime(5000)
+    })
 
     await waitFor(() => {
       expect(screen.queryByText('Test Toast')).not.toBeInTheDocument()
