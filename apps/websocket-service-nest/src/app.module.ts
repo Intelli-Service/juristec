@@ -9,6 +9,7 @@ import { PaymentModule } from './payment/payment.module';
 import { BillingModule } from './billing/billing.module';
 import { WebhookModule } from './webhook/webhook.module';
 import { FeedbackModule } from './feedback/feedback.module';
+import { AppointmentModule } from './appointment/appointment.module';
 import { MongodbService } from './lib/mongodb.service';
 import { AIService } from './lib/ai.service';
 
@@ -28,6 +29,7 @@ import { AIService } from './lib/ai.service';
     BillingModule,
     WebhookModule,
     FeedbackModule,
+    AppointmentModule,
   ],
   providers: [MongodbService, AIService],
 })
