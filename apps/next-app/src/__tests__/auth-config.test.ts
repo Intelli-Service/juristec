@@ -164,7 +164,7 @@ describe('Authentication Configuration', () => {
   describe('JWT and Session Callbacks', () => {
     it('should include user role and permissions in JWT token', () => {
       // Mock do callback JWT do NextAuth
-      const jwtCallback = ({ token, user }: { token: any; user?: { role: string; permissions: string[] } }) => {
+      const jwtCallback = ({ token, user }: { token: Record<string, unknown>; user?: { role: string; permissions: string[] } }) => {
         if (user) {
           token.role = user.role
           token.permissions = user.permissions
@@ -190,7 +190,7 @@ describe('Authentication Configuration', () => {
 
     it('should include token data in session', () => {
       // Mock do callback session do NextAuth
-      const sessionCallback = ({ session, token }: { session: any; token?: { sub?: string; role?: string; permissions?: string[] } }) => {
+      const sessionCallback = ({ session, token }: { session: { user: Record<string, unknown> }; token?: { sub?: string; role?: string; permissions?: string[] } }) => {
         if (token) {
           session.user.id = token.sub
           session.user.role = token.role

@@ -1,4 +1,5 @@
 import { NextAuthOptions } from 'next-auth'
+import type { JWT } from 'next-auth/jwt'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { MongoDBAdapter } from '@auth/mongodb-adapter'
 import { MongoClient } from 'mongodb'
@@ -114,7 +115,7 @@ export const authOptions: NextAuthOptions = {
     decode: async ({ secret, token }) => {
       if (!token) return null
       try {
-        return jwt.verify(token, secret) as any
+        return jwt.verify(token, secret) as JWT
       } catch {
         return null
       }

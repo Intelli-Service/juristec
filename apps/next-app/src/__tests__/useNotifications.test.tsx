@@ -124,7 +124,7 @@ describe('useNotifications Hook', () => {
   })
 
   it('returns all notification methods', () => {
-    let hookResult: any = null
+    let hookResult: ReturnType<typeof useNotifications> | null = null
 
     function HookTester() {
       hookResult = useNotifications()
@@ -137,14 +137,15 @@ describe('useNotifications Hook', () => {
       </ToastProvider>
     )
 
+    expect(hookResult).toBeTruthy()
     expect(hookResult).toHaveProperty('success')
     expect(hookResult).toHaveProperty('error')
     expect(hookResult).toHaveProperty('warning')
     expect(hookResult).toHaveProperty('info')
-    expect(typeof hookResult.success).toBe('function')
-    expect(typeof hookResult.error).toBe('function')
-    expect(typeof hookResult.warning).toBe('function')
-    expect(typeof hookResult.info).toBe('function')
+    expect(typeof hookResult!.success).toBe('function')
+    expect(typeof hookResult!.error).toBe('function')
+    expect(typeof hookResult!.warning).toBe('function')
+    expect(typeof hookResult!.info).toBe('function')
   })
 
   it('handles notifications without message parameter', async () => {

@@ -55,14 +55,14 @@ describe('Authentication Integration (Next.js)', () => {
       // 2. Obter CSRF token
       const csrfResponse = await realRequest(`${baseUrl}/api/auth/csrf`)
       expect(csrfResponse.status).toBe(200)
-      const csrfData = csrfResponse.data as any
+      const csrfData = csrfResponse.data as { csrfToken?: string }
       expect(csrfData.csrfToken).toBeDefined()
 
       // 3. Tentar login com credenciais corretas
       const loginData = new URLSearchParams({
         email: 'admin@demo.com',
         password: 'admin123',
-        csrfToken: csrfData.csrfToken,
+        csrfToken: csrfData.csrfToken!,
         callbackUrl: `${baseUrl}/admin`,
         json: 'true'
       }).toString()

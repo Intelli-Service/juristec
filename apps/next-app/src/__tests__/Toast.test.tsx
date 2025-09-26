@@ -13,7 +13,7 @@ global.ResizeObserver = jest.fn().mockImplementation(() => ({
   observe: jest.fn(),
   unobserve: jest.fn(),
   disconnect: jest.fn(),
-})) as jest.MockedClass<any>
+})) as jest.MockedClass<{ observe: jest.Mock; unobserve: jest.Mock; disconnect: jest.Mock }>
 
 describe('Toast Component', () => {
   const defaultProps: ToastProps = {
