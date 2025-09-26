@@ -89,7 +89,9 @@ export class WebhookController {
   }
 
   private async handlePaymentUpdated(data: PagarmeWebhookPayload['data']) {
-    this.logger.log(`Pagamento atualizado: ${data.id} - Status: ${data.status}`);
+    this.logger.log(
+      `Pagamento atualizado: ${data.id} - Status: ${data.status}`,
+    );
 
     // Atualizar status baseado no novo status do pagamento
     if (data.metadata?.chargeId) {
@@ -122,11 +124,15 @@ export class WebhookController {
     // Se temos o ID da cobrança nos metadados, podemos tomar ações adicionais
     if (data.metadata?.chargeId) {
       // Por enquanto, apenas logar. Podemos implementar retry ou notificações
-      this.logger.warn(`Cobrança falhou para chargeId: ${data.metadata.chargeId}`);
+      this.logger.warn(
+        `Cobrança falhou para chargeId: ${data.metadata.chargeId}`,
+      );
     }
   }
 
-  private mapPaymentStatusToChargeStatus(paymentStatus: string): ChargeStatus | null {
+  private mapPaymentStatusToChargeStatus(
+    paymentStatus: string,
+  ): ChargeStatus | null {
     switch (paymentStatus) {
       case 'paid':
         return ChargeStatus.PAID;

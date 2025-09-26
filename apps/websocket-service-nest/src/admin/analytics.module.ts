@@ -10,11 +10,11 @@ import Conversation from '../models/Conversation';
       { name: 'Charge', schema: require('../models/Charge').default.schema },
       { name: 'Conversation', schema: Conversation.schema },
       { name: 'Message', schema: require('../models/Message').default.schema },
-      { name: 'User', schema: require('../models/User').default.schema }
-    ])
+      { name: 'User', schema: require('../models/User').default.schema },
+    ]),
   ],
   controllers: [AnalyticsController],
   providers: [AnalyticsService],
-  exports: [AnalyticsService]
+  exports: [AnalyticsService],
 })
 export class AnalyticsModule {}

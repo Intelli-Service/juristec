@@ -1,8 +1,23 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { AIService } from '../lib/ai.service';
 import User, { UserRole } from '../models/User';
 import Conversation from '../models/Conversation';
-import { NextAuthGuard, Roles, Permissions, JwtPayload } from '../guards/nextauth.guard';
+import {
+  NextAuthGuard,
+  Roles,
+  Permissions,
+  JwtPayload,
+} from '../guards/nextauth.guard';
 
 @Controller('admin')
 export class AdminController {
@@ -20,7 +35,10 @@ export class AdminController {
   @Roles('super_admin', 'moderator')
   @Put('ai-config')
   @Permissions('manage_ai_config')
-  async updateAIConfig(@Body() updates: any, @Request() req: { user: JwtPayload }) {
+  async updateAIConfig(
+    @Body() updates: any,
+    @Request() req: { user: JwtPayload },
+  ) {
     const updatedBy = req.user.userId;
     return this.aiService.updateConfig(updates, updatedBy);
   }
@@ -38,7 +56,10 @@ export class AdminController {
   @Roles('super_admin')
   @Post('users')
   @Permissions('manage_users')
-  async createUser(@Body() userData: any, @Request() req: { user: JwtPayload }) {
+  async createUser(
+    @Body() userData: any,
+    @Request() req: { user: JwtPayload },
+  ) {
     const user = new User(userData);
     return user.save();
   }
@@ -47,15 +68,24 @@ export class AdminController {
   @Roles('super_admin')
   @Put('users/:id')
   @Permissions('manage_users')
-  async updateUser(@Param('id') id: string, @Body() updates: any, @Request() req: { user: JwtPayload }) {
-    return User.findByIdAndUpdate(id, updates, { new: true }).select('-password');
+  async updateUser(
+    @Param('id') id: string,
+    @Body() updates: any,
+    @Request() req: { user: JwtPayload },
+  ) {
+    return User.findByIdAndUpdate(id, updates, { new: true }).select(
+      '-password',
+    );
   }
 
   @UseGuards(NextAuthGuard)
   @Roles('super_admin')
   @Delete('users/:id')
   @Permissions('manage_users')
-  async deleteUser(@Param('id') id: string, @Request() req: { user: JwtPayload }) {
+  async deleteUser(
+    @Param('id') id: string,
+    @Request() req: { user: JwtPayload },
+  ) {
     return User.findByIdAndDelete(id);
   }
 
@@ -74,7 +104,11 @@ export class AdminController {
 
   @Put('cases/:id/assign')
   @Permissions('assign_cases')
-  async assignCase(@Param('id') id: string, @Body() { lawyerId }: { lawyerId: string }, @Request() req: { user: JwtPayload }) {
+  async assignCase(
+    @Param('id') id: string,
+    @Body() { lawyerId }: { lawyerId: string },
+    @Request() req: { user: JwtPayload },
+  ) {
     return this.aiService.assignCase(id, lawyerId);
   }
 

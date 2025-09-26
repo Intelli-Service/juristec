@@ -1,0 +1,390 @@
+name: CI/CD Pipeline - Comprehensive Testing & Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '18'
+  MONGODB_URI: ${{ secrets.MONGODB_URI || 'mongodb://localhost:27017/juristec-test' }}
+  GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY || 'test-api-key' }}
+  NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'test-secret' }}
+  NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL || 'http://localhost:3000' }}
+
+jobs:
+  # Security & Vulnerability Scanning
+  security-scan:
+    runs-on: ubuntu-latest
+    name: Security & Vulnerability Scan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            apps/next-app/package-lock.json
+            apps/websocket-service-nest/package-lock.json
+
+      - name: Install dependencies - Backend
+        run: |
+          cd apps/websocket-service-nest
+          npm ci
+
+      - name: Install dependencies - Frontend
+        run: |
+          cd apps/next-app
+          npm ci
+
+      - name: Audit npm packages - Backend
+        run: |
+          cd apps/websocket-service-nest
+          npm audit --audit-level=moderate || true
+          npm audit --json > ../../audit-backend.json || true
+
+      - name: Audit npm packages - Frontend
+        run: |
+          cd apps/next-app
+          npm audit --audit-level=moderate || true
+          npm audit --json > ../../audit-frontend.json || true
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-results
+          path: |
+            audit-backend.json
+            audit-frontend.json
+          retention-days: 30
+
+  # Linting & Code Quality
+  lint-and-format:
+    runs-on: ubuntu-latest
+    name: Linting & Code Quality
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            apps/next-app/package-lock.json
+            apps/websocket-service-nest/package-lock.json
+
+      - name: Install dependencies - Backend
+        run: |
+          cd apps/websocket-service-nest
+          npm ci
+
+      - name: Install dependencies - Frontend
+        run: |
+          cd apps/next-app
+          npm ci
+
+      - name: ESLint - Backend
+        run: |
+          cd apps/websocket-service-nest
+          npm run lint
+
+      - name: ESLint - Frontend
+        run: |
+          cd apps/next-app
+          npm run lint
+
+      - name: TypeScript Check - Backend
+        run: |
+          cd apps/websocket-service-nest
+          npx tsc --noEmit
+
+      - name: TypeScript Check - Frontend
+        run: |
+          cd apps/next-app
+          npx tsc --noEmit
+
+  # Unit & Integration Tests
+  test-backend:
+    runs-on: ubuntu-latest
+    name: Backend Tests & Coverage
+    services:
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd mongo
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: apps/websocket-service-nest/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd apps/websocket-service-nest
+          npm ci
+
+      - name: Run tests with coverage
+        run: |
+          cd apps/websocket-service-nest
+          npm run test:cov
+        env:
+          MONGODB_URI: mongodb://localhost:27017/juristec-test
+          NODE_ENV: test
+
+      - name: Check coverage threshold
+        run: |
+          cd apps/websocket-service-nest
+          # Extract coverage percentage and validate >=40% (increasing towards 80%)
+          COVERAGE=$(npm run test:cov 2>&1 | grep -E "All files.*\|.*%" | awk '{print $4}' | sed 's/%//')
+          echo "Current coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 40" | bc -l) )); then
+            echo "❌ Coverage below 40% threshold. Current: ${COVERAGE}%"
+            exit 1
+          else
+            echo "✅ Coverage meets threshold. Current: ${COVERAGE}%"
+          fi
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: apps/websocket-service-nest/coverage/
+          retention-days: 30
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    name: Frontend Tests & Coverage
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: apps/next-app/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd apps/next-app
+          npm ci
+
+      - name: Run tests with coverage
+        run: |
+          cd apps/next-app
+          npm run test:coverage
+        env:
+          NODE_ENV: test
+
+      - name: Check coverage threshold
+        run: |
+          cd apps/next-app
+          # Extract coverage percentage and validate >=50% (increasing towards 80%)
+          COVERAGE=$(npm run test:coverage 2>&1 | grep -E "All files.*\|.*%" | awk '{print $4}' | sed 's/%//')
+          echo "Current coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 50" | bc -l) )); then
+            echo "❌ Coverage below 50% threshold. Current: ${COVERAGE}%"
+            exit 1
+          else
+            echo "✅ Coverage meets threshold. Current: ${COVERAGE}%"
+          fi
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: apps/next-app/coverage/
+          retention-days: 30
+
+  # Build Tests
+  build-test:
+    runs-on: ubuntu-latest
+    name: Build Test
+    needs: [lint-and-format, test-backend, test-frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            apps/next-app/package-lock.json
+            apps/websocket-service-nest/package-lock.json
+
+      - name: Install dependencies - Backend
+        run: |
+          cd apps/websocket-service-nest
+          npm ci
+
+      - name: Install dependencies - Frontend
+        run: |
+          cd apps/next-app
+          npm ci
+
+      - name: Build Backend
+        run: |
+          cd apps/websocket-service-nest
+          npm run build
+
+      - name: Build Frontend
+        run: |
+          cd apps/next-app
+          npm run build
+        env:
+          NEXTAUTH_SECRET: test-secret
+          NEXTAUTH_URL: http://localhost:3000
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            apps/websocket-service-nest/dist/
+            apps/next-app/.next/
+          retention-days: 7
+
+  # E2E Tests (placeholder for future implementation)
+  e2e-tests:
+    runs-on: ubuntu-latest
+    name: End-to-End Tests (Placeholder)
+    needs: [build-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: E2E Tests Placeholder
+        run: |
+          echo "🚧 E2E tests will be implemented with Playwright"
+          echo "📋 Critical user flows to test:"
+          echo "  - User registration and chat interaction"
+          echo "  - AI response and function calls"
+          echo "  - File upload functionality"
+          echo "  - Payment flow integration"
+          echo "  - Admin and lawyer dashboards"
+
+  # Quality Gates & Reporting
+  quality-gate:
+    runs-on: ubuntu-latest
+    name: Quality Gate
+    needs: [security-scan, lint-and-format, test-backend, test-frontend, build-test]
+    if: always()
+    steps:
+      - name: Check all jobs status
+        run: |
+          echo "🔍 Quality Gate Results:"
+          echo "Security Scan: ${{ needs.security-scan.result }}"
+          echo "Linting: ${{ needs.lint-and-format.result }}"
+          echo "Backend Tests: ${{ needs.test-backend.result }}"
+          echo "Frontend Tests: ${{ needs.test-frontend.result }}"
+          echo "Build Test: ${{ needs.build-test.result }}"
+          
+          if [[ "${{ needs.security-scan.result }}" != "success" ]]; then
+            echo "❌ Security scan failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.lint-and-format.result }}" != "success" ]]; then
+            echo "❌ Linting failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.test-backend.result }}" != "success" ]]; then
+            echo "❌ Backend tests failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.test-frontend.result }}" != "success" ]]; then
+            echo "❌ Frontend tests failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.build-test.result }}" != "success" ]]; then
+            echo "❌ Build test failed"
+            exit 1
+          fi
+          
+          echo "✅ All quality gates passed!"
+
+      - name: Download coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: coverage-reports/backend/
+
+      - name: Download coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: coverage-reports/frontend/
+
+      - name: Quality Summary
+        run: |
+          echo "📊 Quality Summary:"
+          echo "✅ Security: Vulnerabilities scanned"
+          echo "✅ Linting: Code style enforced"
+          echo "✅ TypeScript: Type safety validated"
+          echo "✅ Tests: Unit and integration tests passed"
+          echo "✅ Coverage: Meeting progressive thresholds"
+          echo "✅ Build: Applications build successfully"
+          echo ""
+          echo "🎯 Next Steps:"
+          echo "- Implement E2E tests with Playwright"
+          echo "- Add performance testing with k6"
+          echo "- Integrate SonarQube for deeper code analysis"
+          echo "- Implement automated dependency updates"
+
+  # Performance Testing Placeholder
+  performance-test:
+    runs-on: ubuntu-latest
+    name: Performance Testing (Future)
+    needs: [build-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Performance Testing Placeholder
+        run: |
+          echo "⚡ Performance testing will be implemented with k6"
+          echo "📈 Metrics to track:"
+          echo "  - API response times (<200ms p95)"
+          echo "  - WebSocket connection latency"
+          echo "  - Database query performance"
+          echo "  - Frontend Core Web Vitals"
+          echo "  - Load testing (100+ concurrent users)"
+
+  # Deployment to Staging (on main branch)
+  deploy-staging:
+    runs-on: ubuntu-latest
+    name: Deploy to Staging
+    needs: [quality-gate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to Staging Placeholder
+        run: |
+          echo "🚀 Staging deployment will be implemented"
+          echo "🔧 Deployment strategy:"
+          echo "  - Docker containers with health checks"
+          echo "  - Rolling deployment with zero downtime"
+          echo "  - Database migrations with rollback capability"
+          echo "  - Environment-specific configuration"
+          echo "  - Automated smoke tests post-deployment"

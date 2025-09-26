@@ -1,5 +1,20 @@
-import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards, Request, Query } from '@nestjs/common';
-import { BillingService, CreateChargeDto, UpdateChargeStatusDto } from '../lib/billing.service';
+import {
+  Controller,
+  Post,
+  Get,
+  Put,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  Request,
+  Query,
+} from '@nestjs/common';
+import {
+  BillingService,
+  CreateChargeDto,
+  UpdateChargeStatusDto,
+} from '../lib/billing.service';
 import { NextAuthGuard, Roles, JwtPayload } from '../guards/nextauth.guard';
 import { ChargeType, ChargeStatus } from '../models/Charge';
 
@@ -43,7 +58,7 @@ export class BillingController {
     return this.billingService.createCharge({
       ...body,
       lawyerId: user.userId,
-      clientId: body.conversationId // TODO: Obter clientId da conversa
+      clientId: body.conversationId, // TODO: Obter clientId da conversa
     });
   }
 
@@ -55,7 +70,10 @@ export class BillingController {
   async acceptCharge(@Param('chargeId') chargeId: string, @Request() req: any) {
     const user = req.user as JwtPayload;
 
-    return this.billingService.acceptChargeAndCreatePayment(chargeId, user.userId);
+    return this.billingService.acceptChargeAndCreatePayment(
+      chargeId,
+      user.userId,
+    );
   }
 
   /**
@@ -66,7 +84,7 @@ export class BillingController {
   async rejectCharge(
     @Param('chargeId') chargeId: string,
     @Body() body: { reason?: string },
-    @Request() req: any
+    @Request() req: any,
   ) {
     const user = req.user as JwtPayload;
 
@@ -81,14 +99,14 @@ export class BillingController {
   async updateChargeStatus(
     @Param('chargeId') chargeId: string,
     @Body() body: UpdateChargeStatusRequest,
-    @Request() req: any
+    @Request() req: any,
   ) {
     const user = req.user as JwtPayload;
 
     return this.billingService.updateChargeStatus({
       chargeId,
       status: body.status,
-      reason: body.reason
+      reason: body.reason,
     });
   }
 
@@ -108,7 +126,9 @@ export class BillingController {
    */
   @Get('conversation/:conversationId')
   @Roles('client', 'lawyer', 'super_admin')
-  async getChargesByConversation(@Param('conversationId') conversationId: string) {
+  async getChargesByConversation(
+    @Param('conversationId') conversationId: string,
+  ) {
     return this.billingService.getChargesByConversation(conversationId);
   }
 
@@ -137,12 +157,19 @@ export class BillingController {
    */
   @Get('charge/:chargeId')
   @Roles('client', 'lawyer', 'super_admin')
-  async getChargeById(@Param('chargeId') chargeId: string, @Request() req: any) {
+  async getChargeById(
+    @Param('chargeId') chargeId: string,
+    @Request() req: any,
+  ) {
     const user = req.user as JwtPayload;
     const charge = await this.billingService.getChargeById(chargeId);
 
     // Verificar permissões: apenas envolvidos podem ver
-    if (charge.lawyerId !== user.userId && charge.clientId !== user.userId && user.role !== 'super_admin') {
+    if (
+      charge.lawyerId !== user.userId &&
+      charge.clientId !== user.userId &&
+      user.role !== 'super_admin'
+    ) {
       throw new Error('Acesso negado');
     }
 
@@ -156,6 +183,8 @@ export class BillingController {
   @Roles('lawyer', 'super_admin')
   async getBillingStats(@Request() req: any) {
     const user = req.user as JwtPayload;
-    return this.billingService.getBillingStats(user.role === 'lawyer' ? user.userId : undefined);
+    return this.billingService.getBillingStats(
+      user.role === 'lawyer' ? user.userId : undefined,
+    );
   }
 }

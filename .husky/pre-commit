@@ -1,0 +1,88 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit quality checks..."
+
+# Navigate to project root
+cd "$(git rev-parse --show-toplevel)"
+
+# Check if there are staged files to commit
+if git diff --cached --quiet; then
+  echo "No staged changes to check"
+  exit 0
+fi
+
+echo "📋 Running linting checks..."
+
+# Backend linting
+if [ -d "apps/websocket-service-nest" ]; then
+  echo "  - Backend ESLint..."
+  cd apps/websocket-service-nest
+  npm run lint || {
+    echo "❌ Backend linting failed!"
+    exit 1
+  }
+  cd ..
+fi
+
+# Frontend linting  
+if [ -d "apps/next-app" ]; then
+  echo "  - Frontend ESLint..."
+  cd apps/next-app
+  npm run lint || {
+    echo "❌ Frontend linting failed!"
+    exit 1
+  }
+  cd ..
+fi
+
+echo "🔍 Running TypeScript checks..."
+
+# Backend TypeScript
+if [ -d "apps/websocket-service-nest" ]; then
+  echo "  - Backend TypeScript..."
+  cd apps/websocket-service-nest
+  npx tsc --noEmit || {
+    echo "❌ Backend TypeScript check failed!"
+    exit 1
+  }
+  cd ..
+fi
+
+# Frontend TypeScript
+if [ -d "apps/next-app" ]; then
+  echo "  - Frontend TypeScript..."
+  cd apps/next-app
+  npx tsc --noEmit || {
+    echo "❌ Frontend TypeScript check failed!"
+    exit 1
+  }
+  cd ..
+fi
+
+echo "🧪 Running fast tests..."
+
+# Backend tests
+if [ -d "apps/websocket-service-nest" ]; then
+  echo "  - Backend tests..."
+  cd apps/websocket-service-nest
+  npm test || {
+    echo "❌ Backend tests failed!"
+    exit 1
+  }
+  cd ..
+fi
+
+# Frontend tests
+if [ -d "apps/next-app" ]; then
+  echo "  - Frontend tests..."
+  cd apps/next-app
+  npm test || {
+    echo "❌ Frontend tests failed!"
+    exit 1
+  }
+  cd ..
+fi
+
+echo "✅ All pre-commit checks passed!"
+echo "🚀 Ready to commit!"

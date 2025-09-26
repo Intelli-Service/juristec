@@ -48,7 +48,7 @@ export class MessageService {
 
     // Atualizar timestamp da conversa
     await Conversation.findByIdAndUpdate(data.conversationId, {
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
 
     return savedMessage;
@@ -59,11 +59,14 @@ export class MessageService {
    */
   async getMessages(
     filters: MessageFilters,
-    requestingUser: { userId: string; role: string; permissions: string[] }
+    requestingUser: { userId: string; role: string; permissions: string[] },
   ): Promise<any[]> {
     // Validar se o usuário tem permissão para acessar as mensagens
     if (filters.conversationId) {
-      await this.validateConversationAccess(filters.conversationId, requestingUser);
+      await this.validateConversationAccess(
+        filters.conversationId,
+        requestingUser,
+      );
     }
 
     const query: any = {};
@@ -101,16 +104,22 @@ export class MessageService {
    */
   async getMessageById(
     messageId: string,
-    requestingUser: { userId: string; role: string; permissions: string[] }
+    requestingUser: { userId: string; role: string; permissions: string[] },
   ): Promise<any> {
-    const message = await Message.findById(messageId).populate('conversationId', 'roomId status');
+    const message = await Message.findById(messageId).populate(
+      'conversationId',
+      'roomId status',
+    );
 
     if (!message) {
       throw new Error('Mensagem não encontrada');
     }
 
     // Validar acesso à conversa
-    await this.validateConversationAccess(message.conversationId._id.toString(), requestingUser);
+    await this.validateConversationAccess(
+      message.conversationId._id.toString(),
+      requestingUser,
+    );
 
     return message;
   }
@@ -120,37 +129,47 @@ export class MessageService {
    */
   private async validateMessagePermissions(
     data: CreateMessageData,
-    conversation: any
+    conversation: any,
   ): Promise<void> {
     switch (data.sender) {
       case 'user':
         // Usuários podem enviar mensagens apenas se a conversa não estiver fechada
         if (conversation.status === 'closed') {
-          throw new ForbiddenException('Não é possível enviar mensagens para uma conversa fechada');
+          throw new ForbiddenException(
+            'Não é possível enviar mensagens para uma conversa fechada',
+          );
         }
         break;
 
       case 'ai':
         // IA pode enviar mensagens apenas em conversas ativas
         if (!['open', 'assigned'].includes(conversation.status)) {
-          throw new ForbiddenException('IA não pode enviar mensagens para esta conversa');
+          throw new ForbiddenException(
+            'IA não pode enviar mensagens para esta conversa',
+          );
         }
         break;
 
       case 'lawyer':
         // Advogados só podem enviar se estiverem atribuídos ao caso
         if (conversation.assignedTo !== data.senderId) {
-          throw new ForbiddenException('Advogado não autorizado para esta conversa');
+          throw new ForbiddenException(
+            'Advogado não autorizado para esta conversa',
+          );
         }
         if (conversation.status !== 'assigned') {
-          throw new ForbiddenException('Caso deve estar atribuído para receber mensagens do advogado');
+          throw new ForbiddenException(
+            'Caso deve estar atribuído para receber mensagens do advogado',
+          );
         }
         break;
 
       case 'moderator':
         // Moderadores podem enviar mensagens em qualquer conversa ativa
         if (!['open', 'assigned'].includes(conversation.status)) {
-          throw new ForbiddenException('Moderador não pode enviar mensagens para esta conversa');
+          throw new ForbiddenException(
+            'Moderador não pode enviar mensagens para esta conversa',
+          );
         }
         break;
 
@@ -168,7 +187,7 @@ export class MessageService {
    */
   private async validateConversationAccess(
     conversationId: string,
-    requestingUser: { userId: string; role: string; permissions: string[] }
+    requestingUser: { userId: string; role: string; permissions: string[] },
   ): Promise<void> {
     const conversation = await Conversation.findById(conversationId);
 
@@ -197,7 +216,9 @@ export class MessageService {
 
       case 'client':
         // Clientes só acessam suas próprias conversas (não implementado ainda)
-        throw new ForbiddenException('Clientes não têm acesso direto às mensagens');
+        throw new ForbiddenException(
+          'Clientes não têm acesso direto às mensagens',
+        );
         break;
 
       default:

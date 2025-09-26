@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SetMetadata } from '@nestjs/common';
 
@@ -48,7 +53,10 @@ export class NextAuthGuard implements CanActivate {
     // Try cookies (HTTP requests)
     const cookies = request.headers?.cookie;
     if (cookies) {
-      const sessionCookie = this.parseCookie(cookies, 'next-auth.session-token');
+      const sessionCookie = this.parseCookie(
+        cookies,
+        'next-auth.session-token',
+      );
       if (sessionCookie) {
         return sessionCookie;
       }
@@ -60,16 +68,18 @@ export class NextAuthGuard implements CanActivate {
   private async validateToken(token: string): Promise<JwtPayload> {
     try {
       // Verificar JWT diretamente
-      const payload = this.jwtService.verify(token, { secret: process.env.NEXTAUTH_SECRET || 'fallback-secret' });
+      const payload = this.jwtService.verify(token, {
+        secret: process.env.NEXTAUTH_SECRET || 'fallback-secret',
+      });
 
       return {
-        userId: (payload as any).sub || (payload as any).userId,
-        role: (payload as any).role,
-        permissions: (payload as any).permissions || [],
-        email: (payload as any).email,
-        name: (payload as any).name,
-        iat: (payload as any).iat,
-        exp: (payload as any).exp
+        userId: payload.sub || payload.userId,
+        role: payload.role,
+        permissions: payload.permissions || [],
+        email: payload.email,
+        name: payload.name,
+        iat: payload.iat,
+        exp: payload.exp,
       };
     } catch (error) {
       throw error;
@@ -77,12 +87,15 @@ export class NextAuthGuard implements CanActivate {
   }
 
   private parseCookie(cookieHeader: string, name: string): string | undefined {
-    const cookies = cookieHeader.split(';').map(c => c.trim());
-    const cookie = cookies.find(c => c.startsWith(`${name}=`));
-    return cookie ? decodeURIComponent(cookie.substring(name.length + 1)) : undefined;
+    const cookies = cookieHeader.split(';').map((c) => c.trim());
+    const cookie = cookies.find((c) => c.startsWith(`${name}=`));
+    return cookie
+      ? decodeURIComponent(cookie.substring(name.length + 1))
+      : undefined;
   }
 }
 
 // Decorators for setting metadata
 export const Roles = (...roles: string[]) => SetMetadata('roles', roles);
-export const Permissions = (...permissions: string[]) => SetMetadata('permissions', permissions);
+export const Permissions = (...permissions: string[]) =>
+  SetMetadata('permissions', permissions);

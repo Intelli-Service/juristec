@@ -38,7 +38,11 @@ export class UploadsController {
     const userId = req.user.userId; // Extract from JWT token
 
     try {
-      const result = await this.uploadsService.uploadFile(file, conversationId, userId);
+      const result = await this.uploadsService.uploadFile(
+        file,
+        conversationId,
+        userId,
+      );
       return {
         success: true,
         data: result,
@@ -54,7 +58,10 @@ export class UploadsController {
     @Request() req: any,
   ) {
     const userId = req.user.userId; // Extract from JWT token
-    const files = await this.uploadsService.getFilesByConversation(conversationId, userId);
+    const files = await this.uploadsService.getFilesByConversation(
+      conversationId,
+      userId,
+    );
     return {
       success: true,
       data: files,
@@ -62,10 +69,7 @@ export class UploadsController {
   }
 
   @Delete(':fileId')
-  async deleteFile(
-    @Param('fileId') fileId: string,
-    @Request() req: any,
-  ) {
+  async deleteFile(@Param('fileId') fileId: string, @Request() req: any) {
     const userId = req.user.userId; // Extract from JWT token
 
     try {

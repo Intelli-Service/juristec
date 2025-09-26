@@ -22,7 +22,7 @@ const VerificationCodeSchema = new mongoose.Schema({
   expiresAt: { type: Date, required: true },
   createdAt: { type: Date, default: Date.now },
   attempts: { type: Number, default: 0 },
-  maxAttempts: { type: Number, default: 3 }
+  maxAttempts: { type: Number, default: 3 },
 });
 
 VerificationCodeSchema.index({ email: 1, verified: 1 });
@@ -35,9 +35,9 @@ VerificationCodeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
     MongooseModule.forFeature([
       { name: 'User', schema: UserModel.schema },
       { name: 'Conversation', schema: Conversation.schema },
-      { name: 'VerificationCode', schema: VerificationCodeSchema }
+      { name: 'VerificationCode', schema: VerificationCodeSchema },
     ]),
-    BillingModule
+    BillingModule,
   ],
   providers: [
     ChatGateway,
@@ -46,8 +46,8 @@ VerificationCodeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
     MessageService,
     IntelligentUserRegistrationService,
     FluidRegistrationService,
-    VerificationService
+    VerificationService,
   ],
-  exports: [ChatGateway, GeminiService, AIService, MessageService]
+  exports: [ChatGateway, GeminiService, AIService, MessageService],
 })
 export class ChatModule {}

@@ -1,16 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { VerificationService, IVerificationCode } from '../verification.service';
+import {
+  VerificationService,
+  IVerificationCode,
+} from '../verification.service';
 
-// Mock do Model
+// Mock do Model com support para chained queries
 const mockVerificationModel = {
   create: jest.fn(),
   findOne: jest.fn(),
   findOneAndUpdate: jest.fn(),
 };
 
-describe.skip('VerificationService', () => {
+describe('VerificationService', () => {
   let service: VerificationService;
   let verificationModel: Model<IVerificationCode>;
 
@@ -28,7 +31,9 @@ describe.skip('VerificationService', () => {
     }).compile();
 
     service = module.get<VerificationService>(VerificationService);
-    verificationModel = module.get<Model<IVerificationCode>>(getModelToken('VerificationCode'));
+    verificationModel = module.get<Model<IVerificationCode>>(
+      getModelToken('VerificationCode'),
+    );
   });
 
   afterEach(() => {
@@ -172,26 +177,20 @@ describe.skip('VerificationService', () => {
   });
 });
 
-// Função helper para criar mock com sort
-const createMockWithSort = (result: any) => ({
-  sort: jest.fn().mockReturnValue(result),
-});
-
-describe.skip('VerificationService', () => {
+// Tests for complex chained Mongoose queries
+describe('VerificationService - Complex Queries', () => {
   let service: VerificationService;
   let verificationModel: Model<IVerificationCode>;
+
+  // Helper function to create mock with chained sort method
+  const createMockQuery = (resolveValue: any) => ({
+    sort: jest.fn().mockResolvedValue(resolveValue),
+  });
 
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    // Resetar resultado do mock
-
-    // Resetar mocks para comportamento padrão
-    mockVerificationModel.create.mockReset();
-    mockVerificationModel.findOne.mockReset();
-    mockVerificationModel.findOneAndUpdate.mockReset();
-
-    // Resetar mocks para comportamento padrão
+    // Reset all mocks completely
     mockVerificationModel.create.mockReset();
     mockVerificationModel.findOne.mockReset();
     mockVerificationModel.findOneAndUpdate.mockReset();
@@ -207,7 +206,9 @@ describe.skip('VerificationService', () => {
     }).compile();
 
     service = module.get<VerificationService>(VerificationService);
-    verificationModel = module.get<Model<IVerificationCode>>(getModelToken('VerificationCode'));
+    verificationModel = module.get<Model<IVerificationCode>>(
+      getModelToken('VerificationCode'),
+    );
   });
 
   afterEach(() => {
@@ -242,7 +243,9 @@ describe.skip('VerificationService', () => {
 
       const callArgs = mockVerificationModel.create.mock.calls[0][0];
       expect(callArgs.expiresAt.getTime()).toBeGreaterThan(Date.now());
-      expect(callArgs.expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + 10 * 60 * 1000 + 1000); // ~10 minutos
+      expect(callArgs.expiresAt.getTime()).toBeLessThanOrEqual(
+        Date.now() + 10 * 60 * 1000 + 1000,
+      ); // ~10 minutos
     });
 
     it('should generate verification code for phone', async () => {
@@ -286,9 +289,13 @@ describe.skip('VerificationService', () => {
 
     it('should handle database errors', async () => {
       const contact = { email: 'test@example.com' };
-      mockVerificationModel.create.mockRejectedValue(new Error('Database error'));
+      mockVerificationModel.create.mockRejectedValue(
+        new Error('Database error'),
+      );
 
-      await expect(service.generateCode(contact)).rejects.toThrow('Database error');
+      await expect(service.generateCode(contact)).rejects.toThrow(
+        'Database error',
+      );
     });
   });
 
@@ -307,6 +314,10 @@ describe.skip('VerificationService', () => {
         save: jest.fn().mockResolvedValue({}),
       };
 
+      // Setup mock for chained query
+      mockVerificationModel.findOne.mockReturnValue(
+        createMockQuery(mockVerification),
+      );
 
       const result = await service.verifyCode(contact, code);
 
@@ -330,6 +341,10 @@ describe.skip('VerificationService', () => {
         save: jest.fn().mockResolvedValue({}),
       };
 
+      // Setup mock for chained query
+      mockVerificationModel.findOne.mockReturnValue(
+        createMockQuery(mockVerification),
+      );
 
       const result = await service.verifyCode(contact, code);
 
@@ -352,6 +367,10 @@ describe.skip('VerificationService', () => {
         save: jest.fn().mockResolvedValue({}),
       };
 
+      // Setup mock for chained query
+      mockVerificationModel.findOne.mockReturnValue(
+        createMockQuery(mockVerification),
+      );
 
       const result = await service.verifyCode(contact, code);
 
@@ -365,6 +384,8 @@ describe.skip('VerificationService', () => {
       const contact = { email: 'nonexistent@example.com' };
       const code = '123456';
 
+      // Setup mock for chained query returning null
+      mockVerificationModel.findOne.mockReturnValue(createMockQuery(null));
 
       const result = await service.verifyCode(contact, code);
 
@@ -399,6 +420,10 @@ describe.skip('VerificationService', () => {
         save: jest.fn().mockResolvedValue({}),
       };
 
+      // Setup mock for chained query
+      mockVerificationModel.findOne.mockReturnValue(
+        createMockQuery(mockVerification),
+      );
 
       const result = await service.verifyCode(contact, code);
 
@@ -420,6 +445,10 @@ describe.skip('VerificationService', () => {
         save: jest.fn().mockResolvedValue({}),
       };
 
+      // Setup mock for chained query
+      mockVerificationModel.findOne.mockReturnValue(
+        createMockQuery(mockVerification),
+      );
 
       const result = await service.verifyCode(contact, code);
 
@@ -432,6 +461,9 @@ describe.skip('VerificationService', () => {
       const contact = { email: 'test@example.com' };
       const code = '123456';
 
+      // Setup mock for chained query returning null (so method returns false)
+      const mockQuery = createMockQuery(null);
+      mockVerificationModel.findOne.mockReturnValue(mockQuery);
 
       await service.verifyCode(contact, code);
 
@@ -440,16 +472,22 @@ describe.skip('VerificationService', () => {
         verified: false,
         expiresAt: { $gt: expect.any(Date) },
       });
+      expect(mockQuery.sort).toHaveBeenCalledWith({ createdAt: -1 });
     });
 
     it('should handle database errors', async () => {
       const contact = { email: 'test@example.com' };
       const code = '123456';
 
-      const mockQuery = mockVerificationModel.findOne.mock.results[0].value;
-      mockQuery.sort.mockRejectedValue(new Error('Database error'));
+      // Setup mock to throw error on sort
+      const mockQuery = {
+        sort: jest.fn().mockRejectedValue(new Error('Database error')),
+      };
+      mockVerificationModel.findOne.mockReturnValue(mockQuery);
 
-      await expect(service.verifyCode(contact, code)).rejects.toThrow('Database error');
+      await expect(service.verifyCode(contact, code)).rejects.toThrow(
+        'Database error',
+      );
     });
   });
 
@@ -463,6 +501,8 @@ describe.skip('VerificationService', () => {
         expiresAt: new Date(Date.now() + 10000),
       };
 
+      // For isVerified method, use direct mockResolvedValue since it doesn't use .sort()
+      mockVerificationModel.findOne.mockResolvedValue(mockVerification);
 
       const result = await service.isVerified(contact);
 
@@ -483,6 +523,8 @@ describe.skip('VerificationService', () => {
         expiresAt: new Date(Date.now() + 10000),
       };
 
+      // For isVerified method, use direct mockResolvedValue since it doesn't use .sort()
+      mockVerificationModel.findOne.mockResolvedValue(mockVerification);
 
       const result = await service.isVerified(contact);
 
@@ -492,6 +534,8 @@ describe.skip('VerificationService', () => {
     it('should return false when contact is not verified', async () => {
       const contact = { email: 'unverified@example.com' };
 
+      // For isVerified method, use direct mockResolvedValue since it doesn't use .sort()
+      mockVerificationModel.findOne.mockResolvedValue(null);
 
       const result = await service.isVerified(contact);
 
@@ -507,6 +551,8 @@ describe.skip('VerificationService', () => {
         expiresAt: new Date(Date.now() - 10000), // Expirado
       };
 
+      // For isVerified method, expired records won't be found due to query filter
+      mockVerificationModel.findOne.mockResolvedValue(null);
 
       const result = await service.isVerified(contact);
 
@@ -516,10 +562,14 @@ describe.skip('VerificationService', () => {
     it('should handle database errors', async () => {
       const contact = { email: 'test@example.com' };
 
-      const mockQuery = mockVerificationModel.findOne.mock.results[0].value;
-      mockQuery.sort.mockRejectedValue(new Error('Database error'));
+      // For isVerified method, mock direct rejection since it doesn't use .sort()
+      mockVerificationModel.findOne.mockRejectedValue(
+        new Error('Database error'),
+      );
 
-      await expect(service.isVerified(contact)).rejects.toThrow('Database error');
+      await expect(service.isVerified(contact)).rejects.toThrow(
+        'Database error',
+      );
     });
   });
 });

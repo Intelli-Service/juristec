@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { GeminiService, RegisterUserFunctionCall, UpdateConversationStatusFunctionCall, DetectConversationCompletionFunctionCall } from './gemini.service';
+import {
+  GeminiService,
+  RegisterUserFunctionCall,
+  UpdateConversationStatusFunctionCall,
+  DetectConversationCompletionFunctionCall,
+} from './gemini.service';
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
 import { FluidRegistrationService } from './fluid-registration.service';
@@ -23,11 +28,14 @@ export interface IntelligentRegistrationResult {
 
 @Injectable()
 export class IntelligentUserRegistrationService {
-  private readonly urgencyToPriorityMap: Record<string, 'low' | 'medium' | 'high' | 'urgent'> = {
-    'low': 'low',
-    'medium': 'medium',
-    'high': 'high',
-    'urgent': 'urgent'
+  private readonly urgencyToPriorityMap: Record<
+    string,
+    'low' | 'medium' | 'high' | 'urgent'
+  > = {
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    urgent: 'urgent',
   };
 
   constructor(
@@ -36,7 +44,7 @@ export class IntelligentUserRegistrationService {
     private readonly messageService: MessageService,
     private readonly fluidRegistrationService: FluidRegistrationService,
     @InjectModel('User') private userModel: Model<IUser>,
-    @InjectModel('Conversation') private conversationModel: Model<any>
+    @InjectModel('Conversation') private conversationModel: Model<any>,
   ) {}
 
   /**
@@ -46,7 +54,7 @@ export class IntelligentUserRegistrationService {
     message: string,
     conversationId: string,
     userId?: string,
-    includeHistory: boolean = true
+    includeHistory: boolean = true,
   ): Promise<IntelligentRegistrationResult> {
     try {
       let messages: any[] = [];
@@ -55,32 +63,37 @@ export class IntelligentUserRegistrationService {
         // Buscar histórico da conversa apenas se solicitado e usuário autenticado
         messages = await this.messageService.getMessages(
           { conversationId, limit: 50 },
-          { userId, role: 'client', permissions: [] }
+          { userId, role: 'client', permissions: [] },
         );
       } else {
         // Para usuários anônimos ou quando histórico não é necessário, usar apenas a mensagem atual
-        messages = [{
-          _id: `current-msg-${Date.now()}`,
-          text: message,
-          sender: 'user',
-          createdAt: new Date()
-        }];
+        messages = [
+          {
+            _id: `current-msg-${Date.now()}`,
+            text: message,
+            sender: 'user',
+            createdAt: new Date(),
+          },
+        ];
       }
 
       // Preparar mensagens para o Gemini
-      const geminiMessages = messages.map(msg => ({
+      const geminiMessages = messages.map((msg) => ({
         text: msg.text,
-        sender: msg.sender
+        sender: msg.sender,
       }));
 
       // Adicionar a nova mensagem do usuário
       geminiMessages.push({
         text: message,
-        sender: 'user'
+        sender: 'user',
       });
 
       // Gerar resposta com function calls
-      const result = await this.geminiService.generateAIResponseWithFunctions(geminiMessages);
+      const result =
+        await this.geminiService.generateAIResponseWithFunctions(
+          geminiMessages,
+        );
 
       let userRegistered = false;
       let statusUpdated = false;
@@ -92,15 +105,26 @@ export class IntelligentUserRegistrationService {
 
       // Processar function calls se existirem
       if (result.functionCalls) {
-        console.log(`🔧 Executando ${result.functionCalls.length} function calls`);
+        console.log(
+          `🔧 Executando ${result.functionCalls.length} function calls`,
+        );
         for (const functionCall of result.functionCalls) {
-          console.log(`🔧 Function call: ${functionCall.name}`, functionCall.parameters);
+          console.log(
+            `🔧 Function call: ${functionCall.name}`,
+            functionCall.parameters,
+          );
           if (functionCall.name === 'register_user') {
-            await this.handleUserRegistration(functionCall.parameters, conversationId);
+            await this.handleUserRegistration(
+              functionCall.parameters,
+              conversationId,
+            );
             userRegistered = true;
             console.log('✅ Usuário registrado via function call');
           } else if (functionCall.name === 'update_conversation_status') {
-            const statusResult = await this.handleStatusUpdate(functionCall.parameters, conversationId);
+            const statusResult = await this.handleStatusUpdate(
+              functionCall.parameters,
+              conversationId,
+            );
             statusUpdated = true;
             newStatus = statusResult.newStatus;
             lawyerNeeded = statusResult.lawyerNeeded;
@@ -112,11 +136,17 @@ export class IntelligentUserRegistrationService {
               functionCall.parameters &&
               typeof functionCall.parameters === 'object'
             ) {
-              if (typeof functionCall.parameters.should_show_feedback === 'boolean') {
-                shouldShowFeedback = functionCall.parameters.should_show_feedback;
+              if (
+                typeof functionCall.parameters.should_show_feedback ===
+                'boolean'
+              ) {
+                shouldShowFeedback =
+                  functionCall.parameters.should_show_feedback;
               } else {
                 shouldShowFeedback = false;
-                console.warn('⚠️ should_show_feedback ausente ou tipo inválido em detect_conversation_completion');
+                console.warn(
+                  '⚠️ should_show_feedback ausente ou tipo inválido em detect_conversation_completion',
+                );
               }
               if (
                 typeof functionCall.parameters.completion_reason === 'string' &&
@@ -125,14 +155,20 @@ export class IntelligentUserRegistrationService {
                 feedbackReason = functionCall.parameters.completion_reason;
               } else {
                 feedbackReason = undefined;
-                console.warn('⚠️ completion_reason ausente ou tipo inválido em detect_conversation_completion');
+                console.warn(
+                  '⚠️ completion_reason ausente ou tipo inválido em detect_conversation_completion',
+                );
               }
             } else {
               shouldShowFeedback = false;
               feedbackReason = undefined;
-              console.warn('⚠️ Parâmetros ausentes ou inválidos em detect_conversation_completion');
+              console.warn(
+                '⚠️ Parâmetros ausentes ou inválidos em detect_conversation_completion',
+              );
             }
-            console.log(`✅ Detecção de conclusão de conversa: feedback=${shouldShowFeedback}, reason=${feedbackReason}`);
+            console.log(
+              `✅ Detecção de conclusão de conversa: feedback=${shouldShowFeedback}, reason=${feedbackReason}`,
+            );
           }
         }
       } else {
@@ -147,18 +183,17 @@ export class IntelligentUserRegistrationService {
         lawyerNeeded,
         specializationRequired,
         shouldShowFeedback,
-        feedbackReason
+        feedbackReason,
       };
-
     } catch (error) {
       console.error('Erro no processamento inteligente:', error);
       // Fallback para resposta simples sem function calls
       const fallbackResponse = await this.geminiService.generateAIResponse([
-        { text: message, sender: 'user' }
+        { text: message, sender: 'user' },
       ]);
 
       return {
-        response: fallbackResponse
+        response: fallbackResponse,
       };
     }
   }
@@ -168,21 +203,22 @@ export class IntelligentUserRegistrationService {
    */
   private async handleUserRegistration(
     params: RegisterUserFunctionCall['parameters'],
-    conversationId: string
+    conversationId: string,
   ): Promise<void> {
     try {
       // Usar o FluidRegistrationService para cadastro fluido
       const contactInfo = {
         email: params.email,
         phone: params.phone,
-        name: params.name
+        name: params.name,
       };
 
-      const fluidResult = await this.fluidRegistrationService.processFluidRegistration(
-        contactInfo,
-        conversationId,
-        '' // roomId será determinado pelo serviço
-      );
+      const fluidResult =
+        await this.fluidRegistrationService.processFluidRegistration(
+          contactInfo,
+          conversationId,
+          '', // roomId será determinado pelo serviço
+        );
 
       if (fluidResult.success) {
         console.log(`✅ Cadastro fluido processado: ${fluidResult.message}`);
@@ -195,9 +231,9 @@ export class IntelligentUserRegistrationService {
               name: params.name,
               email: params.email,
               phone: params.phone,
-              userId: fluidResult.userId
+              userId: fluidResult.userId,
             },
-            priority: this.urgencyToPriorityMap[params.urgency_level] || 'low'
+            priority: this.urgencyToPriorityMap[params.urgency_level] || 'low',
           });
         }
       } else {
@@ -205,7 +241,6 @@ export class IntelligentUserRegistrationService {
         // Fallback para criação direta se o fluido falhar
         await this.fallbackUserRegistration(params, conversationId);
       }
-
     } catch (error) {
       console.error('Erro ao registrar usuário:', error);
       throw error;
@@ -217,7 +252,7 @@ export class IntelligentUserRegistrationService {
    */
   private async fallbackUserRegistration(
     params: RegisterUserFunctionCall['parameters'],
-    conversationId: string
+    conversationId: string,
   ): Promise<void> {
     try {
       // Criar ou atualizar usuário diretamente
@@ -226,8 +261,8 @@ export class IntelligentUserRegistrationService {
         email: params.email || `${uuidv4()}@example.invalid`,
         role: 'client' as const,
         profile: {
-          bio: `Problema relatado: ${params.problem_description}. Nível de urgência: ${params.urgency_level}`
-        }
+          bio: `Problema relatado: ${params.problem_description}. Nível de urgência: ${params.urgency_level}`,
+        },
       };
 
       let user: IUser | null = null;
@@ -239,7 +274,7 @@ export class IntelligentUserRegistrationService {
         user.name = params.name;
         user.profile = {
           ...user.profile,
-          bio: `Problema relatado: ${params.problem_description}. Nível de urgência: ${params.urgency_level}`
+          bio: `Problema relatado: ${params.problem_description}. Nível de urgência: ${params.urgency_level}`,
         };
         await user.save();
       } else {
@@ -253,13 +288,12 @@ export class IntelligentUserRegistrationService {
         clientInfo: {
           name: params.name,
           email: params.email,
-          phone: params.phone
+          phone: params.phone,
         },
-        priority: this.urgencyToPriorityMap[params.urgency_level] || 'low'
+        priority: this.urgencyToPriorityMap[params.urgency_level] || 'low',
       });
 
       console.log(`Usuário registrado via fallback: ${user.name}`);
-
     } catch (error) {
       console.error('Erro no fallback de registro:', error);
       throw error;
@@ -271,18 +305,22 @@ export class IntelligentUserRegistrationService {
    */
   private async handleStatusUpdate(
     params: UpdateConversationStatusFunctionCall['parameters'],
-    conversationId: string
-  ): Promise<{ newStatus: CaseStatus; lawyerNeeded: boolean; specializationRequired?: string }> {
+    conversationId: string,
+  ): Promise<{
+    newStatus: CaseStatus;
+    lawyerNeeded: boolean;
+    specializationRequired?: string;
+  }> {
     try {
       const updateData: any = {
         status: params.status,
         lawyerNeeded: params.lawyer_needed,
-        lastUpdated: new Date()
+        lastUpdated: new Date(),
       };
 
       if (params.specialization_required) {
         updateData.classification = {
-          legalArea: params.specialization_required
+          legalArea: params.specialization_required,
         };
       }
 
@@ -290,20 +328,24 @@ export class IntelligentUserRegistrationService {
         updateData.summary = {
           text: params.notes,
           lastUpdated: new Date(),
-          generatedBy: 'ai'
+          generatedBy: 'ai',
         };
       }
 
-      await this.conversationModel.findByIdAndUpdate(conversationId, updateData);
+      await this.conversationModel.findByIdAndUpdate(
+        conversationId,
+        updateData,
+      );
 
-      console.log(`Status da conversa ${conversationId} atualizado para: ${params.status}`);
+      console.log(
+        `Status da conversa ${conversationId} atualizado para: ${params.status}`,
+      );
 
       return {
         newStatus: params.status as CaseStatus,
         lawyerNeeded: params.lawyer_needed,
-        specializationRequired: params.specialization_required
+        specializationRequired: params.specialization_required,
       };
-
     } catch (error) {
       console.error('Erro ao atualizar status da conversa:', error);
       throw error;
@@ -313,7 +355,9 @@ export class IntelligentUserRegistrationService {
   /**
    * Verifica se uma conversa precisa de intervenção humana (advogado)
    */
-  async checkIfNeedsLawyerIntervention(conversationId: string): Promise<boolean> {
+  async checkIfNeedsLawyerIntervention(
+    conversationId: string,
+  ): Promise<boolean> {
     const conversation = await this.conversationModel.findById(conversationId);
     return conversation?.lawyerNeeded || false;
   }
@@ -326,9 +370,9 @@ export class IntelligentUserRegistrationService {
       {
         $group: {
           _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
     const result: Record<CaseStatus, number> = {
@@ -340,10 +384,10 @@ export class IntelligentUserRegistrationService {
       [CaseStatus.COMPLETED]: 0,
       [CaseStatus.CLOSED]: 0,
       [CaseStatus.ABANDONED]: 0,
-      [CaseStatus.PENDING_REVIEW]: 0
+      [CaseStatus.PENDING_REVIEW]: 0,
     };
 
-    stats.forEach(stat => {
+    stats.forEach((stat) => {
       if (stat._id in result) {
         result[stat._id as CaseStatus] = stat.count;
       }

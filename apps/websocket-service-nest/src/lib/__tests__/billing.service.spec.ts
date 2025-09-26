@@ -28,8 +28,8 @@ describe('BillingService', () => {
     splitConfig: {
       lawyerPercentage: 95,
       platformPercentage: 5,
-      platformFee: 2500
-    }
+      platformFee: 2500,
+    },
   };
 
   const mockConversation = {
@@ -38,8 +38,8 @@ describe('BillingService', () => {
     assignedTo: 'lawyer-123',
     status: 'assigned',
     billing: {
-      enabled: true
-    }
+      enabled: true,
+    },
   };
 
   beforeEach(async () => {
@@ -49,21 +49,24 @@ describe('BillingService', () => {
         {
           provide: getModelToken('Charge'),
           useValue: Object.assign(
-            function() {
-              return Object.assign({ ...mockCharge }, {
-                save: jest.fn().mockResolvedValue(mockCharge)
-              });
+            function () {
+              return Object.assign(
+                { ...mockCharge },
+                {
+                  save: jest.fn().mockResolvedValue(mockCharge),
+                },
+              );
             },
             {
               create: jest.fn().mockResolvedValue(mockCharge),
               findOne: jest.fn(),
               find: jest.fn().mockReturnValue({
-                sort: jest.fn().mockResolvedValue([mockCharge])
+                sort: jest.fn().mockResolvedValue([mockCharge]),
               }),
               findById: jest.fn(),
               findByIdAndUpdate: jest.fn(),
               countDocuments: jest.fn(),
-            }
+            },
           ),
         },
         {
@@ -113,7 +116,9 @@ describe('BillingService', () => {
         reason: 'Cliente solicitou análise detalhada',
       };
 
-      jest.spyOn(conversationModel, 'findOne').mockResolvedValue(mockConversation);
+      jest
+        .spyOn(conversationModel, 'findOne')
+        .mockResolvedValue(mockConversation);
       jest.spyOn(chargeModel, 'create').mockResolvedValue(mockCharge as any);
 
       const result = await service.createCharge(createChargeDto);
@@ -137,7 +142,9 @@ describe('BillingService', () => {
 
       jest.spyOn(conversationModel, 'findOne').mockResolvedValue(null);
 
-      await expect(service.createCharge(createChargeDto)).rejects.toThrow('Conversa não encontrada');
+      await expect(service.createCharge(createChargeDto)).rejects.toThrow(
+        'Conversa não encontrada',
+      );
     });
 
     it('should throw error if lawyer not assigned to conversation', async () => {
@@ -154,12 +161,16 @@ describe('BillingService', () => {
 
       const conversationWithDifferentLawyer = {
         ...mockConversation,
-        assignedTo: 'other-lawyer-123'
+        assignedTo: 'other-lawyer-123',
       };
 
-      jest.spyOn(conversationModel, 'findOne').mockResolvedValue(conversationWithDifferentLawyer);
+      jest
+        .spyOn(conversationModel, 'findOne')
+        .mockResolvedValue(conversationWithDifferentLawyer);
 
-      await expect(service.createCharge(createChargeDto)).rejects.toThrow('Apenas o advogado responsável pode criar cobranças');
+      await expect(service.createCharge(createChargeDto)).rejects.toThrow(
+        'Apenas o advogado responsável pode criar cobranças',
+      );
     });
   });
 
@@ -169,13 +180,26 @@ describe('BillingService', () => {
       const clientId = 'client-123';
 
       const pendingCharge = { ...mockCharge, status: ChargeStatus.PENDING };
-      const acceptedCharge = { ...mockCharge, status: ChargeStatus.ACCEPTED, acceptedAt: new Date() };
+      const acceptedCharge = {
+        ...mockCharge,
+        status: ChargeStatus.ACCEPTED,
+        acceptedAt: new Date(),
+      };
 
-      jest.spyOn(chargeModel, 'findById').mockResolvedValue(pendingCharge as any);
-      jest.spyOn(chargeModel, 'findByIdAndUpdate').mockResolvedValue(acceptedCharge as any);
-      jest.spyOn(paymentService, 'createPayment').mockResolvedValue({ _id: 'payment-123' } as any);
+      jest
+        .spyOn(chargeModel, 'findById')
+        .mockResolvedValue(pendingCharge as any);
+      jest
+        .spyOn(chargeModel, 'findByIdAndUpdate')
+        .mockResolvedValue(acceptedCharge as any);
+      jest
+        .spyOn(paymentService, 'createPayment')
+        .mockResolvedValue({ _id: 'payment-123' } as any);
 
-      const result = await service.acceptChargeAndCreatePayment(chargeId, clientId);
+      const result = await service.acceptChargeAndCreatePayment(
+        chargeId,
+        clientId,
+      );
 
       expect(result.charge.status).toBe(ChargeStatus.ACCEPTED);
       // TODO: Re-enable when payment service integration is implemented
@@ -185,15 +209,24 @@ describe('BillingService', () => {
     it('should throw error if charge not found', async () => {
       jest.spyOn(chargeModel, 'findById').mockResolvedValue(null);
 
-      await expect(service.acceptChargeAndCreatePayment('invalid-id', 'client-123')).rejects.toThrow('Cobrança não encontrada');
+      await expect(
+        service.acceptChargeAndCreatePayment('invalid-id', 'client-123'),
+      ).rejects.toThrow('Cobrança não encontrada');
     });
 
     it('should throw error if client not authorized', async () => {
-      const chargeWithDifferentClient = { ...mockCharge, clientId: 'other-client' };
+      const chargeWithDifferentClient = {
+        ...mockCharge,
+        clientId: 'other-client',
+      };
 
-      jest.spyOn(chargeModel, 'findById').mockResolvedValue(chargeWithDifferentClient as any);
+      jest
+        .spyOn(chargeModel, 'findById')
+        .mockResolvedValue(chargeWithDifferentClient as any);
 
-      await expect(service.acceptChargeAndCreatePayment('charge-123', 'wrong-client')).rejects.toThrow('Apenas o cliente pode aceitar esta cobrança');
+      await expect(
+        service.acceptChargeAndCreatePayment('charge-123', 'wrong-client'),
+      ).rejects.toThrow('Apenas o cliente pode aceitar esta cobrança');
     });
   });
 
@@ -204,10 +237,18 @@ describe('BillingService', () => {
       const reason = 'Valor muito alto';
 
       const pendingCharge = { ...mockCharge, status: ChargeStatus.PENDING };
-      const rejectedCharge = { ...mockCharge, status: ChargeStatus.REJECTED, rejectedAt: new Date() };
+      const rejectedCharge = {
+        ...mockCharge,
+        status: ChargeStatus.REJECTED,
+        rejectedAt: new Date(),
+      };
 
-      jest.spyOn(chargeModel, 'findById').mockResolvedValue(pendingCharge as any);
-      jest.spyOn(chargeModel, 'findByIdAndUpdate').mockResolvedValue(rejectedCharge as any);
+      jest
+        .spyOn(chargeModel, 'findById')
+        .mockResolvedValue(pendingCharge as any);
+      jest
+        .spyOn(chargeModel, 'findByIdAndUpdate')
+        .mockResolvedValue(rejectedCharge as any);
 
       const result = await service.rejectCharge(chargeId, clientId, reason);
 
@@ -222,7 +263,7 @@ describe('BillingService', () => {
       const charges = [mockCharge];
 
       jest.spyOn(chargeModel, 'find').mockReturnValue({
-        sort: jest.fn().mockResolvedValue([mockCharge])
+        sort: jest.fn().mockResolvedValue([mockCharge]),
       } as any);
 
       const result = await service.getChargesByConversation(conversationId);
@@ -244,7 +285,9 @@ describe('BillingService', () => {
     it('should throw error if charge not found', async () => {
       jest.spyOn(chargeModel, 'findById').mockResolvedValue(null);
 
-      await expect(service.getChargeById('invalid-id')).rejects.toThrow('Cobrança não encontrada');
+      await expect(service.getChargeById('invalid-id')).rejects.toThrow(
+        'Cobrança não encontrada',
+      );
     });
   });
 });

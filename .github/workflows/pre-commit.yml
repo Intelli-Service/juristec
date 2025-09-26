@@ -1,0 +1,63 @@
+name: Pre-commit Quality Checks
+
+# This workflow runs on every commit to enforce quality standards
+on:
+  push:
+    branches-ignore: 
+      - main  # Main branch uses full CI/CD pipeline
+  pull_request:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  quick-quality-check:
+    runs-on: ubuntu-latest
+    name: Quick Quality Check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            apps/next-app/package-lock.json
+            apps/websocket-service-nest/package-lock.json
+
+      - name: Install dependencies - Backend
+        run: |
+          cd apps/websocket-service-nest
+          npm ci
+
+      - name: Install dependencies - Frontend
+        run: |
+          cd apps/next-app
+          npm ci
+
+      - name: Quick lint check - Backend
+        run: |
+          cd apps/websocket-service-nest
+          npm run lint
+
+      - name: Quick lint check - Frontend
+        run: |
+          cd apps/next-app
+          npm run lint
+
+      - name: TypeScript compilation check
+        run: |
+          cd apps/websocket-service-nest && npx tsc --noEmit
+          cd ../next-app && npx tsc --noEmit
+
+      - name: Fast test run (no coverage)
+        run: |
+          cd apps/websocket-service-nest && npm test
+          cd ../next-app && npm test
+
+      - name: Basic security audit
+        run: |
+          cd apps/websocket-service-nest && npm audit --audit-level=high || true
+          cd ../next-app && npm audit --audit-level=high || true

@@ -1,9 +1,23 @@
-import { Controller, Get, Post, Put, Param, UseGuards, Request, Body } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Param,
+  UseGuards,
+  Request,
+  Body,
+} from '@nestjs/common';
 import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
 import Conversation from '../models/Conversation';
 import Message from '../models/Message';
-import { NextAuthGuard, Roles, Permissions, JwtPayload } from '../guards/nextauth.guard';
+import {
+  NextAuthGuard,
+  Roles,
+  Permissions,
+  JwtPayload,
+} from '../guards/nextauth.guard';
 
 @Controller('lawyer')
 @UseGuards(NextAuthGuard)
@@ -11,7 +25,7 @@ import { NextAuthGuard, Roles, Permissions, JwtPayload } from '../guards/nextaut
 export class LawyerController {
   constructor(
     private aiService: AIService,
-    private messageService: MessageService
+    private messageService: MessageService,
   ) {}
 
   // Dashboard do advogado - ver casos disponíveis e atribuídos
@@ -25,7 +39,10 @@ export class LawyerController {
   // Pegar um caso
   @Post('cases/:roomId/assign')
   @Permissions('assign_cases_to_self', 'assign_cases')
-  async assignCase(@Param('roomId') roomId: string, @Request() req: { user: JwtPayload }) {
+  async assignCase(
+    @Param('roomId') roomId: string,
+    @Request() req: { user: JwtPayload },
+  ) {
     const lawyerId = req.user.userId;
     return this.aiService.assignCase(roomId, lawyerId);
   }
@@ -33,7 +50,10 @@ export class LawyerController {
   // Ver mensagens de um caso específico
   @Get('cases/:roomId/messages')
   @Permissions('access_assigned_chats', 'access_client_chat')
-  async getCaseMessages(@Param('roomId') roomId: string, @Request() req: { user: JwtPayload }) {
+  async getCaseMessages(
+    @Param('roomId') roomId: string,
+    @Request() req: { user: JwtPayload },
+  ) {
     try {
       const conversation = await Conversation.findOne({ roomId });
       if (!conversation) {
@@ -50,7 +70,7 @@ export class LawyerController {
           userId: req.user.userId,
           role: req.user.role,
           permissions: req.user.permissions,
-        }
+        },
       );
 
       return messages;
@@ -66,7 +86,7 @@ export class LawyerController {
   async updateCaseStatus(
     @Param('roomId') roomId: string,
     @Body('status') status: string,
-    @Request() req: { user: JwtPayload }
+    @Request() req: { user: JwtPayload },
   ) {
     const conversation = await Conversation.findOne({ roomId });
     if (!conversation) {
@@ -74,14 +94,17 @@ export class LawyerController {
     }
 
     // Check if lawyer has access to this case
-    if (req.user.role === 'lawyer' && conversation.assignedTo !== req.user.userId) {
+    if (
+      req.user.role === 'lawyer' &&
+      conversation.assignedTo !== req.user.userId
+    ) {
       throw new Error('Acesso negado a este caso');
     }
 
     return Conversation.findOneAndUpdate(
       { roomId },
       { status, updatedAt: new Date() },
-      { new: true }
+      { new: true },
     );
   }
 
@@ -91,7 +114,7 @@ export class LawyerController {
   async closeCase(
     @Param('roomId') roomId: string,
     @Body('resolution') resolution: string,
-    @Request() req: { user: JwtPayload }
+    @Request() req: { user: JwtPayload },
   ) {
     const conversation = await Conversation.findOne({ roomId });
     if (!conversation) {
@@ -99,7 +122,10 @@ export class LawyerController {
     }
 
     // Check if lawyer has access to this case
-    if (req.user.role === 'lawyer' && conversation.assignedTo !== req.user.userId) {
+    if (
+      req.user.role === 'lawyer' &&
+      conversation.assignedTo !== req.user.userId
+    ) {
       throw new Error('Acesso negado a este caso');
     }
 
@@ -110,9 +136,9 @@ export class LawyerController {
         resolution,
         closedAt: new Date(),
         closedBy: req.user.userId,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       },
-      { new: true }
+      { new: true },
     );
   }
 
@@ -123,7 +149,7 @@ export class LawyerController {
     @Param('roomId') roomId: string,
     @Body('targetLawyerId') targetLawyerId: string,
     @Body('reason') reason: string,
-    @Request() req: { user: JwtPayload }
+    @Request() req: { user: JwtPayload },
   ) {
     const conversation = await Conversation.findOne({ roomId });
     if (!conversation) {
@@ -131,7 +157,10 @@ export class LawyerController {
     }
 
     // Check if lawyer has access to this case
-    if (req.user.role === 'lawyer' && conversation.assignedTo !== req.user.userId) {
+    if (
+      req.user.role === 'lawyer' &&
+      conversation.assignedTo !== req.user.userId
+    ) {
       throw new Error('Acesso negado a este caso');
     }
 
@@ -145,12 +174,12 @@ export class LawyerController {
             from: req.user.userId,
             to: targetLawyerId,
             reason,
-            transferredAt: new Date()
-          }
+            transferredAt: new Date(),
+          },
         ],
-        updatedAt: new Date()
+        updatedAt: new Date(),
       },
-      { new: true }
+      { new: true },
     );
   }
 
@@ -160,17 +189,16 @@ export class LawyerController {
   async getLawyerStats(@Request() req: { user: JwtPayload }) {
     const lawyerId = req.user.userId;
 
-    const [
-      totalCases,
-      openCases,
-      closedCases,
-      assignedCases
-    ] = await Promise.all([
-      Conversation.countDocuments({ assignedTo: lawyerId }),
-      Conversation.countDocuments({ assignedTo: lawyerId, status: 'open' }),
-      Conversation.countDocuments({ assignedTo: lawyerId, status: 'closed' }),
-      Conversation.countDocuments({ assignedTo: lawyerId, status: 'assigned' })
-    ]);
+    const [totalCases, openCases, closedCases, assignedCases] =
+      await Promise.all([
+        Conversation.countDocuments({ assignedTo: lawyerId }),
+        Conversation.countDocuments({ assignedTo: lawyerId, status: 'open' }),
+        Conversation.countDocuments({ assignedTo: lawyerId, status: 'closed' }),
+        Conversation.countDocuments({
+          assignedTo: lawyerId,
+          status: 'assigned',
+        }),
+      ]);
 
     // Casos fechados nos últimos 30 dias
     const thirtyDaysAgo = new Date();
@@ -179,7 +207,7 @@ export class LawyerController {
     const recentClosedCases = await Conversation.countDocuments({
       assignedTo: lawyerId,
       status: 'closed',
-      closedAt: { $gte: thirtyDaysAgo }
+      closedAt: { $gte: thirtyDaysAgo },
     });
 
     return {
@@ -188,7 +216,8 @@ export class LawyerController {
       closedCases,
       assignedCases,
       recentClosedCases,
-      successRate: totalCases > 0 ? Math.round((closedCases / totalCases) * 100) : 0
+      successRate:
+        totalCases > 0 ? Math.round((closedCases / totalCases) * 100) : 0,
     };
   }
 

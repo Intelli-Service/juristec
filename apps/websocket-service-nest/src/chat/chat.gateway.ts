@@ -40,19 +40,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly intelligentRegistrationService: IntelligentUserRegistrationService,
     private readonly fluidRegistrationService: FluidRegistrationService,
     private readonly verificationService: VerificationService,
-    private readonly billingService: BillingService
+    private readonly billingService: BillingService,
   ) {}
 
   async handleConnection(client: Socket) {
     try {
       // Tentar autenticar se houver token, mas permitir conexões anônimas
-      const token = client.handshake.auth.token || client.handshake.headers.authorization?.split(' ')[1];
+      const token =
+        client.handshake.auth.token ||
+        client.handshake.headers.authorization?.split(' ')[1];
 
       if (token) {
-        const payload = this.jwtService.verify(token, { secret: process.env.NEXTAUTH_SECRET || 'fallback-secret' });
+        const payload = this.jwtService.verify(token, {
+          secret: process.env.NEXTAUTH_SECRET || 'fallback-secret',
+        });
         client.data.user = payload;
         client.data.isAuthenticated = true;
-        console.log('Usuário autenticado conectado:', client.id, 'User:', payload.email);
+        console.log(
+          'Usuário autenticado conectado:',
+          client.id,
+          'User:',
+          payload.email,
+        );
       } else {
         client.data.isAuthenticated = false;
         client.data.user = null;
@@ -71,7 +80,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join-room')
-  async handleJoinRoom(@MessageBody() data: { roomId: string }, @ConnectedSocket() client: Socket) {
+  async handleJoinRoom(
+    @MessageBody() data: { roomId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
     const roomId = data.roomId;
     client.join(roomId);
     console.log(`Usuário ${client.id} entrou na sala ${roomId}`);
@@ -81,13 +93,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (conversation) {
         const messages = await this.messageService.getMessages(
           { conversationId: conversation._id },
-          { userId: 'system', role: 'system', permissions: ['read'] }
+          { userId: 'system', role: 'system', permissions: ['read'] },
         );
-        client.emit('load-history', messages.map(msg => ({
-          id: msg._id.toString(),
-          text: msg.text,
-          sender: msg.sender,
-        })));
+        client.emit(
+          'load-history',
+          messages.map((msg) => ({
+            id: msg._id.toString(),
+            text: msg.text,
+            sender: msg.sender,
+          })),
+        );
       } else {
         // Criar nova conversa
         conversation = await Conversation.create({ roomId });
@@ -103,11 +118,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('join-lawyer-room')
   @UseGuards(NextAuthGuard)
-  async handleJoinLawyerRoom(@MessageBody() roomId: string, @ConnectedSocket() client: Socket) {
+  async handleJoinLawyerRoom(
+    @MessageBody() roomId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
     try {
       // Verificar se o usuário é advogado
-      if (!client.data.user || !['lawyer', 'super_admin'].includes(client.data.user.role)) {
-        client.emit('error', { message: 'Acesso negado - apenas advogados podem acessar' });
+      if (
+        !client.data.user ||
+        !['lawyer', 'super_admin'].includes(client.data.user.role)
+      ) {
+        client.emit('error', {
+          message: 'Acesso negado - apenas advogados podem acessar',
+        });
         return;
       }
 
@@ -119,28 +142,42 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Super admins podem acessar qualquer caso, advogados apenas casos atribuídos a eles
-      if (client.data.user.role !== 'super_admin' && conversation.assignedTo !== client.data.user.userId) {
-        client.emit('error', { message: 'Acesso negado - caso não atribuído a você' });
+      if (
+        client.data.user.role !== 'super_admin' &&
+        conversation.assignedTo !== client.data.user.userId
+      ) {
+        client.emit('error', {
+          message: 'Acesso negado - caso não atribuído a você',
+        });
         return;
       }
 
       // Entrar na sala do cliente (para comunicação direta) e na sala específica do advogado
       client.join(roomId); // Sala principal do cliente
       client.join(`lawyer-${roomId}`); // Sala específica dos advogados
-      
-      console.log(`Advogado ${client.data.user.email} entrou na sala do caso ${roomId}`);
+
+      console.log(
+        `Advogado ${client.data.user.email} entrou na sala do caso ${roomId}`,
+      );
 
       // Carregar histórico completo da conversa
       const messages = await this.messageService.getMessages(
         { conversationId: conversation._id },
-        { userId: client.data.user._id, role: client.data.user.role, permissions: client.data.user.permissions }
+        {
+          userId: client.data.user._id,
+          role: client.data.user.role,
+          permissions: client.data.user.permissions,
+        },
       );
-      client.emit('lawyer-history-loaded', messages.map(msg => ({
-        id: msg._id.toString(),
-        text: msg.text,
-        sender: msg.sender,
-        createdAt: msg.createdAt,
-      })));
+      client.emit(
+        'lawyer-history-loaded',
+        messages.map((msg) => ({
+          id: msg._id.toString(),
+          text: msg.text,
+          sender: msg.sender,
+          createdAt: msg.createdAt,
+        })),
+      );
     } catch (error) {
       console.error('Erro ao entrar na sala do advogado:', error);
       client.emit('error', { message: 'Erro interno do servidor' });
@@ -148,7 +185,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('send-message')
-  async handleSendMessage(@MessageBody() data: { roomId: string; message: string }, @ConnectedSocket() client: Socket) {
+  async handleSendMessage(
+    @MessageBody() data: { roomId: string; message: string },
+    @ConnectedSocket() client: Socket,
+  ) {
     const { roomId, message } = data;
     console.log(`Mensagem na sala ${roomId}: ${message}`);
 
@@ -163,7 +203,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           await conversation.save();
         }
       } catch (dbError) {
-        console.warn('Erro de conexão com banco de dados, continuando sem persistência:', dbError.message);
+        console.warn(
+          'Erro de conexão com banco de dados, continuando sem persistência:',
+          dbError.message,
+        );
         // Criar objeto de conversa temporário para teste
         conversation = { _id: `temp-${roomId}`, roomId };
       }
@@ -178,8 +221,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           senderId: client.data.user?.userId, // Pode ser null para usuários anônimos
         });
       } catch (dbError) {
-        console.warn('Erro ao salvar mensagem do usuário, continuando sem persistência');
-        userMessage = { _id: `temp-msg-${Date.now()}`, text: message, sender: 'user' };
+        console.warn(
+          'Erro ao salvar mensagem do usuário, continuando sem persistência',
+        );
+        userMessage = {
+          _id: `temp-msg-${Date.now()}`,
+          text: message,
+          sender: 'user',
+        };
       }
 
       // Buscar mensagens para contexto (se o DB estiver funcionando)
@@ -189,7 +238,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         try {
           messages = await this.messageService.getMessages(
             { conversationId: conversation._id },
-            { userId: client.data.user.id, role: client.data.user.role, permissions: client.data.user.permissions || [] }
+            {
+              userId: client.data.user.id,
+              role: client.data.user.role,
+              permissions: client.data.user.permissions || [],
+            },
           );
         } catch (dbError) {
           console.warn('Não foi possível carregar histórico de mensagens');
@@ -205,46 +258,51 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const codeMatch = message.match(/^\d{6}$/);
       if (codeMatch && !client.data.isAuthenticated) {
         // Tentar verificar código para a conversa atual
-        const verificationResult = await this.fluidRegistrationService.verifyAndCompleteRegistration(
-          {}, // Contact info será buscada da conversa
-          message,
-          conversation._id.toString()
-        );
+        const verificationResult =
+          await this.fluidRegistrationService.verifyAndCompleteRegistration(
+            {}, // Contact info será buscada da conversa
+            message,
+            conversation._id.toString(),
+          );
 
         if (verificationResult.success) {
           // Atualizar dados do cliente na conversa
           await Conversation.findByIdAndUpdate(conversation._id, {
-            updatedAt: new Date()
+            updatedAt: new Date(),
           });
 
           this.server.to(roomId).emit('receive-message', {
             text: verificationResult.message,
             sender: 'system',
-            messageId: `verification-${Date.now()}`
+            messageId: `verification-${Date.now()}`,
           });
 
           // Se usuário foi verificado, atualizar dados do cliente
           if (verificationResult.userId) {
-            client.data.user = { ...client.data.user, userId: verificationResult.userId };
+            client.data.user = {
+              ...client.data.user,
+              userId: verificationResult.userId,
+            };
             client.data.isAuthenticated = true;
           }
         } else {
           this.server.to(roomId).emit('receive-message', {
             text: verificationResult.message,
             sender: 'system',
-            messageId: `error-${Date.now()}`
+            messageId: `error-${Date.now()}`,
           });
         }
         return; // Não processar como mensagem normal da IA
       }
 
       // Processar mensagem com cadastro inteligente
-      const registrationResult = await this.intelligentRegistrationService.processUserMessage(
-        message,
-        conversation._id.toString(),
-        client.data.user?.id,
-        client.data.isAuthenticated // Passar se deve incluir histórico
-      );
+      const registrationResult =
+        await this.intelligentRegistrationService.processUserMessage(
+          message,
+          conversation._id.toString(),
+          client.data.user?.id,
+          client.data.isAuthenticated, // Passar se deve incluir histórico
+        );
 
       // Usar a resposta da IA (que pode incluir function calls)
       const aiResponseText = registrationResult.response;
@@ -254,25 +312,33 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         console.log(`Usuário registrado na conversa ${roomId}`);
       }
       if (registrationResult.statusUpdated) {
-        console.log(`Status da conversa ${roomId} atualizado para: ${registrationResult.newStatus}`);
+        console.log(
+          `Status da conversa ${roomId} atualizado para: ${registrationResult.newStatus}`,
+        );
         if (registrationResult.lawyerNeeded) {
-          console.log(`Conversa ${roomId} necessita advogado especializado em: ${registrationResult.specializationRequired}`);
+          console.log(
+            `Conversa ${roomId} necessita advogado especializado em: ${registrationResult.specializationRequired}`,
+          );
         }
       }
       if (registrationResult.shouldShowFeedback) {
-        console.log(`Feedback deve ser mostrado para conversa ${roomId}. Razão: ${registrationResult.feedbackReason}`);
+        console.log(
+          `Feedback deve ser mostrado para conversa ${roomId}. Razão: ${registrationResult.feedbackReason}`,
+        );
         // Mapear feedbackReason para uma mensagem de contexto apropriada
         const feedbackContextMap: Record<string, string> = {
-          'resolved_by_ai': 'Conversa resolvida com sucesso pela IA',
-          'assigned_to_lawyer': 'Caso encaminhado para advogado especializado',
-          'user_satisfied': 'Usuário demonstrou satisfação com a solução',
-          'user_abandoned': 'Usuário abandonou a conversa',
+          resolved_by_ai: 'Conversa resolvida com sucesso pela IA',
+          assigned_to_lawyer: 'Caso encaminhado para advogado especializado',
+          user_satisfied: 'Usuário demonstrou satisfação com a solução',
+          user_abandoned: 'Usuário abandonou a conversa',
         };
-        const contextMessage = feedbackContextMap[registrationResult.feedbackReason || ''] || 'Conversa finalizada';
+        const contextMessage =
+          feedbackContextMap[registrationResult.feedbackReason || ''] ||
+          'Conversa finalizada';
         // Emitir evento para o frontend mostrar o modal de feedback
         client.emit('show-feedback-modal', {
           reason: registrationResult.feedbackReason,
-          context: contextMessage
+          context: contextMessage,
         });
       }
 
@@ -286,13 +352,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           metadata: { generatedBy: 'gemini' },
         });
       } catch (dbError) {
-        console.warn('Erro ao salvar mensagem da IA, continuando sem persistência');
-        aiMessage = { _id: `temp-ai-${Date.now()}`, text: aiResponseText, sender: 'ai' };
+        console.warn(
+          'Erro ao salvar mensagem da IA, continuando sem persistência',
+        );
+        aiMessage = {
+          _id: `temp-ai-${Date.now()}`,
+          text: aiResponseText,
+          sender: 'ai',
+        };
       }
 
       // Tentar classificar conversa (opcional)
       try {
-        await this.aiService.classifyConversation(roomId, messages.concat([aiMessage]));
+        await this.aiService.classifyConversation(
+          roomId,
+          messages.concat([aiMessage]),
+        );
       } catch (classifyError) {
         console.warn('Erro ao classificar conversa:', classifyError.message);
       }
@@ -300,25 +375,42 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.to(roomId).emit('receive-message', {
         text: aiResponseText,
         sender: 'ai',
-        messageId: aiMessage._id.toString()
+        messageId: aiMessage._id.toString(),
       });
     } catch (error) {
       console.error('Erro ao processar mensagem:', error);
 
-      let errorMessage = 'Desculpe, ocorreu um erro interno. Tente novamente em alguns instantes.';
+      let errorMessage =
+        'Desculpe, ocorreu um erro interno. Tente novamente em alguns instantes.';
       let shouldRetry = false;
 
       // Tratar erros específicos da API do Google Gemini
-      if (error.message?.includes('503') || error.message?.includes('Service Unavailable')) {
-        errorMessage = 'O assistente está temporariamente indisponível devido à alta demanda. Aguarde alguns minutos e tente novamente.';
+      if (
+        error.message?.includes('503') ||
+        error.message?.includes('Service Unavailable')
+      ) {
+        errorMessage =
+          'O assistente está temporariamente indisponível devido à alta demanda. Aguarde alguns minutos e tente novamente.';
         shouldRetry = true;
-      } else if (error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
-        errorMessage = 'Muitas solicitações foram feitas. Aguarde alguns minutos antes de tentar novamente.';
+      } else if (
+        error.message?.includes('429') ||
+        error.message?.includes('Too Many Requests')
+      ) {
+        errorMessage =
+          'Muitas solicitações foram feitas. Aguarde alguns minutos antes de tentar novamente.';
         shouldRetry = true;
-      } else if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
-        errorMessage = 'Erro de autenticação com o serviço de IA. Entre em contato com o suporte.';
-      } else if (error.message?.includes('400') || error.message?.includes('Bad Request')) {
-        errorMessage = 'A mensagem enviada não pôde ser processada. Tente reformular sua pergunta.';
+      } else if (
+        error.message?.includes('401') ||
+        error.message?.includes('Unauthorized')
+      ) {
+        errorMessage =
+          'Erro de autenticação com o serviço de IA. Entre em contato com o suporte.';
+      } else if (
+        error.message?.includes('400') ||
+        error.message?.includes('Bad Request')
+      ) {
+        errorMessage =
+          'A mensagem enviada não pôde ser processada. Tente reformular sua pergunta.';
       }
 
       // Tentar salvar mensagem de erro (opcional)
@@ -331,7 +423,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             metadata: {
               error: true,
               originalError: error.message,
-              shouldRetry
+              shouldRetry,
             },
           });
         }
@@ -344,13 +436,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         sender: 'system',
         messageId: `error-${Date.now()}`,
         isError: true,
-        shouldRetry
+        shouldRetry,
       });
     }
   }
 
   @SubscribeMessage('verify-code')
-  async handleVerifyCode(@MessageBody() data: { roomId: string; code: string; email?: string; phone?: string }, @ConnectedSocket() client: Socket) {
+  async handleVerifyCode(
+    @MessageBody()
+    data: { roomId: string; code: string; email?: string; phone?: string },
+    @ConnectedSocket() client: Socket,
+  ) {
     const { roomId, code, email, phone } = data;
 
     try {
@@ -361,29 +457,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.emit('receive-message', {
           text: 'Erro: Conversa não encontrada.',
           sender: 'system',
-          messageId: `error-${Date.now()}`
+          messageId: `error-${Date.now()}`,
         });
         return;
       }
 
-      const result = await this.fluidRegistrationService.verifyAndCompleteRegistration(
-        contactInfo,
-        code,
-        conversation._id.toString()
-      );
+      const result =
+        await this.fluidRegistrationService.verifyAndCompleteRegistration(
+          contactInfo,
+          code,
+          conversation._id.toString(),
+        );
 
       if (result.success) {
         // Atualizar dados do cliente na conversa
         await Conversation.findByIdAndUpdate(conversation._id, {
           'clientInfo.email': email,
           'clientInfo.phone': phone,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         });
 
         client.emit('receive-message', {
           text: result.message,
           sender: 'system',
-          messageId: `verification-${Date.now()}`
+          messageId: `verification-${Date.now()}`,
         });
 
         // Se usuário foi criado/verificado, atualizar dados do cliente
@@ -395,7 +492,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.emit('receive-message', {
           text: result.message,
           sender: 'system',
-          messageId: `error-${Date.now()}`
+          messageId: `error-${Date.now()}`,
         });
       }
     } catch (error) {
@@ -403,20 +500,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('receive-message', {
         text: 'Erro ao verificar código. Tente novamente.',
         sender: 'system',
-        messageId: `error-${Date.now()}`
+        messageId: `error-${Date.now()}`,
       });
     }
   }
 
   @SubscribeMessage('send-lawyer-message')
   @UseGuards(NextAuthGuard)
-  async handleSendLawyerMessage(@MessageBody() data: { roomId: string; message: string }, @ConnectedSocket() client: Socket) {
+  async handleSendLawyerMessage(
+    @MessageBody() data: { roomId: string; message: string },
+    @ConnectedSocket() client: Socket,
+  ) {
     const { roomId, message } = data;
 
     try {
       // Verificar se o usuário é advogado
-      if (!client.data.user || !['lawyer', 'super_admin'].includes(client.data.user.role)) {
-        client.emit('error', { message: 'Acesso negado - apenas advogados podem enviar mensagens' });
+      if (
+        !client.data.user ||
+        !['lawyer', 'super_admin'].includes(client.data.user.role)
+      ) {
+        client.emit('error', {
+          message: 'Acesso negado - apenas advogados podem enviar mensagens',
+        });
         return;
       }
 
@@ -427,8 +532,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Verificar permissão para o caso
-      if (client.data.user.role !== 'super_admin' && conversation.assignedTo !== client.data.user.userId) {
-        client.emit('error', { message: 'Acesso negado - caso não atribuído a você' });
+      if (
+        client.data.user.role !== 'super_admin' &&
+        conversation.assignedTo !== client.data.user.userId
+      ) {
+        client.emit('error', {
+          message: 'Acesso negado - caso não atribuído a você',
+        });
         return;
       }
 
@@ -446,7 +556,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         text: message,
         sender: 'lawyer', // Cliente verá como mensagem do advogado
         messageId: lawyerMessage._id.toString(),
-        createdAt: lawyerMessage.createdAt
+        createdAt: lawyerMessage.createdAt,
       });
 
       // Também enviar confirmação para todos os advogados na sala específica
@@ -454,14 +564,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         text: message,
         sender: 'lawyer',
         messageId: lawyerMessage._id.toString(),
-        createdAt: lawyerMessage.createdAt
+        createdAt: lawyerMessage.createdAt,
       });
 
-      console.log(`Mensagem do advogado ${client.data.user.email} enviada para caso ${roomId}: ${message}`);
+      console.log(
+        `Mensagem do advogado ${client.data.user.email} enviada para caso ${roomId}: ${message}`,
+      );
     } catch (error) {
       console.error('Erro ao enviar mensagem do advogado:', error);
       client.emit('error', {
-        message: 'Erro ao enviar mensagem'
+        message: 'Erro ao enviar mensagem',
       });
     }
   }
@@ -481,7 +593,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         type: charge.type,
         expiresAt: charge.expiresAt,
         splitConfig: charge.splitConfig,
-        createdAt: charge.createdAt
+        createdAt: charge.createdAt,
       });
 
       // Notificar advogados sobre cobrança criada
@@ -492,10 +604,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         description: charge.description,
         clientId: charge.clientId,
         status: charge.status,
-        createdAt: charge.createdAt
+        createdAt: charge.createdAt,
       });
 
-      console.log(`Notificação de cobrança enviada para caso ${roomId}: R$ ${(charge.amount / 100).toFixed(2)}`);
+      console.log(
+        `Notificação de cobrança enviada para caso ${roomId}: R$ ${(charge.amount / 100).toFixed(2)}`,
+      );
     } catch (error) {
       console.error('Erro ao notificar cobrança criada:', error);
     }
@@ -510,7 +624,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.to(roomId).emit('charge-updated', {
         chargeId: charge._id,
         status: charge.status,
-        updatedAt: charge.updatedAt
+        updatedAt: charge.updatedAt,
       });
 
       // Notificar advogados sobre atualização da cobrança
@@ -518,10 +632,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         chargeId: charge._id,
         status: charge.status,
         clientId: charge.clientId,
-        updatedAt: charge.updatedAt
+        updatedAt: charge.updatedAt,
       });
 
-      console.log(`Notificação de atualização de cobrança enviada para caso ${roomId}: ${charge.status}`);
+      console.log(
+        `Notificação de atualização de cobrança enviada para caso ${roomId}: ${charge.status}`,
+      );
     } catch (error) {
       console.error('Erro ao notificar atualização de cobrança:', error);
     }

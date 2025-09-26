@@ -32,7 +32,9 @@ describe('AIService', () => {
     });
 
     // Mock do método loadConfig para evitar chamada no construtor
-    const loadConfigSpy = jest.spyOn(AIService.prototype, 'loadConfig').mockResolvedValue();
+    const loadConfigSpy = jest
+      .spyOn(AIService.prototype, 'loadConfig')
+      .mockResolvedValue();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [AIService],
@@ -72,7 +74,9 @@ describe('AIService', () => {
 
     it('should create default config when no config exists', async () => {
       const defaultConfig = {
-        systemPrompt: expect.stringContaining('Você é um assistente jurídico brasileiro'),
+        systemPrompt: expect.stringContaining(
+          'Você é um assistente jurídico brasileiro',
+        ),
         behaviorSettings: expect.objectContaining({
           maxTokens: 1000,
           temperature: 0.7,
@@ -110,12 +114,14 @@ describe('AIService', () => {
 
       expect(consoleSpy).toHaveBeenCalledWith(
         'Erro ao carregar configuração da IA:',
-        expect.any(Error)
+        expect.any(Error),
       );
 
       const fallbackConfig = service.getCurrentConfig();
       expect(fallbackConfig).toBeDefined();
-      expect(fallbackConfig.systemPrompt).toContain('Você é um assistente jurídico brasileiro');
+      expect(fallbackConfig.systemPrompt).toContain(
+        'Você é um assistente jurídico brasileiro',
+      );
 
       consoleSpy.mockRestore();
     });
@@ -159,7 +165,7 @@ describe('AIService', () => {
       expect(MockAIConfig.findByIdAndUpdate).toHaveBeenCalledWith(
         'config-id',
         { ...updates, updatedBy, updatedAt: expect.any(Date) },
-        { new: true }
+        { new: true },
       );
       expect(result).toEqual(updatedConfig);
       expect(service.getCurrentConfig()).toEqual(updatedConfig);
@@ -172,7 +178,9 @@ describe('AIService', () => {
 
       MockAIConfig.findByIdAndUpdate.mockRejectedValue(error);
 
-      await expect(service.updateConfig(updates, updatedBy)).rejects.toThrow('Update failed');
+      await expect(service.updateConfig(updates, updatedBy)).rejects.toThrow(
+        'Update failed',
+      );
     });
   });
 
@@ -229,7 +237,7 @@ describe('AIService', () => {
           'classification.category': 'Ação Judicial',
           'classification.complexity': 'complexo',
           'classification.legalArea': 'Direito Civil',
-        })
+        }),
       );
     });
 
@@ -293,7 +301,7 @@ describe('AIService', () => {
       expect(result).toBeNull();
       expect(consoleSpy).toHaveBeenCalledWith(
         'Erro ao classificar conversa:',
-        expect.any(Error)
+        expect.any(Error),
       );
 
       consoleSpy.mockRestore();
@@ -313,7 +321,9 @@ describe('AIService', () => {
         updatedAt: expect.any(Date),
       };
 
-      MockConversation.findOneAndUpdate.mockResolvedValue(updatedConversation as any);
+      MockConversation.findOneAndUpdate.mockResolvedValue(
+        updatedConversation as any,
+      );
 
       const result = await service.assignCase(roomId, lawyerId);
 
@@ -325,7 +335,7 @@ describe('AIService', () => {
           status: 'assigned',
           updatedAt: expect.any(Date),
         },
-        { new: true }
+        { new: true },
       );
       expect(result).toEqual(updatedConversation);
     });
@@ -334,7 +344,9 @@ describe('AIService', () => {
       const error = new Error('Assignment failed');
       MockConversation.findOneAndUpdate.mockRejectedValue(error);
 
-      await expect(service.assignCase('room-123', 'lawyer-456')).rejects.toThrow('Assignment failed');
+      await expect(
+        service.assignCase('room-123', 'lawyer-456'),
+      ).rejects.toThrow('Assignment failed');
     });
   });
 
@@ -354,10 +366,7 @@ describe('AIService', () => {
       const result = await service.getCasesForLawyer(lawyerId);
 
       expect(MockConversation.find).toHaveBeenCalledWith({
-        $or: [
-          { assignedTo: lawyerId },
-          { status: 'open' },
-        ],
+        $or: [{ assignedTo: lawyerId }, { status: 'open' }],
       });
       expect(mockQuery.sort).toHaveBeenCalledWith({ createdAt: -1 });
       expect(result).toEqual(mockCases);
@@ -370,7 +379,9 @@ describe('AIService', () => {
       };
       MockConversation.find.mockReturnValue(mockQuery);
 
-      await expect(service.getCasesForLawyer('lawyer-456')).rejects.toThrow('Query failed');
+      await expect(service.getCasesForLawyer('lawyer-456')).rejects.toThrow(
+        'Query failed',
+      );
     });
   });
 
@@ -385,7 +396,7 @@ describe('AIService', () => {
 
       expect(MockConversation.findByIdAndUpdate).toHaveBeenCalledWith(
         conversationId,
-        { userEmail: 'user@example.com' }
+        { userEmail: 'user@example.com' },
       );
     });
 
@@ -399,7 +410,7 @@ describe('AIService', () => {
 
       expect(MockConversation.findByIdAndUpdate).toHaveBeenCalledWith(
         conversationId,
-        { userPhone: '+5511999999999' }
+        { userPhone: '+5511999999999' },
       );
     });
 
@@ -413,7 +424,7 @@ describe('AIService', () => {
 
       expect(MockConversation.findByIdAndUpdate).toHaveBeenCalledWith(
         conversationId,
-        { userName: 'João Silva' }
+        { userName: 'João Silva' },
       );
     });
 
@@ -435,7 +446,7 @@ describe('AIService', () => {
           userName: 'João Silva',
           userEmail: 'joao@example.com',
           userPhone: '+5511999999999',
-        }
+        },
       );
     });
 
@@ -449,7 +460,7 @@ describe('AIService', () => {
 
       expect(MockConversation.findByIdAndUpdate).toHaveBeenCalledWith(
         conversationId,
-        { userEmail: null, userPhone: null }
+        { userEmail: null, userPhone: null },
       );
     });
 
@@ -457,8 +468,9 @@ describe('AIService', () => {
       const error = new Error('Update failed');
       MockConversation.findByIdAndUpdate.mockRejectedValue(error);
 
-      await expect(service.updateUserData('conv-123', { email: 'test@example.com' }))
-        .rejects.toThrow('Update failed');
+      await expect(
+        service.updateUserData('conv-123', { email: 'test@example.com' }),
+      ).rejects.toThrow('Update failed');
     });
   });
 });

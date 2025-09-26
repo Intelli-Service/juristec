@@ -15,7 +15,9 @@ import { AIService } from './lib/ai.service';
 @Module({
   imports: [
     // Only connect to MongoDB if URI is provided
-    ...(process.env.MONGODB_URI ? [MongooseModule.forRoot(process.env.MONGODB_URI)] : []),
+    ...(process.env.MONGODB_URI
+      ? [MongooseModule.forRoot(process.env.MONGODB_URI)]
+      : []),
     JwtModule.register({
       secret: process.env.NEXTAUTH_SECRET,
       signOptions: { expiresIn: '1h' },

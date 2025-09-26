@@ -1,0 +1,71 @@
+{
+  "name": "juristec-monorepo",
+  "version": "1.0.0",
+  "description": "Online Legal Office Platform - Comprehensive Testing & Quality",
+  "private": true,
+  "workspaces": [
+    "apps/next-app",
+    "apps/websocket-service-nest"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd apps/next-app && npm run dev",
+    "dev:backend": "cd apps/websocket-service-nest && npm run start:dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:frontend": "cd apps/next-app && npm run build",
+    "build:backend": "cd apps/websocket-service-nest && npm run build",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd apps/websocket-service-nest && npm test",
+    "test:frontend": "cd apps/next-app && npm test",
+    "test:coverage": "npm run test:coverage:backend && npm run test:coverage:frontend",
+    "test:coverage:backend": "cd apps/websocket-service-nest && npm run test:cov",
+    "test:coverage:frontend": "cd apps/next-app && npm run test:coverage",
+    "test:watch": "concurrently \"npm run test:watch:backend\" \"npm run test:watch:frontend\"",
+    "test:watch:backend": "cd apps/websocket-service-nest && npm run test:watch",
+    "test:watch:frontend": "cd apps/next-app && npm run test:watch",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "cd apps/websocket-service-nest && npm run lint",
+    "lint:frontend": "cd apps/next-app && npm run lint",
+    "lint:fix": "npm run lint:fix:backend && npm run lint:fix:frontend",
+    "lint:fix:backend": "cd apps/websocket-service-nest && npm run lint -- --fix",
+    "lint:fix:frontend": "cd apps/next-app && npm run lint -- --fix",
+    "typecheck": "npm run typecheck:backend && npm run typecheck:frontend",
+    "typecheck:backend": "cd apps/websocket-service-nest && npx tsc --noEmit",
+    "typecheck:frontend": "cd apps/next-app && npx tsc --noEmit",
+    "audit:security": "npm run audit:backend && npm run audit:frontend",
+    "audit:backend": "cd apps/websocket-service-nest && npm audit",
+    "audit:frontend": "cd apps/next-app && npm audit",
+    "quality:check": "npm run lint && npm run typecheck && npm run test",
+    "quality:fix": "npm run lint:fix && npm run typecheck",
+    "setup:dev": "npm run install:all && npm run setup:hooks",
+    "install:all": "npm install && cd apps/next-app && npm install && cd ../websocket-service-nest && npm install",
+    "setup:hooks": "husky install || echo 'Husky not available, skipping hooks setup'",
+    "docker:dev": "docker-compose up --build",
+    "docker:test": "docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit",
+    "performance:test": "echo '⚡ Performance testing will be implemented with k6'",
+    "e2e:test": "echo '🎭 E2E testing will be implemented with Playwright'",
+    "ci:full": "npm run quality:check && npm run build",
+    "prepare": "husky install || echo 'Husky not available'"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "husky": "^8.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "legal-tech",
+    "ai-assistant",
+    "websocket",
+    "next.js",
+    "nestjs",
+    "mongodb",
+    "testing",
+    "quality",
+    "ci-cd"
+  ],
+  "author": "Juristec Team",
+  "license": "UNLICENSED"
+}

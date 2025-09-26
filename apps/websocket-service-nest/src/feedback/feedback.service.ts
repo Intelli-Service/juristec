@@ -1,7 +1,16 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Feedback, FeedbackDocument, FeedbackType, FeedbackStatus } from '../models/Feedback';
+import {
+  Feedback,
+  FeedbackDocument,
+  FeedbackType,
+  FeedbackStatus,
+} from '../models/Feedback';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { UpdateFeedbackDto } from './dto/update-feedback.dto';
 
@@ -17,11 +26,13 @@ export class FeedbackService {
       userId: createFeedbackDto.userId,
       conversationId: createFeedbackDto.conversationId,
       type: createFeedbackDto.type,
-      status: FeedbackStatus.COMPLETED
+      status: FeedbackStatus.COMPLETED,
     });
 
     if (existingFeedback) {
-      throw new BadRequestException('Feedback already exists for this conversation');
+      throw new BadRequestException(
+        'Feedback already exists for this conversation',
+      );
     }
 
     const feedback = new this.feedbackModel({
@@ -33,7 +44,10 @@ export class FeedbackService {
     return feedback.save();
   }
 
-  async submitFeedback(id: string, updateFeedbackDto: UpdateFeedbackDto): Promise<Feedback> {
+  async submitFeedback(
+    id: string,
+    updateFeedbackDto: UpdateFeedbackDto,
+  ): Promise<Feedback> {
     const feedback = await this.feedbackModel.findById(id);
 
     if (!feedback) {
@@ -57,8 +71,12 @@ export class FeedbackService {
 
     if (responses?.recommendation) {
       // NPS: Promotores (9-10) - Detratores (0-6) / Total
-      npsScore = responses.recommendation >= 9 ? 100 :
-                responses.recommendation <= 6 ? -100 : 0;
+      npsScore =
+        responses.recommendation >= 9
+          ? 100
+          : responses.recommendation <= 6
+            ? -100
+            : 0;
     }
 
     if (responses?.satisfaction) {
@@ -75,7 +93,7 @@ export class FeedbackService {
         status: FeedbackStatus.COMPLETED,
         completedAt: new Date(),
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedFeedback) {
@@ -93,19 +111,27 @@ export class FeedbackService {
     return feedback;
   }
 
-  async findByConversation(conversationId: string, userId: string): Promise<Feedback[]> {
-    return this.feedbackModel.find({
-      conversationId,
-      userId,
-    }).sort({ createdAt: -1 });
+  async findByConversation(
+    conversationId: string,
+    userId: string,
+  ): Promise<Feedback[]> {
+    return this.feedbackModel
+      .find({
+        conversationId,
+        userId,
+      })
+      .sort({ createdAt: -1 });
   }
 
   async getPendingFeedbacks(userId: string): Promise<Feedback[]> {
-    return this.feedbackModel.find({
-      userId,
-      status: FeedbackStatus.PENDING,
-      expiresAt: { $gt: new Date() }
-    }).populate('conversationId', 'title').sort({ createdAt: -1 });
+    return this.feedbackModel
+      .find({
+        userId,
+        status: FeedbackStatus.PENDING,
+        expiresAt: { $gt: new Date() },
+      })
+      .populate('conversationId', 'title')
+      .sort({ createdAt: -1 });
   }
 
   async getFeedbackStats(lawyerId?: string, startDate?: Date, endDate?: Date) {
@@ -131,13 +157,13 @@ export class FeedbackService {
           averageNps: { $avg: '$npsScore' },
           averageCsat: { $avg: '$csatScore' },
           ratingDistribution: {
-            $push: '$rating'
+            $push: '$rating',
           },
           responseTimeAvg: { $avg: '$responses.responseTime' },
           professionalismAvg: { $avg: '$responses.professionalism' },
           understandingAvg: { $avg: '$responses.understanding' },
-        }
-      }
+        },
+      },
     ]);
 
     if (stats.length === 0) {
@@ -157,7 +183,7 @@ export class FeedbackService {
 
     // Calculate rating distribution
     const ratingDistribution = {};
-    result.ratingDistribution.forEach(rating => {
+    result.ratingDistribution.forEach((rating) => {
       ratingDistribution[rating] = (ratingDistribution[rating] || 0) + 1;
     });
 
@@ -178,7 +204,7 @@ export class FeedbackService {
 
     const matchConditions: any = {
       status: FeedbackStatus.COMPLETED,
-      createdAt: { $gte: startDate }
+      createdAt: { $gte: startDate },
     };
 
     if (lawyerId) {
@@ -190,17 +216,17 @@ export class FeedbackService {
       {
         $group: {
           _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
           },
           count: { $sum: 1 },
           averageRating: { $avg: '$rating' },
           averageNps: { $avg: '$npsScore' },
-        }
+        },
       },
-      { $sort: { '_id': 1 } }
+      { $sort: { _id: 1 } },
     ]);
 
-    return trends.map(trend => ({
+    return trends.map((trend) => ({
       date: trend._id,
       count: trend.count,
       averageRating: Math.round(trend.averageRating * 10) / 10,

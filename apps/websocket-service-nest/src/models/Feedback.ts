@@ -7,13 +7,13 @@ export enum FeedbackType {
   POST_CHAT = 'post_chat',
   POST_CASE = 'post_case',
   PERIODIC_SURVEY = 'periodic_survey',
-  SPONTANEOUS = 'spontaneous'
+  SPONTANEOUS = 'spontaneous',
 }
 
 export enum FeedbackStatus {
   PENDING = 'pending',
   COMPLETED = 'completed',
-  EXPIRED = 'expired'
+  EXPIRED = 'expired',
 }
 
 @Schema({ timestamps: true })
@@ -30,7 +30,11 @@ export class Feedback {
   @Prop({ required: true, enum: FeedbackType })
   type: FeedbackType;
 
-  @Prop({ required: true, enum: FeedbackStatus, default: FeedbackStatus.PENDING })
+  @Prop({
+    required: true,
+    enum: FeedbackStatus,
+    default: FeedbackStatus.PENDING,
+  })
   status: FeedbackStatus;
 
   // Rating (1-5 stars)

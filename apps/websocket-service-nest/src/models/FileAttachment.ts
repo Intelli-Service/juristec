@@ -33,4 +33,5 @@ export class FileAttachment {
   isDeleted: boolean;
 }
 
-export const FileAttachmentSchema = SchemaFactory.createForClass(FileAttachment);
+export const FileAttachmentSchema =
+  SchemaFactory.createForClass(FileAttachment);
