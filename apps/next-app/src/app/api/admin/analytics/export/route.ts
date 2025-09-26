@@ -20,6 +20,10 @@ export async function GET(request: NextRequest) {
 
     // Fazer chamada para o backend NestJS
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    if (!backendUrl) {
+      throw new Error('NEXT_PUBLIC_API_URL is not configured');
+    }
+
     const queryParams = new URLSearchParams();
     queryParams.append('format', format);
 
@@ -28,7 +32,10 @@ export async function GET(request: NextRequest) {
     if (period) queryParams.append('period', period);
     if (segment && segment !== 'all') queryParams.append('segment', segment);
 
-    const response = await fetch(`${backendUrl}/analytics/export?${queryParams}`, {
+    const apiUrl = `${backendUrl}/analytics/export?${queryParams}`;
+    console.log('Calling backend URL:', apiUrl);
+
+    const response = await fetch(apiUrl, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -39,6 +46,9 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.text();
+    if (!data) {
+      throw new Error('Empty response from backend');
+    }
 
     // Retornar como arquivo para download
     const headers = new Headers();
