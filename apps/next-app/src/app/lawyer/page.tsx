@@ -246,6 +246,12 @@ export default function LawyerDashboard() {
             <span className="text-slate-400">Painel do Advogado</span>
           </div>
           <div className="flex items-center space-x-4">
+            <Link
+              href="/lawyer/appointments"
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+            >
+              📅 Agendamentos
+            </Link>
             <span className="text-emerald-400 font-medium">Advogado</span>
             <Link
               href="/"

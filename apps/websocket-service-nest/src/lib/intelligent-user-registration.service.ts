@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { GeminiService, RegisterUserFunctionCall, UpdateConversationStatusFunctionCall, DetectConversationCompletionFunctionCall } from './gemini.service';
+import { GeminiService, RegisterUserFunctionCall, UpdateConversationStatusFunctionCall, DetectConversationCompletionFunctionCall, ScheduleAppointmentFunctionCall, CheckLawyerAvailabilityFunctionCall } from './gemini.service';
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
 import { FluidRegistrationService } from './fluid-registration.service';
+import { AppointmentService, CreateAppointmentDto } from '../appointment/appointment.service';
 import Conversation from '../models/Conversation';
 import { IUser } from '../models/User';
 import { CaseStatus } from '../models/User';
+import { AppointmentType } from '../models/Appointment';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,6 +21,10 @@ export interface IntelligentRegistrationResult {
   specializationRequired?: string;
   shouldShowFeedback?: boolean;
   feedbackReason?: string;
+  appointmentScheduled?: boolean;
+  appointmentDetails?: any;
+  availabilityChecked?: boolean;
+  availabilityData?: any;
 }
 
 @Injectable()
@@ -35,6 +41,7 @@ export class IntelligentUserRegistrationService {
     private readonly aiService: AIService,
     private readonly messageService: MessageService,
     private readonly fluidRegistrationService: FluidRegistrationService,
+    private readonly appointmentService: AppointmentService,
     @InjectModel('User') private userModel: Model<IUser>,
     @InjectModel('Conversation') private conversationModel: Model<any>
   ) {}
@@ -89,6 +96,10 @@ export class IntelligentUserRegistrationService {
       let specializationRequired: string | undefined;
       let shouldShowFeedback = false;
       let feedbackReason: string | undefined;
+      let appointmentScheduled = false;
+      let appointmentDetails: any;
+      let availabilityChecked = false;
+      let availabilityData: any;
 
       // Processar function calls se existirem
       if (result.functionCalls) {
@@ -133,6 +144,24 @@ export class IntelligentUserRegistrationService {
               console.warn('⚠️ Parâmetros ausentes ou inválidos em detect_conversation_completion');
             }
             console.log(`✅ Detecção de conclusão de conversa: feedback=${shouldShowFeedback}, reason=${feedbackReason}`);
+          } else if (functionCall.name === 'schedule_appointment') {
+            try {
+              const appointmentResult = await this.handleScheduleAppointment(functionCall.parameters, conversationId);
+              appointmentScheduled = true;
+              appointmentDetails = appointmentResult;
+              console.log('✅ Agendamento criado via function call');
+            } catch (error) {
+              console.error('❌ Erro ao criar agendamento:', error);
+            }
+          } else if (functionCall.name === 'check_lawyer_availability') {
+            try {
+              const availability = await this.handleCheckAvailability(functionCall.parameters);
+              availabilityChecked = true;
+              availabilityData = availability;
+              console.log('✅ Disponibilidade verificada via function call');
+            } catch (error) {
+              console.error('❌ Erro ao verificar disponibilidade:', error);
+            }
           }
         }
       } else {
@@ -147,7 +176,11 @@ export class IntelligentUserRegistrationService {
         lawyerNeeded,
         specializationRequired,
         shouldShowFeedback,
-        feedbackReason
+        feedbackReason,
+        appointmentScheduled,
+        appointmentDetails,
+        availabilityChecked,
+        availabilityData
       };
 
     } catch (error) {
@@ -350,5 +383,59 @@ export class IntelligentUserRegistrationService {
     });
 
     return result;
+  }
+
+  /**
+   * Trata agendamento de consulta via function call
+   */
+  private async handleScheduleAppointment(
+    params: ScheduleAppointmentFunctionCall['parameters'],
+    conversationId: string
+  ): Promise<any> {
+    // Buscar informações da conversa
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) {
+      throw new Error('Conversa não encontrada');
+    }
+
+    // Criar DTO para agendamento
+    const createDto: CreateAppointmentDto = {
+      conversationId,
+      lawyerId: params.lawyer_id,
+      clientInfo: {
+        name: conversation.clientInfo?.name || 'Cliente',
+        email: conversation.clientInfo?.email || '',
+        phone: conversation.clientInfo?.phone
+      },
+      type: params.appointment_type as AppointmentType,
+      scheduledDateTime: `${params.preferred_date}T${params.preferred_time}:00.000Z`,
+      duration: params.duration_minutes || 60,
+      notes: params.notes
+    };
+
+    // Criar o agendamento
+    const appointment = await this.appointmentService.createAppointment(createDto);
+    
+    return {
+      id: appointment._id,
+      scheduledDateTime: appointment.scheduledDateTime,
+      type: appointment.type,
+      duration: appointment.duration,
+      meetingDetails: appointment.meetingDetails
+    };
+  }
+
+  /**
+   * Verifica disponibilidade do advogado via function call
+   */
+  private async handleCheckAvailability(
+    params: CheckLawyerAvailabilityFunctionCall['parameters']
+  ): Promise<any> {
+    const availability = await this.appointmentService.getLawyerAvailability(
+      params.lawyer_id,
+      params.date
+    );
+
+    return availability;
   }
 }

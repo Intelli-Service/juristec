@@ -8,9 +8,14 @@ import { MessageService } from '../lib/message.service';
 import { IntelligentUserRegistrationService } from '../lib/intelligent-user-registration.service';
 import { FluidRegistrationService } from '../lib/fluid-registration.service';
 import { VerificationService } from '../lib/verification.service';
+import { AppointmentService } from '../appointment/appointment.service';
+import { GoogleCalendarService } from '../appointment/google-calendar.service';
+import { NotificationService } from '../appointment/notification.service';
+import { VideoMeetingService } from '../appointment/video-meeting.service';
 import { BillingModule } from '../billing/billing.module';
 import UserModel from '../models/User';
 import Conversation, { ConversationSchema } from '../models/Conversation';
+import { AppointmentSchema } from '../models/Appointment';
 import mongoose from 'mongoose';
 
 // Schema para códigos de verificação
@@ -35,7 +40,8 @@ VerificationCodeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
     MongooseModule.forFeature([
       { name: 'User', schema: UserModel.schema },
       { name: 'Conversation', schema: Conversation.schema },
-      { name: 'VerificationCode', schema: VerificationCodeSchema }
+      { name: 'VerificationCode', schema: VerificationCodeSchema },
+      { name: 'Appointment', schema: AppointmentSchema }
     ]),
     BillingModule
   ],
@@ -46,7 +52,11 @@ VerificationCodeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
     MessageService,
     IntelligentUserRegistrationService,
     FluidRegistrationService,
-    VerificationService
+    VerificationService,
+    AppointmentService,
+    GoogleCalendarService,
+    NotificationService,
+    VideoMeetingService
   ],
   exports: [ChatGateway, GeminiService, AIService, MessageService]
 })

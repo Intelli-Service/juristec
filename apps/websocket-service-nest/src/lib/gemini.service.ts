@@ -32,7 +32,27 @@ export interface DetectConversationCompletionFunctionCall {
   };
 }
 
-export type FunctionCall = RegisterUserFunctionCall | UpdateConversationStatusFunctionCall | DetectConversationCompletionFunctionCall;
+export interface ScheduleAppointmentFunctionCall {
+  name: 'schedule_appointment';
+  parameters: {
+    lawyer_id: string;
+    appointment_type: 'video' | 'phone' | 'in_person';
+    preferred_date: string; // YYYY-MM-DD
+    preferred_time: string; // HH:MM
+    duration_minutes?: number;
+    notes?: string;
+  };
+}
+
+export interface CheckLawyerAvailabilityFunctionCall {
+  name: 'check_lawyer_availability';
+  parameters: {
+    lawyer_id: string;
+    date: string; // YYYY-MM-DD
+  };
+}
+
+export type FunctionCall = RegisterUserFunctionCall | UpdateConversationStatusFunctionCall | DetectConversationCompletionFunctionCall | ScheduleAppointmentFunctionCall | CheckLawyerAvailabilityFunctionCall;
 
 @Injectable()
 export class GeminiService {
@@ -132,6 +152,60 @@ export class GeminiService {
                   }
                 },
                 required: ['should_show_feedback', 'completion_reason']
+              }
+            },
+            {
+              name: 'schedule_appointment',
+              description: 'Agenda uma consulta com um advogado específico para casos em andamento',
+              parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  lawyer_id: {
+                    type: SchemaType.STRING,
+                    description: 'ID do advogado responsável pelo caso'
+                  },
+                  appointment_type: {
+                    type: SchemaType.STRING,
+                    format: 'enum',
+                    enum: ['video', 'phone', 'in_person'],
+                    description: 'Tipo de consulta: por vídeo, telefone ou presencial'
+                  },
+                  preferred_date: {
+                    type: SchemaType.STRING,
+                    description: 'Data preferida para agendamento (formato YYYY-MM-DD)'
+                  },
+                  preferred_time: {
+                    type: SchemaType.STRING,
+                    description: 'Horário preferido para agendamento (formato HH:MM)'
+                  },
+                  duration_minutes: {
+                    type: SchemaType.NUMBER,
+                    description: 'Duração da consulta em minutos (padrão: 60)'
+                  },
+                  notes: {
+                    type: SchemaType.STRING,
+                    description: 'Observações sobre o agendamento'
+                  }
+                },
+                required: ['lawyer_id', 'appointment_type', 'preferred_date', 'preferred_time']
+              }
+            },
+            {
+              name: 'check_lawyer_availability',
+              description: 'Verifica disponibilidade de horários de um advogado para agendamento',
+              parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  lawyer_id: {
+                    type: SchemaType.STRING,
+                    description: 'ID do advogado para verificar disponibilidade'
+                  },
+                  date: {
+                    type: SchemaType.STRING,
+                    description: 'Data para verificar disponibilidade (formato YYYY-MM-DD)'
+                  }
+                },
+                required: ['lawyer_id', 'date']
               }
             }
           ]
