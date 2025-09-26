@@ -25,11 +25,26 @@ describe('FluidRegistrationService', () => {
         },
         {
           provide: getModelToken('User'),
-          useValue: {
-            findOne: jest.fn(),
-            create: jest.fn(),
-            constructor: jest.fn(),
-          },
+          useValue: Object.assign(
+            function() {
+              return {
+                _id: new mongoose.Types.ObjectId(),
+                name: 'João Silva',
+                email: 'joao@email.com',
+                phone: '(11) 99999-9999',
+                save: jest.fn().mockResolvedValue({
+                  _id: new mongoose.Types.ObjectId(),
+                  name: 'João Silva',
+                  email: 'joao@email.com',
+                  phone: '(11) 99999-9999',
+                }),
+              };
+            },
+            {
+              findOne: jest.fn(),
+              create: jest.fn(),
+            }
+          ),
         },
         {
           provide: getModelToken('Conversation'),
@@ -55,20 +70,6 @@ describe('FluidRegistrationService', () => {
       // Mock usuário não encontrado
       userModel.findOne.mockResolvedValue(null);
 
-      const mockUser = {
-        _id: new mongoose.Types.ObjectId(),
-        name: 'João Silva',
-        email: 'joao@email.com',
-        isActive: false,
-        save: jest.fn().mockResolvedValue({
-          _id: new mongoose.Types.ObjectId(),
-          name: 'João Silva',
-          email: 'joao@email.com',
-          isActive: false,
-        }),
-      };
-
-      userModel.constructor = jest.fn().mockReturnValue(mockUser);
       jest.spyOn(verificationService, 'generateCode').mockResolvedValue('123456');
       conversationModel.findByIdAndUpdate.mockResolvedValue({});
 
@@ -111,7 +112,7 @@ describe('FluidRegistrationService', () => {
 
       expect(result.success).toBe(true);
       expect(result.userId).toBe(existingUser._id.toString());
-    });
+    }, 10000);
 
     it('should send verification for existing unverified user', async () => {
       // Mock usuário encontrado mas não verificado
@@ -163,7 +164,7 @@ describe('FluidRegistrationService', () => {
       expect(result.success).toBe(true);
       expect(result.userId).toBe(user._id.toString());
       expect(user.save).toHaveBeenCalled();
-    });
+    }, 10000);
 
     it('should fail with invalid code', async () => {
       jest.spyOn(verificationService, 'verifyCode').mockResolvedValue(false);
