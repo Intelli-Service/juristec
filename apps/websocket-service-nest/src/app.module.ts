@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Module, OnModuleInit, MiddlewareConsumer } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { ChatModule } from './chat/chat.module';
@@ -9,6 +9,8 @@ import { PaymentModule } from './payment/payment.module';
 import { BillingModule } from './billing/billing.module';
 import { WebhookModule } from './webhook/webhook.module';
 import { FeedbackModule } from './feedback/feedback.module';
+import { LGPDModule } from './lgpd/lgpd.module';
+import { AuditMiddleware } from './middleware/audit.middleware';
 import { MongodbService } from './lib/mongodb.service';
 import { AIService } from './lib/ai.service';
 
@@ -30,6 +32,7 @@ import { AIService } from './lib/ai.service';
     BillingModule,
     WebhookModule,
     FeedbackModule,
+    LGPDModule,
   ],
   providers: [MongodbService, AIService],
 })
@@ -42,5 +45,11 @@ export class AppModule implements OnModuleInit {
     } else {
       console.log('MongoDB disabled - running without database persistence');
     }
+  }
+
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(AuditMiddleware)
+      .forRoutes('*'); // Aplica em todas as rotas
   }
 }
