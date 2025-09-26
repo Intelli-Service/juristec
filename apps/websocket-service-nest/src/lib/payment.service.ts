@@ -75,6 +75,22 @@ export class PaymentService {
       const platformFeeAmount = Math.round(createPaymentDto.amount * (this.config.platformFee / 100));
       const lawyerAmount = createPaymentDto.amount - platformFeeAmount;
 
+      // Validar dados de pagamento antes de salvar
+      switch (createPaymentDto.paymentMethod) {
+        case PaymentMethod.CREDIT_CARD:
+        case PaymentMethod.DEBIT_CARD:
+          if (!createPaymentDto.cardData) {
+            throw new BadRequestException('Dados do cartão são obrigatórios');
+          }
+          break;
+        case PaymentMethod.PIX:
+          // PIX não requer validação adicional
+          break;
+        case PaymentMethod.BOLETO:
+          // Boleto não requer validação adicional
+          break;
+      }
+
       // Criar registro do pagamento
       const payment = new this.paymentModel({
         conversationId: createPaymentDto.conversationId,
@@ -122,6 +138,10 @@ export class PaymentService {
 
       return payment;
     } catch (error) {
+      // Permitir que BadRequestException seja propagada (de validações de entrada)
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       this.logger.error(`Erro ao criar pagamento: ${error.message}`, error.stack);
       throw new InternalServerErrorException('Erro ao processar pagamento');
     }
@@ -158,13 +178,10 @@ export class PaymentService {
     switch (dto.paymentMethod) {
       case PaymentMethod.CREDIT_CARD:
       case PaymentMethod.DEBIT_CARD:
-        if (!dto.cardData) {
-          throw new BadRequestException('Dados do cartão são obrigatórios');
-        }
-        paymentData.card_number = dto.cardData.cardNumber.replace(/\s/g, '');
-        paymentData.card_holder_name = dto.cardData.cardHolderName;
-        paymentData.card_expiration_date = dto.cardData.cardExpirationDate.replace(/\D/g, '');
-        paymentData.card_cvv = dto.cardData.cardCvv;
+        paymentData.card_number = dto.cardData!.cardNumber.replace(/\s/g, '');
+        paymentData.card_holder_name = dto.cardData!.cardHolderName;
+        paymentData.card_expiration_date = dto.cardData!.cardExpirationDate.replace(/\D/g, '');
+        paymentData.card_cvv = dto.cardData!.cardCvv;
         break;
 
       case PaymentMethod.PIX:
@@ -271,7 +288,7 @@ export class PaymentService {
       // Atualizar datas específicas
       if (newStatus === PaymentStatus.PAID && !payment.paidAt) {
         payment.paidAt = new Date();
-      } else if (newStatus === PaymentStatus.CANCELLED && !payment.cancelledAt) {
+      } else if ((newStatus === PaymentStatus.CANCELLED || newStatus === PaymentStatus.FAILED) && !payment.cancelledAt) {
         payment.cancelledAt = new Date();
       } else if (newStatus === PaymentStatus.REFUNDED && !payment.refundedAt) {
         payment.refundedAt = new Date();
