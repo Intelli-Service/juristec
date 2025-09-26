@@ -61,42 +61,6 @@
     "undici": "^7.16.0",
     "whatwg-fetch": "^3.6.20"
   },
-  "jest": {
-    "testEnvironment": "jsdom",
-    "setupFilesAfterEnv": [
-      "<rootDir>/jest.setup.js"
-    ],
-    "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/src/$1"
-    },
-    "transform": {
-      "^.+\\.(js|jsx|ts|tsx)$": [
-        "babel-jest",
-        {
-          "presets": [
-            "next/babel"
-          ]
-        }
-      ]
-    },
-    "moduleFileExtensions": [
-      "ts",
-      "tsx",
-      "js",
-      "jsx",
-      "json",
-      "node"
-    ],
-    "testPathIgnorePatterns": [
-      "<rootDir>/.next/",
-      "<rootDir>/node_modules/",
-      "<rootDir>/tests/"
-    ],
-    "collectCoverageFrom": [
-      "src/**/*.{js,jsx,ts,tsx}",
-      "!src/**/*.d.ts"
-    ]
-  },
   "husky": {
     "hooks": {
       "pre-commit": "lint-staged",
