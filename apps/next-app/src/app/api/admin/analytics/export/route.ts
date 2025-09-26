@@ -10,6 +10,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Durante o build, retornar uma resposta mock para evitar erros
+    if (process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_API_URL) {
+      return NextResponse.json(
+        { error: 'Service temporarily unavailable' },
+        { status: 503 }
+      );
+    }
+
     // Extrair parâmetros de query
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'json';
@@ -21,7 +29,10 @@ export async function GET(request: NextRequest) {
     // Fazer chamada para o backend NestJS
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     if (!backendUrl) {
-      throw new Error('NEXT_PUBLIC_API_URL is not configured');
+      return NextResponse.json(
+        { error: 'Backend service not configured' },
+        { status: 503 }
+      );
     }
 
     const queryParams = new URLSearchParams();
@@ -33,34 +44,55 @@ export async function GET(request: NextRequest) {
     if (segment && segment !== 'all') queryParams.append('segment', segment);
 
     const apiUrl = `${backendUrl}/analytics/export?${queryParams}`;
-    console.log('Calling backend URL:', apiUrl);
 
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    // Adicionar timeout para evitar travamentos durante o build
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
 
-    if (!response.ok) {
-      throw new Error(`Backend responded with status: ${response.status}`);
+    try {
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Backend responded with status: ${response.status}`);
+      }
+
+      const data = await response.text();
+      if (!data) {
+        throw new Error('Empty response from backend');
+      }
+
+      // Retornar como arquivo para download
+      const headers = new Headers();
+      if (format === 'csv') {
+        headers.set('Content-Type', 'text/csv');
+        headers.set('Content-Disposition', 'attachment; filename="analytics-report.csv"');
+      } else {
+        headers.set('Content-Type', 'application/json');
+        headers.set('Content-Disposition', 'attachment; filename="analytics-report.json"');
+      }
+
+      return new NextResponse(data, { headers });
+
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+
+      // Se for erro de rede ou timeout, retornar resposta de serviço indisponível
+      if (fetchError instanceof Error && (fetchError.name === 'AbortError' || fetchError.message.includes('fetch'))) {
+        return NextResponse.json(
+          { error: 'Analytics service temporarily unavailable' },
+          { status: 503 }
+        );
+      }
+
+      throw fetchError;
     }
-
-    const data = await response.text();
-    if (!data) {
-      throw new Error('Empty response from backend');
-    }
-
-    // Retornar como arquivo para download
-    const headers = new Headers();
-    if (format === 'csv') {
-      headers.set('Content-Type', 'text/csv');
-      headers.set('Content-Disposition', 'attachment; filename="analytics-report.csv"');
-    } else {
-      headers.set('Content-Type', 'application/json');
-      headers.set('Content-Disposition', 'attachment; filename="analytics-report.json"');
-    }
-
-    return new NextResponse(data, { headers });
 
   } catch (error) {
     console.error('Erro na API de export analytics:', error);
