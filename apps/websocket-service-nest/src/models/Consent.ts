@@ -34,60 +34,64 @@ export interface IConsent extends Document {
   updatedAt: Date;
 }
 
-const ConsentSchema = new Schema<IConsent>({
-  userId: {
-    type: String,
-    required: true,
-    index: true,
+const ConsentSchema = new Schema<IConsent>(
+  {
+    userId: {
+      type: String,
+      required: true,
+    },
+    type: {
+      type: String,
+      enum: Object.values(ConsentType),
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: Object.values(ConsentStatus),
+      default: ConsentStatus.PENDING,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    purpose: {
+      type: String,
+      required: true,
+    },
+    dataCategories: [
+      {
+        type: String,
+        required: true,
+      },
+    ],
+    retentionPeriod: {
+      type: Number,
+      required: true,
+    },
+    legalBasis: {
+      type: String,
+      required: true,
+    },
+    version: {
+      type: String,
+      required: true,
+    },
+    grantedAt: Date,
+    revokedAt: Date,
+    expiresAt: Date,
+    ipAddress: {
+      type: String,
+      required: true,
+    },
+    userAgent: {
+      type: String,
+      required: true,
+    },
   },
-  type: {
-    type: String,
-    enum: Object.values(ConsentType),
-    required: true,
+  {
+    timestamps: true,
   },
-  status: {
-    type: String,
-    enum: Object.values(ConsentStatus),
-    default: ConsentStatus.PENDING,
-  },
-  description: {
-    type: String,
-    required: true,
-  },
-  purpose: {
-    type: String,
-    required: true,
-  },
-  dataCategories: [{
-    type: String,
-    required: true,
-  }],
-  retentionPeriod: {
-    type: Number,
-    required: true,
-  },
-  legalBasis: {
-    type: String,
-    required: true,
-  },
-  version: {
-    type: String,
-    required: true,
-  },
-  grantedAt: Date,
-  revokedAt: Date,
-  expiresAt: Date,
-  ipAddress: {
-    type: String,
-    required: true,
-  },
-  userAgent: {
-    type: String,
-    required: true,
-  },
-}, {
-  timestamps: true,
-});
+);
 
 // Índices para performance
 ConsentSchema.index({ userId: 1, type: 1 });

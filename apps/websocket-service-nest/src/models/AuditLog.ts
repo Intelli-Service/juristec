@@ -77,7 +77,6 @@ export interface IAuditLog extends Document {
 const AuditLogSchema = new Schema<IAuditLog>({
   userId: {
     type: String,
-    index: true,
     sparse: true,
   },
   action: {
@@ -96,7 +95,6 @@ const AuditLogSchema = new Schema<IAuditLog>({
   },
   resourceId: {
     type: String,
-    index: true,
     sparse: true,
   },
   details: {
@@ -113,7 +111,6 @@ const AuditLogSchema = new Schema<IAuditLog>({
   },
   sessionId: {
     type: String,
-    index: true,
     sparse: true,
   },
   location: {
@@ -129,12 +126,10 @@ const AuditLogSchema = new Schema<IAuditLog>({
   timestamp: {
     type: Date,
     default: Date.now,
-    index: true,
   },
   expiresAt: {
     type: Date,
     required: true,
-    index: true,
   },
 });
 

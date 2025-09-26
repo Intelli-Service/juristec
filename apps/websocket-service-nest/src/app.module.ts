@@ -48,8 +48,6 @@ export class AppModule implements OnModuleInit {
   }
 
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(AuditMiddleware)
-      .forRoutes('*'); // Aplica em todas as rotas
+    consumer.apply(AuditMiddleware).forRoutes('*'); // Aplica em todas as rotas
   }
 }

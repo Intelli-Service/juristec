@@ -51,70 +51,70 @@ export interface IDataSubjectRequest extends Document {
   updatedAt: Date;
 }
 
-const DataSubjectRequestSchema = new Schema<IDataSubjectRequest>({
-  userId: {
-    type: String,
-    required: true,
-    index: true,
-  },
-  right: {
-    type: String,
-    enum: Object.values(DataSubjectRight),
-    required: true,
-  },
-  status: {
-    type: String,
-    enum: Object.values(RequestStatus),
-    default: RequestStatus.PENDING,
-  },
-  description: {
-    type: String,
-    required: true,
-  },
-  justification: String,
-  requestedData: [String],
-  attachments: [String],
+const DataSubjectRequestSchema = new Schema<IDataSubjectRequest>(
+  {
+    userId: {
+      type: String,
+      required: true,
+    },
+    right: {
+      type: String,
+      enum: Object.values(DataSubjectRight),
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: Object.values(RequestStatus),
+      default: RequestStatus.PENDING,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    justification: String,
+    requestedData: [String],
+    attachments: [String],
 
-  // Processo de validação
-  verificationToken: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  verifiedAt: Date,
-  verifiedBy: String,
+    // Processo de validação
+    verificationToken: {
+      type: String,
+      required: true,
+    },
+    verifiedAt: Date,
+    verifiedBy: String,
 
-  // Resposta
-  response: String,
-  responseAttachments: [String],
-  respondedAt: Date,
-  respondedBy: String,
+    // Resposta
+    response: String,
+    responseAttachments: [String],
+    respondedAt: Date,
+    respondedBy: String,
 
-  // Metadados
-  ipAddress: {
-    type: String,
-    required: true,
-  },
-  userAgent: {
-    type: String,
-    required: true,
-  },
-  priority: {
-    type: String,
-    enum: ['low', 'medium', 'high', 'urgent'],
-    default: 'medium',
-  },
+    // Metadados
+    ipAddress: {
+      type: String,
+      required: true,
+    },
+    userAgent: {
+      type: String,
+      required: true,
+    },
+    priority: {
+      type: String,
+      enum: ['low', 'medium', 'high', 'urgent'],
+      default: 'medium',
+    },
 
-  // Controle de tempo (LGPD - 30 dias para resposta)
-  expiresAt: {
-    type: Date,
-    required: true,
-    index: true,
+    // Controle de tempo (LGPD - 30 dias para resposta)
+    expiresAt: {
+      type: Date,
+      required: true,
+    },
+    completedAt: Date,
   },
-  completedAt: Date,
-}, {
-  timestamps: true,
-});
+  {
+    timestamps: true,
+  },
+);
 
 // Índices para performance
 DataSubjectRequestSchema.index({ userId: 1, status: 1 });
@@ -122,4 +122,7 @@ DataSubjectRequestSchema.index({ status: 1, priority: -1, createdAt: 1 });
 DataSubjectRequestSchema.index({ verificationToken: 1 }, { unique: true });
 DataSubjectRequestSchema.index({ expiresAt: 1 });
 
-export default mongoose.model<IDataSubjectRequest>('DataSubjectRequest', DataSubjectRequestSchema);
+export default mongoose.model<IDataSubjectRequest>(
+  'DataSubjectRequest',
+  DataSubjectRequestSchema,
+);

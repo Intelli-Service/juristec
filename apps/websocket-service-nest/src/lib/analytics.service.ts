@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ICharge, ChargeStatus } from '../models/Charge';
-import Conversation from '../models/Conversation';
-import Message from '../models/Message';
 import { IUser, UserRole } from '../models/User';
 
 export interface AnalyticsMetrics {
@@ -132,10 +130,7 @@ export class AnalyticsService {
       charges,
       monthlyRevenue,
     );
-    const performanceMetrics = this.calculatePerformanceMetrics(
-      conversations,
-      messages,
-    );
+    const performanceMetrics = this.calculatePerformanceMetrics(conversations);
     const systemMetrics = this.calculateSystemMetrics(
       messages,
       messagesPerDay,
@@ -449,7 +444,7 @@ export class AnalyticsService {
     };
   }
 
-  private calculatePerformanceMetrics(conversations: any[], messages: any[]) {
+  private calculatePerformanceMetrics(conversations: any[]) {
     // TODO: Implementar cálculos reais de performance
     // Por enquanto, valores mockados
     const averageResponseTime = 15; // minutos

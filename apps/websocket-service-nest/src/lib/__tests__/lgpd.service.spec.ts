@@ -3,7 +3,11 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { LGPDService } from '../lgpd.service';
 import { IConsent, ConsentType, ConsentStatus } from '../../models/Consent';
-import { IDataSubjectRequest, DataSubjectRight, RequestStatus } from '../../models/DataSubjectRequest';
+import {
+  IDataSubjectRequest,
+  DataSubjectRight,
+  RequestStatus,
+} from '../../models/DataSubjectRequest';
 import { AuditService } from '../audit.service';
 import { EncryptionService } from '../encryption.service';
 
@@ -66,7 +70,9 @@ describe('LGPDService', () => {
           useValue: jest.fn().mockImplementation((data) => ({
             ...mockDataSubjectRequest,
             ...data,
-            save: jest.fn().mockResolvedValue({ ...mockDataSubjectRequest, ...data }),
+            save: jest
+              .fn()
+              .mockResolvedValue({ ...mockDataSubjectRequest, ...data }),
           })),
         },
         {
@@ -88,7 +94,9 @@ describe('LGPDService', () => {
 
     service = module.get<LGPDService>(LGPDService);
     consentModel = module.get<Model<IConsent>>(getModelToken('Consent'));
-    dataSubjectRequestModel = module.get<Model<IDataSubjectRequest>>(getModelToken('DataSubjectRequest'));
+    dataSubjectRequestModel = module.get<Model<IDataSubjectRequest>>(
+      getModelToken('DataSubjectRequest'),
+    );
     auditService = module.get<AuditService>(AuditService);
     encryptionService = module.get<EncryptionService>(EncryptionService);
 
@@ -126,7 +134,9 @@ describe('LGPDService', () => {
 
   describe('createConsent', () => {
     it('should create consent successfully', async () => {
-      const mockFindOne = jest.spyOn(consentModel, 'findOne').mockResolvedValue(null);
+      const mockFindOne = jest
+        .spyOn(consentModel, 'findOne')
+        .mockResolvedValue(null);
 
       const result = await service.createConsent(
         'user123',
@@ -138,7 +148,7 @@ describe('LGPDService', () => {
         'consent',
         '1.0',
         '127.0.0.1',
-        'test-agent'
+        'test-agent',
       );
 
       expect(mockFindOne).toHaveBeenCalledWith({
@@ -151,7 +161,7 @@ describe('LGPDService', () => {
         ConsentType.DATA_PROCESSING,
         'grant',
         '127.0.0.1',
-        'test-agent'
+        'test-agent',
       );
       expect(result).toMatchObject({
         userId: 'user123',
@@ -170,7 +180,9 @@ describe('LGPDService', () => {
 
     it('should throw error if active consent exists', async () => {
       const existingConsent = { ...mockConsent, status: ConsentStatus.GRANTED };
-      jest.spyOn(consentModel, 'findOne').mockResolvedValue(existingConsent as any);
+      jest
+        .spyOn(consentModel, 'findOne')
+        .mockResolvedValue(existingConsent as any);
 
       await expect(
         service.createConsent(
@@ -183,18 +195,33 @@ describe('LGPDService', () => {
           'consent',
           '1.0',
           '127.0.0.1',
-          'test-agent'
-        )
+          'test-agent',
+        ),
       ).rejects.toThrow('Já existe um consentimento ativo para este tipo');
     });
   });
 
   describe('grantConsent', () => {
     it('should grant consent successfully', async () => {
-      const pendingConsent = { ...mockConsent, status: ConsentStatus.PENDING, save: jest.fn().mockResolvedValue({ ...mockConsent, status: ConsentStatus.GRANTED, grantedAt: new Date() }) };
-      jest.spyOn(consentModel, 'findOne').mockResolvedValue(pendingConsent as any);
+      const pendingConsent = {
+        ...mockConsent,
+        status: ConsentStatus.PENDING,
+        save: jest.fn().mockResolvedValue({
+          ...mockConsent,
+          status: ConsentStatus.GRANTED,
+          grantedAt: new Date(),
+        }),
+      };
+      jest
+        .spyOn(consentModel, 'findOne')
+        .mockResolvedValue(pendingConsent as any);
 
-      const result = await service.grantConsent('user123', 'consent123', '127.0.0.1', 'test-agent');
+      const result = await service.grantConsent(
+        'user123',
+        'consent123',
+        '127.0.0.1',
+        'test-agent',
+      );
 
       expect(pendingConsent.save).toHaveBeenCalled();
       expect(auditService.logConsentChange).toHaveBeenCalledWith(
@@ -202,7 +229,7 @@ describe('LGPDService', () => {
         ConsentType.DATA_PROCESSING,
         'grant',
         '127.0.0.1',
-        'test-agent'
+        'test-agent',
       );
       expect(result.status).toBe(ConsentStatus.GRANTED);
     });
@@ -211,26 +238,53 @@ describe('LGPDService', () => {
       jest.spyOn(consentModel, 'findOne').mockResolvedValue(null);
 
       await expect(
-        service.grantConsent('user123', 'consent123', '127.0.0.1', 'test-agent')
+        service.grantConsent(
+          'user123',
+          'consent123',
+          '127.0.0.1',
+          'test-agent',
+        ),
       ).rejects.toThrow('Consentimento não encontrado');
     });
 
     it('should throw error if consent not pending', async () => {
       const grantedConsent = { ...mockConsent, status: ConsentStatus.GRANTED };
-      jest.spyOn(consentModel, 'findOne').mockResolvedValue(grantedConsent as any);
+      jest
+        .spyOn(consentModel, 'findOne')
+        .mockResolvedValue(grantedConsent as any);
 
       await expect(
-        service.grantConsent('user123', 'consent123', '127.0.0.1', 'test-agent')
+        service.grantConsent(
+          'user123',
+          'consent123',
+          '127.0.0.1',
+          'test-agent',
+        ),
       ).rejects.toThrow('Consentimento não está pendente');
     });
   });
 
   describe('revokeConsent', () => {
     it('should revoke consent successfully', async () => {
-      const grantedConsent = { ...mockConsent, status: ConsentStatus.GRANTED, save: jest.fn().mockResolvedValue({ ...mockConsent, status: ConsentStatus.REVOKED, revokedAt: new Date() }) };
-      jest.spyOn(consentModel, 'findOne').mockResolvedValue(grantedConsent as any);
+      const grantedConsent = {
+        ...mockConsent,
+        status: ConsentStatus.GRANTED,
+        save: jest.fn().mockResolvedValue({
+          ...mockConsent,
+          status: ConsentStatus.REVOKED,
+          revokedAt: new Date(),
+        }),
+      };
+      jest
+        .spyOn(consentModel, 'findOne')
+        .mockResolvedValue(grantedConsent as any);
 
-      const result = await service.revokeConsent('user123', 'consent123', '127.0.0.1', 'test-agent');
+      const result = await service.revokeConsent(
+        'user123',
+        'consent123',
+        '127.0.0.1',
+        'test-agent',
+      );
 
       expect(grantedConsent.save).toHaveBeenCalled();
       expect(auditService.logConsentChange).toHaveBeenCalledWith(
@@ -238,7 +292,7 @@ describe('LGPDService', () => {
         ConsentType.DATA_PROCESSING,
         'revoke',
         '127.0.0.1',
-        'test-agent'
+        'test-agent',
       );
       expect(result.status).toBe(ConsentStatus.REVOKED);
     });
@@ -247,7 +301,12 @@ describe('LGPDService', () => {
       jest.spyOn(consentModel, 'findOne').mockResolvedValue(null);
 
       await expect(
-        service.revokeConsent('user123', 'consent123', '127.0.0.1', 'test-agent')
+        service.revokeConsent(
+          'user123',
+          'consent123',
+          '127.0.0.1',
+          'test-agent',
+        ),
       ).rejects.toThrow('Consentimento não encontrado');
     });
   });
@@ -271,10 +330,19 @@ describe('LGPDService', () => {
 
   describe('hasActiveConsent', () => {
     it('should return true if active consent exists', async () => {
-      const activeConsent = { ...mockConsent, status: ConsentStatus.GRANTED, expiresAt: new Date(Date.now() + 86400000) };
-      jest.spyOn(consentModel, 'findOne').mockResolvedValue(activeConsent as any);
+      const activeConsent = {
+        ...mockConsent,
+        status: ConsentStatus.GRANTED,
+        expiresAt: new Date(Date.now() + 86400000),
+      };
+      jest
+        .spyOn(consentModel, 'findOne')
+        .mockResolvedValue(activeConsent as any);
 
-      const result = await service.hasActiveConsent('user123', ConsentType.DATA_PROCESSING);
+      const result = await service.hasActiveConsent(
+        'user123',
+        ConsentType.DATA_PROCESSING,
+      );
 
       expect(result).toBe(true);
     });
@@ -282,7 +350,10 @@ describe('LGPDService', () => {
     it('should return false if no active consent exists', async () => {
       jest.spyOn(consentModel, 'findOne').mockResolvedValue(null);
 
-      const result = await service.hasActiveConsent('user123', ConsentType.DATA_PROCESSING);
+      const result = await service.hasActiveConsent(
+        'user123',
+        ConsentType.DATA_PROCESSING,
+      );
 
       expect(result).toBe(false);
     });
@@ -299,7 +370,7 @@ describe('LGPDService', () => {
         'Need my data for legal purposes',
         ['personal_info', 'conversations'],
         ['attachment1.pdf'],
-        'high'
+        'high',
       );
 
       expect(encryptionService.generateSecureToken).toHaveBeenCalled();
@@ -320,8 +391,18 @@ describe('LGPDService', () => {
 
   describe('processDataSubjectRequest', () => {
     it('should process data subject request successfully', async () => {
-      const pendingRequest = { ...mockDataSubjectRequest, status: RequestStatus.PENDING, save: jest.fn().mockResolvedValue({ ...mockDataSubjectRequest, status: RequestStatus.COMPLETED, completedAt: new Date() }) };
-      jest.spyOn(dataSubjectRequestModel, 'findById').mockResolvedValue(pendingRequest as any);
+      const pendingRequest = {
+        ...mockDataSubjectRequest,
+        status: RequestStatus.PENDING,
+        save: jest.fn().mockResolvedValue({
+          ...mockDataSubjectRequest,
+          status: RequestStatus.COMPLETED,
+          completedAt: new Date(),
+        }),
+      };
+      jest
+        .spyOn(dataSubjectRequestModel, 'findById')
+        .mockResolvedValue(pendingRequest as any);
 
       const result = await service.processDataSubjectRequest(
         'request123',
@@ -330,7 +411,7 @@ describe('LGPDService', () => {
         '127.0.0.1',
         'test-agent',
         'Request completed successfully',
-        ['response.pdf']
+        ['response.pdf'],
       );
 
       expect(pendingRequest.save).toHaveBeenCalled();
@@ -342,7 +423,13 @@ describe('LGPDService', () => {
       jest.spyOn(dataSubjectRequestModel, 'findById').mockResolvedValue(null);
 
       await expect(
-        service.processDataSubjectRequest('request123', 'admin123', RequestStatus.COMPLETED, '127.0.0.1', 'test-agent')
+        service.processDataSubjectRequest(
+          'request123',
+          'admin123',
+          RequestStatus.COMPLETED,
+          '127.0.0.1',
+          'test-agent',
+        ),
       ).rejects.toThrow('Solicitação não encontrada');
     });
   });
@@ -359,7 +446,9 @@ describe('LGPDService', () => {
           }),
         }),
       };
-      jest.spyOn(dataSubjectRequestModel, 'find').mockReturnValue(mockQuery as any);
+      jest
+        .spyOn(dataSubjectRequestModel, 'find')
+        .mockReturnValue(mockQuery as any);
 
       const result = await service.getDataSubjectRequests({
         status: RequestStatus.PENDING,
@@ -380,12 +469,16 @@ describe('LGPDService', () => {
           exec: jest.fn().mockResolvedValue(mockRequests),
         }),
       };
-      jest.spyOn(dataSubjectRequestModel, 'find').mockReturnValue(mockQuery as any);
+      jest
+        .spyOn(dataSubjectRequestModel, 'find')
+        .mockReturnValue(mockQuery as any);
 
       const result = await service.getUserDataSubjectRequests('user123');
 
       expect(result).toEqual(mockRequests);
-      expect(dataSubjectRequestModel.find).toHaveBeenCalledWith({ userId: 'user123' });
+      expect(dataSubjectRequestModel.find).toHaveBeenCalledWith({
+        userId: 'user123',
+      });
     });
   });
 
@@ -402,9 +495,15 @@ describe('LGPDService', () => {
         },
       ];
 
-      jest.spyOn(service, 'getUserConsents').mockResolvedValue(mockConsents as any);
-      jest.spyOn(service, 'getUserDataSubjectRequests').mockResolvedValue(mockRequests as any);
-      jest.spyOn(auditService, 'getUserAuditLogs').mockResolvedValue(mockAuditLogs as any);
+      jest
+        .spyOn(service, 'getUserConsents')
+        .mockResolvedValue(mockConsents as any);
+      jest
+        .spyOn(service, 'getUserDataSubjectRequests')
+        .mockResolvedValue(mockRequests as any);
+      jest
+        .spyOn(auditService, 'getUserAuditLogs')
+        .mockResolvedValue(mockAuditLogs as any);
 
       const result = await service.exportUserData('user123');
 
@@ -414,14 +513,21 @@ describe('LGPDService', () => {
       expect(result.dataSubjectRequests).toHaveLength(1);
       expect(result.auditLogs).toHaveLength(1);
       expect(service.getUserConsents).toHaveBeenCalledWith('user123');
-      expect(service.getUserDataSubjectRequests).toHaveBeenCalledWith('user123');
-      expect(auditService.getUserAuditLogs).toHaveBeenCalledWith('user123', 1000);
+      expect(service.getUserDataSubjectRequests).toHaveBeenCalledWith(
+        'user123',
+      );
+      expect(auditService.getUserAuditLogs).toHaveBeenCalledWith(
+        'user123',
+        1000,
+      );
     });
   });
 
   describe('cleanupExpiredConsents', () => {
     it('should cleanup expired consents', async () => {
-      const mockUpdateMany = jest.spyOn(consentModel, 'updateMany').mockResolvedValue({ modifiedCount: 5 } as any);
+      const mockUpdateMany = jest
+        .spyOn(consentModel, 'updateMany')
+        .mockResolvedValue({ modifiedCount: 5 } as any);
 
       const result = await service.cleanupExpiredConsents();
 
@@ -433,7 +539,7 @@ describe('LGPDService', () => {
         {
           status: ConsentStatus.EXPIRED,
           updatedAt: expect.any(Date),
-        }
+        },
       );
       expect(result).toBe(5);
     });
@@ -441,7 +547,9 @@ describe('LGPDService', () => {
 
   describe('cleanupExpiredRequests', () => {
     it('should cleanup expired requests', async () => {
-      const mockUpdateMany = jest.spyOn(dataSubjectRequestModel, 'updateMany').mockResolvedValue({ modifiedCount: 3 } as any);
+      const mockUpdateMany = jest
+        .spyOn(dataSubjectRequestModel, 'updateMany')
+        .mockResolvedValue({ modifiedCount: 3 } as any);
 
       const result = await service.cleanupExpiredRequests();
 
@@ -455,7 +563,7 @@ describe('LGPDService', () => {
           response: 'Solicitação expirada - prazo de resposta excedido (LGPD)',
           completedAt: expect.any(Date),
           updatedAt: expect.any(Date),
-        }
+        },
       );
       expect(result).toBe(3);
     });

@@ -81,14 +81,18 @@ describe('EncryptionService', () => {
     it('should throw error for invalid format', () => {
       const invalidData = 'invalid-format';
 
-      expect(() => service.decrypt(invalidData)).toThrow('Formato de dados criptografados inválido');
+      expect(() => service.decrypt(invalidData)).toThrow(
+        'Formato de dados criptografados inválido',
+      );
     });
 
     it('should throw error for corrupted data', () => {
       const encrypted = service.encrypt('test');
       const corrupted = encrypted.replace(/.$/, 'x'); // Corrupt last character
 
-      expect(() => service.decrypt(corrupted)).toThrow('Erro ao descriptografar dados');
+      expect(() => service.decrypt(corrupted)).toThrow(
+        'Erro ao descriptografar dados',
+      );
     });
   });
 
@@ -103,7 +107,7 @@ describe('EncryptionService', () => {
         JSON.stringify({ key: 'value', number: 42, array: [1, 2, 3] }),
       ];
 
-      testCases.forEach(testData => {
+      testCases.forEach((testData) => {
         const encrypted = service.encrypt(testData);
         const decrypted = service.decrypt(encrypted);
         expect(decrypted).toBe(testData);
@@ -304,7 +308,7 @@ describe('EncryptionService', () => {
         },
       ];
 
-      testCases.forEach(testData => {
+      testCases.forEach((testData) => {
         const encrypted = service.encryptPersonalData(testData);
         const decrypted = service.decryptPersonalData(encrypted);
         expect(decrypted).toEqual(testData);

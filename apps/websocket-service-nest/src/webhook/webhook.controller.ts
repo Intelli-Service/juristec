@@ -36,7 +36,7 @@ export class WebhookController {
   @Post('pagarme')
   async handlePagarmeWebhook(
     @Body() payload: PagarmeWebhookPayload,
-    @Headers('x-signature') signature?: string,
+    @Headers('x-signature') _signature?: string,
   ) {
     try {
       this.logger.log(`Webhook recebido: ${payload.event} - ID: ${payload.id}`);
@@ -118,7 +118,7 @@ export class WebhookController {
     }
   }
 
-  private async handleChargeFailed(data: PagarmeWebhookPayload['data']) {
+  private handleChargeFailed(data: PagarmeWebhookPayload['data']) {
     this.logger.log(`Cobrança falhou: ${data.id}`);
 
     // Se temos o ID da cobrança nos metadados, podemos tomar ações adicionais

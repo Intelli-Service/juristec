@@ -2,7 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { LGPDController } from '../lgpd.controller';
 import { LGPDService } from '../../lib/lgpd.service';
 import { ConsentType } from '../../models/Consent';
-import { DataSubjectRight, RequestStatus } from '../../models/DataSubjectRequest';
+import {
+  DataSubjectRight,
+  RequestStatus,
+} from '../../models/DataSubjectRequest';
 
 describe('LGPDController', () => {
   let controller: LGPDController;
@@ -43,7 +46,9 @@ describe('LGPDController', () => {
   describe('getUserConsents', () => {
     it('should return user consents', async () => {
       const mockConsents = [{ id: 'consent1', type: 'data_processing' }];
-      jest.spyOn(service, 'getUserConsents').mockResolvedValue(mockConsents as any);
+      jest
+        .spyOn(service, 'getUserConsents')
+        .mockResolvedValue(mockConsents as any);
 
       const result = await controller.getUserConsents(mockRequest as any);
 
@@ -65,9 +70,14 @@ describe('LGPDController', () => {
       };
 
       const mockConsent = { id: 'consent1', ...consentData };
-      jest.spyOn(service, 'createConsent').mockResolvedValue(mockConsent as any);
+      jest
+        .spyOn(service, 'createConsent')
+        .mockResolvedValue(mockConsent as any);
 
-      const result = await controller.createConsent(mockRequest as any, consentData);
+      const result = await controller.createConsent(
+        mockRequest as any,
+        consentData,
+      );
 
       expect(result).toEqual(mockConsent);
       expect(service.createConsent).toHaveBeenCalledWith(
@@ -80,7 +90,7 @@ describe('LGPDController', () => {
         consentData.legalBasis,
         consentData.version,
         '127.0.0.1',
-        'test-agent'
+        'test-agent',
       );
     });
   });
@@ -88,12 +98,22 @@ describe('LGPDController', () => {
   describe('revokeConsent', () => {
     it('should revoke consent successfully', async () => {
       const mockConsent = { id: 'consent1', status: 'revoked' };
-      jest.spyOn(service, 'revokeConsent').mockResolvedValue(mockConsent as any);
+      jest
+        .spyOn(service, 'revokeConsent')
+        .mockResolvedValue(mockConsent as any);
 
-      const result = await controller.revokeConsent(mockRequest as any, 'consent1');
+      const result = await controller.revokeConsent(
+        mockRequest as any,
+        'consent1',
+      );
 
       expect(result).toEqual(mockConsent);
-      expect(service.revokeConsent).toHaveBeenCalledWith('user123', 'consent1', '127.0.0.1', 'test-agent');
+      expect(service.revokeConsent).toHaveBeenCalledWith(
+        'user123',
+        'consent1',
+        '127.0.0.1',
+        'test-agent',
+      );
     });
   });
 
@@ -111,7 +131,9 @@ describe('LGPDController', () => {
         downloadUrl: '/api/lgpd/download-export/user123',
       };
 
-      jest.spyOn(service, 'exportUserData').mockResolvedValue(serviceExportData as any);
+      jest
+        .spyOn(service, 'exportUserData')
+        .mockResolvedValue(serviceExportData as any);
 
       const result = await controller.exportUserData(mockRequest as any);
 
@@ -131,9 +153,14 @@ describe('LGPDController', () => {
       };
 
       const mockRequestResponse = { id: 'request1', ...requestData };
-      jest.spyOn(service, 'createDataSubjectRequest').mockResolvedValue(mockRequestResponse as any);
+      jest
+        .spyOn(service, 'createDataSubjectRequest')
+        .mockResolvedValue(mockRequestResponse as any);
 
-      const result = await controller.createDataSubjectRequest(mockRequest as any, requestData);
+      const result = await controller.createDataSubjectRequest(
+        mockRequest as any,
+        requestData,
+      );
 
       expect(result).toEqual(mockRequestResponse);
       expect(service.createDataSubjectRequest).toHaveBeenCalledWith(
@@ -145,7 +172,7 @@ describe('LGPDController', () => {
         requestData.justification,
         requestData.requestedData,
         undefined, // attachments
-        requestData.priority
+        requestData.priority,
       );
     });
   });
@@ -154,7 +181,9 @@ describe('LGPDController', () => {
     it('should return data subject requests', async () => {
       const query = { status: RequestStatus.PENDING, limit: 10 };
       const mockRequests = [{ id: 'request1', right: DataSubjectRight.ACCESS }];
-      jest.spyOn(service, 'getDataSubjectRequests').mockResolvedValue(mockRequests as any);
+      jest
+        .spyOn(service, 'getDataSubjectRequests')
+        .mockResolvedValue(mockRequests as any);
 
       const result = await controller.getDataSubjectRequests(query);
 

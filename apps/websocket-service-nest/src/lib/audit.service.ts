@@ -25,7 +25,7 @@ export class AuditService {
       sessionId?: string;
       success?: boolean;
       errorMessage?: string;
-    } = {}
+    } = {},
   ): Promise<void> {
     try {
       const auditLog = new this.auditLogModel({
@@ -63,17 +63,19 @@ export class AuditService {
   /**
    * Busca logs de auditoria com filtros
    */
-  async getAuditLogs(filters: {
-    userId?: string;
-    action?: AuditAction;
-    resource?: string;
-    resourceId?: string;
-    severity?: AuditSeverity;
-    startDate?: Date;
-    endDate?: Date;
-    limit?: number;
-    offset?: number;
-  } = {}): Promise<IAuditLog[]> {
+  async getAuditLogs(
+    filters: {
+      userId?: string;
+      action?: AuditAction;
+      resource?: string;
+      resourceId?: string;
+      severity?: AuditSeverity;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<IAuditLog[]> {
     const query: any = {};
 
     if (filters.userId) query.userId = filters.userId;
@@ -99,7 +101,10 @@ export class AuditService {
   /**
    * Busca logs de auditoria de um usuário específico (para LGPD)
    */
-  async getUserAuditLogs(userId: string, limit: number = 100): Promise<IAuditLog[]> {
+  async getUserAuditLogs(
+    userId: string,
+    limit: number = 100,
+  ): Promise<IAuditLog[]> {
     return this.auditLogModel
       .find({ userId })
       .sort({ timestamp: -1 })
@@ -110,7 +115,10 @@ export class AuditService {
   /**
    * Conta logs por severidade (para dashboards)
    */
-  async getSeverityStats(startDate?: Date, endDate?: Date): Promise<Record<AuditSeverity, number>> {
+  async getSeverityStats(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<Record<AuditSeverity, number>> {
     const matchStage: any = {};
     if (startDate || endDate) {
       matchStage.timestamp = {};
@@ -123,9 +131,9 @@ export class AuditService {
       {
         $group: {
           _id: '$severity',
-          count: { $sum: 1 }
-        }
-      }
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
     const result: Record<AuditSeverity, number> = {
@@ -135,7 +143,7 @@ export class AuditService {
       [AuditSeverity.CRITICAL]: 0,
     };
 
-    stats.forEach(stat => {
+    stats.forEach((stat) => {
       result[stat._id] = stat.count;
     });
 
@@ -158,7 +166,7 @@ export class AuditService {
           { severity: AuditSeverity.HIGH },
           { action: AuditAction.LOGIN, success: false },
           { action: AuditAction.DATA_ACCESS, success: false },
-        ]
+        ],
       })
       .sort({ timestamp: -1 })
       .limit(50)
@@ -177,7 +185,7 @@ export class AuditService {
     accessorId: string,
     purpose: string,
     ipAddress: string,
-    userAgent: string
+    userAgent: string,
   ): Promise<void> {
     await this.log(
       AuditAction.DATA_ACCESS,
@@ -194,7 +202,7 @@ export class AuditService {
         severity: AuditSeverity.MEDIUM,
         ipAddress,
         userAgent,
-      }
+      },
     );
   }
 
@@ -203,10 +211,12 @@ export class AuditService {
     consentType: string,
     action: 'grant' | 'revoke',
     ipAddress: string,
-    userAgent: string
+    userAgent: string,
   ): Promise<void> {
     await this.log(
-      action === 'grant' ? AuditAction.CONSENT_GRANT : AuditAction.CONSENT_REVOKE,
+      action === 'grant'
+        ? AuditAction.CONSENT_GRANT
+        : AuditAction.CONSENT_REVOKE,
       'consent',
       {
         consentType,
@@ -217,7 +227,7 @@ export class AuditService {
         severity: AuditSeverity.HIGH,
         ipAddress,
         userAgent,
-      }
+      },
     );
   }
 
@@ -226,7 +236,7 @@ export class AuditService {
     requestId: string,
     dataTypes: string[],
     ipAddress: string,
-    userAgent: string
+    userAgent: string,
   ): Promise<void> {
     await this.log(
       AuditAction.DATA_EXPORT,
@@ -241,7 +251,7 @@ export class AuditService {
         severity: AuditSeverity.HIGH,
         ipAddress,
         userAgent,
-      }
+      },
     );
   }
 }

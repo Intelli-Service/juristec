@@ -35,7 +35,8 @@ export const DEFAULT_USER_DATA_CONFIG: UserDataConfig = {
   phoneRegex: /(\(?\d{2}\)?\s?)?\d{4,5}-?\d{4}/g,
 
   messages: {
-    contactRequest: process.env.USER_DATA_CONTACT_REQUEST_MESSAGE ||
+    contactRequest:
+      process.env.USER_DATA_CONTACT_REQUEST_MESSAGE ||
       `Para te ajudar melhor e manter seu histórico de conversas seguro, poderia me informar seu email ou WhatsApp? Assim posso garantir que você tenha acesso às suas conversas em outros dispositivos e receber notificações importantes sobre seu caso.`,
   },
 };

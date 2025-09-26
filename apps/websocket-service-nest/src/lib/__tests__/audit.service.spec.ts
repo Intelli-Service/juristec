@@ -63,14 +63,18 @@ describe('AuditService', () => {
   describe('log', () => {
     it('should handle database errors gracefully', async () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-      const mockCreate = jest.fn().mockRejectedValue(new Error('Database error'));
+      const mockCreate = jest
+        .fn()
+        .mockRejectedValue(new Error('Database error'));
       jest.spyOn(auditLogModel, 'create').mockImplementation(mockCreate);
 
-      await expect(service.log(AuditAction.LOGIN, 'user')).resolves.not.toThrow();
+      await expect(
+        service.log(AuditAction.LOGIN, 'user'),
+      ).resolves.not.toThrow();
 
       expect(consoleSpy).toHaveBeenCalledWith(
         'Erro ao registrar log de auditoria:',
-        expect.any(Error)
+        expect.any(Error),
       );
 
       consoleSpy.mockRestore();
@@ -239,7 +243,7 @@ describe('AuditService', () => {
         accessorId: 'admin789',
         purpose: 'account_verification',
         ipAddress: '192.168.1.1',
-        userAgent: 'Mozilla/5.0'
+        userAgent: 'Mozilla/5.0',
       };
 
       await service.logDataAccess(
@@ -249,7 +253,7 @@ describe('AuditService', () => {
         params.accessorId,
         params.purpose,
         params.ipAddress,
-        params.userAgent
+        params.userAgent,
       );
 
       expect(mockLog).toHaveBeenCalledWith(
@@ -267,7 +271,7 @@ describe('AuditService', () => {
           severity: AuditSeverity.MEDIUM,
           ipAddress: params.ipAddress,
           userAgent: params.userAgent,
-        }
+        },
       );
     });
   });
@@ -282,7 +286,7 @@ describe('AuditService', () => {
         consentType: 'marketing_emails',
         action: 'grant' as const,
         ipAddress: '192.168.1.1',
-        userAgent: 'Mozilla/5.0'
+        userAgent: 'Mozilla/5.0',
       };
 
       await service.logConsentChange(
@@ -290,7 +294,7 @@ describe('AuditService', () => {
         params.consentType,
         params.action,
         params.ipAddress,
-        params.userAgent
+        params.userAgent,
       );
 
       expect(mockLog).toHaveBeenCalledWith(
@@ -305,7 +309,7 @@ describe('AuditService', () => {
           severity: AuditSeverity.HIGH,
           ipAddress: params.ipAddress,
           userAgent: params.userAgent,
-        }
+        },
       );
     });
 
@@ -318,7 +322,7 @@ describe('AuditService', () => {
         consentType: 'marketing_emails',
         action: 'revoke' as const,
         ipAddress: '192.168.1.1',
-        userAgent: 'Mozilla/5.0'
+        userAgent: 'Mozilla/5.0',
       };
 
       await service.logConsentChange(
@@ -326,7 +330,7 @@ describe('AuditService', () => {
         params.consentType,
         params.action,
         params.ipAddress,
-        params.userAgent
+        params.userAgent,
       );
 
       expect(mockLog).toHaveBeenCalledWith(
@@ -341,7 +345,7 @@ describe('AuditService', () => {
           severity: AuditSeverity.HIGH,
           ipAddress: params.ipAddress,
           userAgent: params.userAgent,
-        }
+        },
       );
     });
   });
@@ -356,7 +360,7 @@ describe('AuditService', () => {
         requestId: 'req456',
         dataTypes: ['personal_info', 'documents'],
         ipAddress: '192.168.1.1',
-        userAgent: 'Mozilla/5.0'
+        userAgent: 'Mozilla/5.0',
       };
 
       await service.logDataExport(
@@ -364,7 +368,7 @@ describe('AuditService', () => {
         params.requestId,
         params.dataTypes,
         params.ipAddress,
-        params.userAgent
+        params.userAgent,
       );
 
       expect(mockLog).toHaveBeenCalledWith(
@@ -380,7 +384,7 @@ describe('AuditService', () => {
           severity: AuditSeverity.HIGH,
           ipAddress: params.ipAddress,
           userAgent: params.userAgent,
-        }
+        },
       );
     });
   });

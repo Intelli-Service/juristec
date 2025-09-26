@@ -10,9 +10,13 @@ export class EncryptionService {
   private readonly masterKey: string;
 
   constructor() {
-    this.masterKey = process.env.ENCRYPTION_MASTER_KEY || 'default-juristec-key-change-in-production';
+    this.masterKey =
+      process.env.ENCRYPTION_MASTER_KEY ||
+      'default-juristec-key-change-in-production';
     if (this.masterKey === 'default-juristec-key-change-in-production') {
-      console.warn('WARNING: Using default encryption key. Set ENCRYPTION_MASTER_KEY environment variable.');
+      console.warn(
+        'WARNING: Using default encryption key. Set ENCRYPTION_MASTER_KEY environment variable.',
+      );
     }
   }
 
@@ -21,7 +25,13 @@ export class EncryptionService {
    */
   private getEncryptionKey(): Buffer {
     // Deriva uma chave de 256 bits da chave mestre usando PBKDF2
-    return crypto.pbkdf2Sync(this.masterKey, 'juristec-lgpd-salt', 100000, this.keyLength, 'sha256');
+    return crypto.pbkdf2Sync(
+      this.masterKey,
+      'juristec-lgpd-salt',
+      100000,
+      this.keyLength,
+      'sha256',
+    );
   }
 
   /**
@@ -79,7 +89,7 @@ export class EncryptionService {
   /**
    * Gera um hash irreversível para dados (ex: senhas)
    */
-  hash(data: string, saltRounds: number = 12): string {
+  hash(data: string): string {
     try {
       return crypto.createHash('sha256').update(data).digest('hex');
     } catch (error) {
@@ -99,8 +109,14 @@ export class EncryptionService {
    */
   encryptPersonalData(data: Record<string, any>): Record<string, any> {
     const sensitiveFields = [
-      'email', 'phone', 'cpf', 'rg', 'address',
-      'bankAccount', 'creditCard', 'socialSecurity'
+      'email',
+      'phone',
+      'cpf',
+      'rg',
+      'address',
+      'bankAccount',
+      'creditCard',
+      'socialSecurity',
     ];
 
     const encrypted = { ...data };
@@ -121,7 +137,7 @@ export class EncryptionService {
   decryptPersonalData(data: Record<string, any>): Record<string, any> {
     const decrypted = { ...data };
 
-    for (const [key, value] of Object.entries(decrypted)) {
+    for (const [key] of Object.entries(decrypted)) {
       if (key.endsWith('_encrypted') && decrypted[key] === true) {
         const fieldName = key.replace('_encrypted', '');
         if (decrypted[fieldName]) {

@@ -34,7 +34,6 @@ export class FluidRegistrationService {
   async processFluidRegistration(
     contactInfo: ContactInfo,
     conversationId: string,
-    roomId: string,
   ): Promise<FluidRegistrationResult> {
     try {
       // Verificar se já existe usuário com este contato
@@ -214,10 +213,7 @@ export class FluidRegistrationService {
   /**
    * Envia código de verificação (simulado - implementar email/SMS real)
    */
-  private async sendVerificationCode(
-    contactInfo: ContactInfo,
-    code: string,
-  ): Promise<void> {
+  private sendVerificationCode(contactInfo: ContactInfo, code: string): void {
     if (contactInfo.email) {
       console.log(`📧 Enviando código ${code} para ${contactInfo.email}`);
       // TODO: Implementar envio real por email

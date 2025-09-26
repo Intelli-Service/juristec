@@ -13,9 +13,6 @@ import {
   TransactionType,
   TransactionStatus,
 } from '../models/PaymentTransaction';
-import Conversation from '../models/Conversation';
-import Payment from '../models/Payment';
-import PaymentTransaction from '../models/PaymentTransaction';
 
 interface CreatePaymentDto {
   conversationId: string;
@@ -89,7 +86,7 @@ export class PaymentService {
       const platformFeeAmount = Math.round(
         createPaymentDto.amount * (this.config.platformFee / 100),
       );
-      const lawyerAmount = createPaymentDto.amount - platformFeeAmount;
+      // const lawyerAmount = createPaymentDto.amount - platformFeeAmount;
 
       // Validar dados de pagamento antes de salvar
       switch (createPaymentDto.paymentMethod) {

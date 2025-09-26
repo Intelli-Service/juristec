@@ -7,7 +7,7 @@ import { AuditAction, AuditSeverity } from '../models/AuditLog';
 export class AuditMiddleware implements NestMiddleware {
   constructor(private auditService: AuditService) {}
 
-  async use(req: Request, res: Response, next: NextFunction) {
+  use(req: Request, res: Response, next: NextFunction) {
     const startTime = Date.now();
     const userId = (req as any).user?.id;
     const ipAddress = this.getClientIP(req);
@@ -18,80 +18,106 @@ export class AuditMiddleware implements NestMiddleware {
     let responseBody: any = null;
     let responseStatus = 200;
 
-    res.send = function(body) {
+    res.send = function (body) {
       responseBody = body;
       return originalSend.call(this, body);
     };
 
     // Intercepta o status da resposta
     const originalStatus = res.status;
-    res.status = function(code) {
+    res.status = function (code) {
       responseStatus = code;
       return originalStatus.call(this, code);
     };
 
     // Registra quando a resposta termina
-    res.on('finish', async () => {
-      try {
-        const duration = Date.now() - startTime;
-        const method = req.method;
-        const url = req.originalUrl;
-        const resource = this.extractResource(url);
-
-        // Determina severidade baseada no status e método
-        let severity = AuditSeverity.LOW;
-        if (responseStatus >= 400) {
-          severity = responseStatus >= 500 ? AuditSeverity.HIGH : AuditSeverity.MEDIUM;
-        } else if (method === 'DELETE' || this.isSensitiveEndpoint(url)) {
-          severity = AuditSeverity.MEDIUM;
-        }
-
-        // Mapeia método HTTP para ação de auditoria
-        const action = this.mapHttpMethodToAction(method);
-
-        await this.auditService.log(
-          action,
-          resource,
-          {
-            method,
-            url,
-            statusCode: responseStatus,
-            duration,
-            userAgent,
-            requestSize: JSON.stringify(req.body || {}).length,
-            responseSize: responseBody ? JSON.stringify(responseBody).length : 0,
-          },
-          {
-            userId,
-            severity,
-            ipAddress,
-            userAgent,
-            success: responseStatus < 400,
-            errorMessage: responseStatus >= 400 ? `HTTP ${responseStatus}` : undefined,
-          }
-        );
-      } catch (error) {
-        console.error('Erro no middleware de auditoria:', error);
-      }
+    res.on('finish', () => {
+      this.logAuditAsync(
+        startTime,
+        userId,
+        ipAddress,
+        userAgent,
+        req,
+        res,
+        responseBody,
+        responseStatus,
+      );
     });
 
     next();
   }
 
+  private async logAuditAsync(
+    startTime: number,
+    userId: string | undefined,
+    ipAddress: string,
+    userAgent: string,
+    req: Request,
+    res: Response,
+    responseBody: any,
+    responseStatus: number,
+  ) {
+    try {
+      const duration = Date.now() - startTime;
+      const method = req.method;
+      const url = req.originalUrl;
+      const resource = this.extractResource(url);
+
+      // Determina severidade baseada no status e método
+      let severity = AuditSeverity.LOW;
+      if (responseStatus >= 400) {
+        severity =
+          responseStatus >= 500 ? AuditSeverity.HIGH : AuditSeverity.MEDIUM;
+      } else if (method === 'DELETE' || this.isSensitiveEndpoint(url)) {
+        severity = AuditSeverity.MEDIUM;
+      }
+
+      // Mapeia método HTTP para ação de auditoria
+      const action = this.mapHttpMethodToAction(method);
+
+      await this.auditService.log(
+        action,
+        resource,
+        {
+          method,
+          url,
+          statusCode: responseStatus,
+          duration,
+          userAgent,
+          requestSize: JSON.stringify(req.body || {}).length,
+          responseSize: responseBody ? JSON.stringify(responseBody).length : 0,
+        },
+        {
+          userId,
+          severity,
+          ipAddress,
+          userAgent,
+          success: responseStatus < 400,
+          errorMessage:
+            responseStatus >= 400 ? `HTTP ${responseStatus}` : undefined,
+        },
+      );
+    } catch (error) {
+      console.error('Erro no middleware de auditoria:', error);
+    }
+  }
+
   private getClientIP(req: Request): string {
     // Tenta várias fontes para obter o IP real do cliente
     return (
-      req.headers['x-forwarded-for'] as string ||
-      req.headers['x-real-ip'] as string ||
+      (req.headers['x-forwarded-for'] as string) ||
+      (req.headers['x-real-ip'] as string) ||
       req.connection.remoteAddress ||
       req.socket.remoteAddress ||
       'unknown'
-    ).split(',')[0].trim();
+    )
+      .split(',')[0]
+      .trim();
   }
 
   private extractResource(url: string): string {
     // Extrai o recurso da URL (ex: /api/users/123 -> users)
-    const parts = url.split('/').filter(part => part && !part.match(/^\d+$/));
+    const parts = url.split('/').filter((part) => part && !part.match(/^\d+$/));
     return parts.length > 1 ? parts[1] : 'api';
   }
 
@@ -105,7 +131,7 @@ export class AuditMiddleware implements NestMiddleware {
       /\/audit/,
     ];
 
-    return sensitivePatterns.some(pattern => pattern.test(url));
+    return sensitivePatterns.some((pattern) => pattern.test(url));
   }
 
   private mapHttpMethodToAction(method: string): AuditAction {

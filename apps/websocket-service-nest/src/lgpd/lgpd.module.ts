@@ -9,8 +9,14 @@ import { EncryptionService } from '../lib/encryption.service';
   imports: [
     MongooseModule.forFeature([
       { name: 'Consent', schema: require('../models/Consent').default.schema },
-      { name: 'DataSubjectRequest', schema: require('../models/DataSubjectRequest').default.schema },
-      { name: 'AuditLog', schema: require('../models/AuditLog').default.schema },
+      {
+        name: 'DataSubjectRequest',
+        schema: require('../models/DataSubjectRequest').default.schema,
+      },
+      {
+        name: 'AuditLog',
+        schema: require('../models/AuditLog').default.schema,
+      },
     ]),
   ],
   controllers: [LGPDController],

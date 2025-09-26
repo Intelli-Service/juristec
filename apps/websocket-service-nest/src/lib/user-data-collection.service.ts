@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AIService } from './ai.service';
-import {
-  UserDataConfigManager,
-  UserDataConfig,
-} from './user-data-config';
+import { UserDataConfigManager, UserDataConfig } from './user-data-config';
 
 export interface ContactInfo {
   email: string | null;
@@ -89,7 +86,11 @@ export class UserDataCollectionService {
 
     // Se encontrou dados de contato, atualizar
     if (contactInfo.email || contactInfo.phone) {
-      const updateData: { email?: string | null; phone?: string | null; name?: string } = {
+      const updateData: {
+        email?: string | null;
+        phone?: string | null;
+        name?: string;
+      } = {
         email: contactInfo.email || userData.email,
         phone: contactInfo.phone || userData.phone,
       };

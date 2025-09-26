@@ -1,8 +1,16 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { IConsent, ConsentType, ConsentStatus } from '../models/Consent';
-import { IDataSubjectRequest, DataSubjectRight, RequestStatus } from '../models/DataSubjectRequest';
+import {
+  IDataSubjectRequest,
+  DataSubjectRight,
+  RequestStatus,
+} from '../models/DataSubjectRequest';
 import { AuditService } from './audit.service';
 import { EncryptionService } from './encryption.service';
 
@@ -10,7 +18,8 @@ import { EncryptionService } from './encryption.service';
 export class LGPDService {
   constructor(
     @InjectModel('Consent') private consentModel: Model<IConsent>,
-    @InjectModel('DataSubjectRequest') private dataSubjectRequestModel: Model<IDataSubjectRequest>,
+    @InjectModel('DataSubjectRequest')
+    private dataSubjectRequestModel: Model<IDataSubjectRequest>,
     private auditService: AuditService,
     private encryptionService: EncryptionService,
   ) {}
@@ -30,17 +39,19 @@ export class LGPDService {
     legalBasis: string,
     version: string,
     ipAddress: string,
-    userAgent: string
+    userAgent: string,
   ): Promise<IConsent> {
     // Verifica se já existe um consentimento ativo
     const existingConsent = await this.consentModel.findOne({
       userId,
       type,
-      status: { $in: [ConsentStatus.PENDING, ConsentStatus.GRANTED] }
+      status: { $in: [ConsentStatus.PENDING, ConsentStatus.GRANTED] },
     });
 
     if (existingConsent) {
-      throw new BadRequestException('Já existe um consentimento ativo para este tipo');
+      throw new BadRequestException(
+        'Já existe um consentimento ativo para este tipo',
+      );
     }
 
     const consent = new this.consentModel({
@@ -64,7 +75,7 @@ export class LGPDService {
       type,
       'grant',
       ipAddress,
-      userAgent
+      userAgent,
     );
 
     return savedConsent;
@@ -77,7 +88,7 @@ export class LGPDService {
     userId: string,
     consentId: string,
     ipAddress: string,
-    userAgent: string
+    userAgent: string,
   ): Promise<IConsent> {
     const consent = await this.consentModel.findOne({ _id: consentId, userId });
 
@@ -99,7 +110,7 @@ export class LGPDService {
       consent.type,
       'grant',
       ipAddress,
-      userAgent
+      userAgent,
     );
 
     return updatedConsent;
@@ -112,7 +123,7 @@ export class LGPDService {
     userId: string,
     consentId: string,
     ipAddress: string,
-    userAgent: string
+    userAgent: string,
   ): Promise<IConsent> {
     const consent = await this.consentModel.findOne({ _id: consentId, userId });
 
@@ -130,7 +141,7 @@ export class LGPDService {
       consent.type,
       'revoke',
       ipAddress,
-      userAgent
+      userAgent,
     );
 
     return updatedConsent;
@@ -140,10 +151,7 @@ export class LGPDService {
    * Lista consentimentos de um usuário
    */
   async getUserConsents(userId: string): Promise<IConsent[]> {
-    return this.consentModel
-      .find({ userId })
-      .sort({ createdAt: -1 })
-      .exec();
+    return this.consentModel.find({ userId }).sort({ createdAt: -1 }).exec();
   }
 
   /**
@@ -154,7 +162,7 @@ export class LGPDService {
       userId,
       type,
       status: ConsentStatus.GRANTED,
-      expiresAt: { $gt: new Date() }
+      expiresAt: { $gt: new Date() },
     });
 
     return !!consent;
@@ -174,7 +182,7 @@ export class LGPDService {
     justification?: string,
     requestedData?: string[],
     attachments?: string[],
-    priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium'
+    priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium',
   ): Promise<IDataSubjectRequest> {
     // Gera token único para verificação
     const verificationToken = this.encryptionService.generateSecureToken();
@@ -212,7 +220,7 @@ export class LGPDService {
         severity: 'high' as any,
         ipAddress,
         userAgent,
-      }
+      },
     );
 
     return savedRequest;
@@ -228,7 +236,7 @@ export class LGPDService {
     ipAddress: string,
     userAgent: string,
     response?: string,
-    responseAttachments?: string[]
+    responseAttachments?: string[],
   ): Promise<IDataSubjectRequest> {
     const request = await this.dataSubjectRequestModel.findById(requestId);
 
@@ -268,7 +276,7 @@ export class LGPDService {
         severity: 'high' as any,
         ipAddress,
         userAgent,
-      }
+      },
     );
 
     return updatedRequest;
@@ -277,12 +285,14 @@ export class LGPDService {
   /**
    * Lista solicitações de direitos (para admins)
    */
-  async getDataSubjectRequests(filters: {
-    status?: RequestStatus;
-    priority?: string;
-    limit?: number;
-    offset?: number;
-  } = {}): Promise<IDataSubjectRequest[]> {
+  async getDataSubjectRequests(
+    filters: {
+      status?: RequestStatus;
+      priority?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<IDataSubjectRequest[]> {
     const query: any = {};
 
     if (filters.status) query.status = filters.status;
@@ -299,7 +309,9 @@ export class LGPDService {
   /**
    * Lista solicitações de um usuário
    */
-  async getUserDataSubjectRequests(userId: string): Promise<IDataSubjectRequest[]> {
+  async getUserDataSubjectRequests(
+    userId: string,
+  ): Promise<IDataSubjectRequest[]> {
     return this.dataSubjectRequestModel
       .find({ userId })
       .sort({ createdAt: -1 })
@@ -320,7 +332,7 @@ export class LGPDService {
     const exportData = {
       userId,
       exportDate: new Date(),
-      consents: consents.map(consent => ({
+      consents: consents.map((consent) => ({
         type: consent.type,
         status: consent.status,
         grantedAt: consent.grantedAt,
@@ -328,14 +340,14 @@ export class LGPDService {
         dataCategories: consent.dataCategories,
         legalBasis: consent.legalBasis,
       })),
-      dataSubjectRequests: requests.map(request => ({
+      dataSubjectRequests: requests.map((request) => ({
         right: request.right,
         status: request.status,
         description: request.description,
         createdAt: request.createdAt,
         completedAt: request.completedAt,
       })),
-      auditLogs: auditLogs.map(log => ({
+      auditLogs: auditLogs.map((log) => ({
         action: log.action,
         resource: log.resource,
         timestamp: log.timestamp,
@@ -361,12 +373,12 @@ export class LGPDService {
     const result = await this.consentModel.updateMany(
       {
         status: ConsentStatus.GRANTED,
-        expiresAt: { $lt: new Date() }
+        expiresAt: { $lt: new Date() },
       },
       {
         status: ConsentStatus.EXPIRED,
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     );
 
     return result.modifiedCount;
@@ -379,14 +391,14 @@ export class LGPDService {
     const result = await this.dataSubjectRequestModel.updateMany(
       {
         status: { $nin: [RequestStatus.COMPLETED, RequestStatus.REJECTED] },
-        expiresAt: { $lt: new Date() }
+        expiresAt: { $lt: new Date() },
       },
       {
         status: RequestStatus.REJECTED,
         response: 'Solicitação expirada - prazo de resposta excedido (LGPD)',
         completedAt: new Date(),
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     );
 
     return result.modifiedCount;

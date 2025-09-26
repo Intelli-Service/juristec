@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Request,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { LGPDService } from '../lib/lgpd.service';
 import { ConsentType, ConsentStatus } from '../models/Consent';
@@ -14,7 +26,8 @@ export class LGPDController {
   @Post('consent')
   async createConsent(
     @Request() req: any,
-    @Body() body: {
+    @Body()
+    body: {
       type: ConsentType;
       description: string;
       purpose: string;
@@ -22,7 +35,7 @@ export class LGPDController {
       retentionPeriod: number;
       legalBasis: string;
       version: string;
-    }
+    },
   ) {
     const userId = req.user.id;
     const ipAddress = req.ip || req.connection.remoteAddress;
@@ -38,32 +51,42 @@ export class LGPDController {
       body.legalBasis,
       body.version,
       ipAddress,
-      userAgent
+      userAgent,
     );
   }
 
   @Put('consent/:consentId/grant')
   async grantConsent(
     @Request() req: any,
-    @Param('consentId') consentId: string
+    @Param('consentId') consentId: string,
   ) {
     const userId = req.user.id;
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('User-Agent') || 'unknown';
 
-    return this.lgpdService.grantConsent(userId, consentId, ipAddress, userAgent);
+    return this.lgpdService.grantConsent(
+      userId,
+      consentId,
+      ipAddress,
+      userAgent,
+    );
   }
 
   @Put('consent/:consentId/revoke')
   async revokeConsent(
     @Request() req: any,
-    @Param('consentId') consentId: string
+    @Param('consentId') consentId: string,
   ) {
     const userId = req.user.id;
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('User-Agent') || 'unknown';
 
-    return this.lgpdService.revokeConsent(userId, consentId, ipAddress, userAgent);
+    return this.lgpdService.revokeConsent(
+      userId,
+      consentId,
+      ipAddress,
+      userAgent,
+    );
   }
 
   @Get('consent')
@@ -73,10 +96,7 @@ export class LGPDController {
   }
 
   @Get('consent/:type/check')
-  async checkConsent(
-    @Request() req: any,
-    @Param('type') type: ConsentType
-  ) {
+  async checkConsent(@Request() req: any, @Param('type') type: ConsentType) {
     const userId = req.user.id;
     const hasConsent = await this.lgpdService.hasActiveConsent(userId, type);
     return { hasConsent };
@@ -87,14 +107,15 @@ export class LGPDController {
   @Post('data-subject-request')
   async createDataSubjectRequest(
     @Request() req: any,
-    @Body() body: {
+    @Body()
+    body: {
       right: DataSubjectRight;
       description: string;
       justification?: string;
       requestedData?: string[];
       attachments?: string[];
       priority?: 'low' | 'medium' | 'high' | 'urgent';
-    }
+    },
   ) {
     const userId = req.user.id;
     const ipAddress = req.ip || req.connection.remoteAddress;
@@ -109,7 +130,7 @@ export class LGPDController {
       body.justification,
       body.requestedData,
       body.attachments,
-      body.priority
+      body.priority,
     );
   }
 
@@ -122,14 +143,16 @@ export class LGPDController {
   @Get('data-subject-request/:requestId')
   async getDataSubjectRequest(
     @Request() req: any,
-    @Param('requestId') requestId: string
+    @Param('requestId') requestId: string,
   ) {
     const userId = req.user.id;
     const requests = await this.lgpdService.getUserDataSubjectRequests(userId);
-    const request = requests.find(r => r._id.toString() === requestId);
+    const request = requests.find((r) => r._id.toString() === requestId);
 
     if (!request) {
-      throw new BadRequestException('Solicitação não encontrada ou não pertence ao usuário');
+      throw new BadRequestException(
+        'Solicitação não encontrada ou não pertence ao usuário',
+      );
     }
 
     return request;
@@ -156,12 +179,13 @@ export class LGPDController {
 
   @Get('admin/data-subject-requests')
   async getDataSubjectRequests(
-    @Query() query: {
+    @Query()
+    query: {
       status?: RequestStatus;
       priority?: string;
       limit?: number;
       offset?: number;
-    }
+    },
   ) {
     // TODO: Adicionar guard para verificar se usuário é admin
     return this.lgpdService.getDataSubjectRequests(query);
@@ -171,11 +195,12 @@ export class LGPDController {
   async processDataSubjectRequest(
     @Request() req: any,
     @Param('requestId') requestId: string,
-    @Body() body: {
+    @Body()
+    body: {
       status: RequestStatus;
       response?: string;
       responseAttachments?: string[];
-    }
+    },
   ) {
     // TODO: Adicionar guard para verificar se usuário é admin
     const adminId = req.user.id;
@@ -189,7 +214,7 @@ export class LGPDController {
       ipAddress,
       userAgent,
       body.response,
-      body.responseAttachments
+      body.responseAttachments,
     );
   }
 
