@@ -76,13 +76,20 @@ describe('AnalyticsService', () => {
   });
 
   describe('getAnalytics', () => {
-    it.skip('should return analytics metrics successfully', async () => {
-      // Configurar mocks simples para este teste
-      mockChargeModel.aggregate.mockResolvedValueOnce([{ totalRevenue: 400000, totalCharges: 10 }])
-        .mockResolvedValueOnce([{ _id: { year: 2024, month: 9 }, revenue: 250000 }])
-        .mockResolvedValueOnce([{ paidCharges: 8, pendingCharges: 2, rejectedCharges: 0 }]);
+    it('should return analytics metrics successfully', async () => {
+      // Configurar mocks para todas as chamadas de aggregate esperadas
+      // Ordem das chamadas baseada na análise do código:
+      // 1. getMonthlyRevenue (retorna dados com _id.year/month)
+      // 2. getServiceStats (retorna dados com _id como tipo de serviço)
+      // 3. getLawyerStats (retorna dados de receita por advogado)
 
-      mockConversationModel.aggregate.mockResolvedValueOnce([{ totalConversations: 50, conversationsWithCharges: 10 }])
+      mockChargeModel.aggregate
+        .mockResolvedValueOnce([{ _id: { year: 2024, month: 9 }, revenue: 250000 }]) // getMonthlyRevenue
+        .mockResolvedValueOnce([{ _id: 'consultoria', count: 5, totalRevenue: 200000, totalValue: 250000 }]) // getServiceStats
+        .mockResolvedValueOnce([{ _id: null, total: 150000 }]); // getLawyerStats (para lawyer1)
+
+      mockConversationModel.aggregate
+        .mockResolvedValueOnce([{ totalConversations: 50, conversationsWithCharges: 10 }])
         .mockResolvedValueOnce([{
           averageResponseTime: 120,
           averageConversationDuration: 1800,
@@ -90,15 +97,18 @@ describe('AnalyticsService', () => {
           satisfactionScore: 4.2
         }]);
 
-      mockMessageModel.aggregate.mockResolvedValueOnce([{ totalMessages: 185 }])
+      mockMessageModel.aggregate
+        .mockResolvedValueOnce([{ totalMessages: 185 }])
         .mockResolvedValueOnce([
           { _id: '2024-09-01', count: 50 },
           { _id: '2024-09-02', count: 75 },
         ]);
 
-      mockUserModel.aggregate.mockResolvedValueOnce([{ totalUsers: 100, activeLawyers: 5, totalClients: 95 }])
+      mockUserModel.aggregate
+        .mockResolvedValueOnce([{ totalUsers: 100, activeLawyers: 5, totalClients: 95 }])
         .mockResolvedValueOnce([{ newUsersThisMonth: 15 }]);
 
+      // Mock para buscar advogados ativos
       mockUserModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([
           { _id: 'lawyer1', name: 'Advogado 1', role: 'lawyer', isActive: true }
@@ -116,13 +126,20 @@ describe('AnalyticsService', () => {
   });
 
   describe('exportAnalytics', () => {
-    it.skip('should export analytics in JSON format', async () => {
-      // Configurar mocks simples para este teste
-      mockChargeModel.aggregate.mockResolvedValueOnce([{ totalRevenue: 400000, totalCharges: 10 }])
-        .mockResolvedValueOnce([{ _id: { year: 2024, month: 9 }, revenue: 250000 }])
-        .mockResolvedValueOnce([{ paidCharges: 8, pendingCharges: 2, rejectedCharges: 0 }]);
+    it('should export analytics in JSON format', async () => {
+      // Configurar mocks para todas as chamadas de aggregate esperadas
+      // Ordem das chamadas baseada na análise do código:
+      // 1. getMonthlyRevenue (retorna dados com _id.year/month)
+      // 2. getServiceStats (retorna dados com _id como tipo de serviço)
+      // 3. getLawyerStats (retorna dados de receita por advogado)
 
-      mockConversationModel.aggregate.mockResolvedValueOnce([{ totalConversations: 50, conversationsWithCharges: 10 }])
+      mockChargeModel.aggregate
+        .mockResolvedValueOnce([{ _id: { year: 2024, month: 9 }, revenue: 250000 }]) // getMonthlyRevenue
+        .mockResolvedValueOnce([{ _id: 'consultoria', count: 5, totalRevenue: 200000, totalValue: 250000 }]) // getServiceStats
+        .mockResolvedValueOnce([{ _id: null, total: 150000 }]); // getLawyerStats (para lawyer1)
+
+      mockConversationModel.aggregate
+        .mockResolvedValueOnce([{ totalConversations: 50, conversationsWithCharges: 10 }])
         .mockResolvedValueOnce([{
           averageResponseTime: 120,
           averageConversationDuration: 1800,
@@ -130,15 +147,18 @@ describe('AnalyticsService', () => {
           satisfactionScore: 4.2
         }]);
 
-      mockMessageModel.aggregate.mockResolvedValueOnce([{ totalMessages: 185 }])
+      mockMessageModel.aggregate
+        .mockResolvedValueOnce([{ totalMessages: 185 }])
         .mockResolvedValueOnce([
           { _id: '2024-09-01', count: 50 },
           { _id: '2024-09-02', count: 75 },
         ]);
 
-      mockUserModel.aggregate.mockResolvedValueOnce([{ totalUsers: 100, activeLawyers: 5, totalClients: 95 }])
+      mockUserModel.aggregate
+        .mockResolvedValueOnce([{ totalUsers: 100, activeLawyers: 5, totalClients: 95 }])
         .mockResolvedValueOnce([{ newUsersThisMonth: 15 }]);
 
+      // Mock para buscar advogados ativos
       mockUserModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([
           { _id: 'lawyer1', name: 'Advogado 1', role: 'lawyer', isActive: true }
@@ -151,13 +171,20 @@ describe('AnalyticsService', () => {
       expect(typeof result).toBe('object');
     });
 
-    it.skip('should export analytics in CSV format', async () => {
-      // Configurar mocks simples para este teste
-      mockChargeModel.aggregate.mockResolvedValueOnce([{ totalRevenue: 400000, totalCharges: 10 }])
-        .mockResolvedValueOnce([{ _id: { year: 2024, month: 9 }, revenue: 250000 }])
-        .mockResolvedValueOnce([{ paidCharges: 8, pendingCharges: 2, rejectedCharges: 0 }]);
+    it('should export analytics in CSV format', async () => {
+      // Configurar mocks para todas as chamadas de aggregate esperadas
+      // Ordem das chamadas baseada na análise do código:
+      // 1. getMonthlyRevenue (retorna dados com _id.year/month)
+      // 2. getServiceStats (retorna dados com _id como tipo de serviço)
+      // 3. getLawyerStats (retorna dados de receita por advogado)
 
-      mockConversationModel.aggregate.mockResolvedValueOnce([{ totalConversations: 50, conversationsWithCharges: 10 }])
+      mockChargeModel.aggregate
+        .mockResolvedValueOnce([{ _id: { year: 2024, month: 9 }, revenue: 250000 }]) // getMonthlyRevenue
+        .mockResolvedValueOnce([{ _id: 'consultoria', count: 5, totalRevenue: 200000, totalValue: 250000 }]) // getServiceStats
+        .mockResolvedValueOnce([{ _id: null, total: 150000 }]); // getLawyerStats (para lawyer1)
+
+      mockConversationModel.aggregate
+        .mockResolvedValueOnce([{ totalConversations: 50, conversationsWithCharges: 10 }])
         .mockResolvedValueOnce([{
           averageResponseTime: 120,
           averageConversationDuration: 1800,
@@ -165,15 +192,18 @@ describe('AnalyticsService', () => {
           satisfactionScore: 4.2
         }]);
 
-      mockMessageModel.aggregate.mockResolvedValueOnce([{ totalMessages: 185 }])
+      mockMessageModel.aggregate
+        .mockResolvedValueOnce([{ totalMessages: 185 }])
         .mockResolvedValueOnce([
           { _id: '2024-09-01', count: 50 },
           { _id: '2024-09-02', count: 75 },
         ]);
 
-      mockUserModel.aggregate.mockResolvedValueOnce([{ totalUsers: 100, activeLawyers: 5, totalClients: 95 }])
+      mockUserModel.aggregate
+        .mockResolvedValueOnce([{ totalUsers: 100, activeLawyers: 5, totalClients: 95 }])
         .mockResolvedValueOnce([{ newUsersThisMonth: 15 }]);
 
+      // Mock para buscar advogados ativos
       mockUserModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([
           { _id: 'lawyer1', name: 'Advogado 1', role: 'lawyer', isActive: true }
