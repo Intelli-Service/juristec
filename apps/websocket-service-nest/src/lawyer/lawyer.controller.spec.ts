@@ -25,9 +25,9 @@ describe('LawyerController', () => {
         { provide: MessageService, useValue: mockMessageService },
       ],
     })
-    .overrideGuard(require('../guards/nextauth.guard').NextAuthGuard)
-    .useValue({ canActivate: () => true })
-    .compile();
+      .overrideGuard(require('../guards/nextauth.guard').NextAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<LawyerController>(LawyerController);
     aiService = module.get<AIService>(AIService);
@@ -53,8 +53,8 @@ describe('LawyerController', () => {
           role: 'lawyer',
           email: 'lawyer@test.com',
           name: 'Test Lawyer',
-          permissions: ['view_available_cases', 'view_all_cases']
-        }
+          permissions: ['view_available_cases', 'view_all_cases'],
+        },
       };
       const result = await controller.getMyCases(req);
 
@@ -73,8 +73,8 @@ describe('LawyerController', () => {
           role: 'lawyer',
           email: 'lawyer@test.com',
           name: 'Test Lawyer',
-          permissions: ['assign_cases_to_self', 'assign_cases']
-        }
+          permissions: ['assign_cases_to_self', 'assign_cases'],
+        },
       };
       const result = await controller.assignCase('room1', req);
 

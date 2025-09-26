@@ -11,11 +11,11 @@ describe('PaymentController', () => {
   const mockUser = {
     userId: 'user-123',
     email: 'test@example.com',
-    role: 'client'
+    role: 'client',
   };
 
   const mockRequest = {
-    user: mockUser
+    user: mockUser,
   };
 
   beforeEach(async () => {
@@ -90,9 +90,14 @@ describe('PaymentController', () => {
         updatedAt: new Date(),
       };
 
-      paymentService.createPayment.mockResolvedValue(expectedPayment as IPayment);
+      paymentService.createPayment.mockResolvedValue(
+        expectedPayment as IPayment,
+      );
 
-      const result = await controller.createPayment(createPaymentDto, mockRequest);
+      const result = await controller.createPayment(
+        createPaymentDto,
+        mockRequest,
+      );
 
       expect(paymentService.createPayment).toHaveBeenCalledWith({
         ...createPaymentDto,
@@ -129,9 +134,14 @@ describe('PaymentController', () => {
         updatedAt: new Date(),
       };
 
-      paymentService.createPayment.mockResolvedValue(expectedPayment as IPayment);
+      paymentService.createPayment.mockResolvedValue(
+        expectedPayment as IPayment,
+      );
 
-      const result = await controller.createPayment(createPaymentDto, mockRequest);
+      const result = await controller.createPayment(
+        createPaymentDto,
+        mockRequest,
+      );
 
       expect(paymentService.createPayment).toHaveBeenCalledWith({
         ...createPaymentDto,
@@ -168,9 +178,14 @@ describe('PaymentController', () => {
         updatedAt: new Date(),
       };
 
-      paymentService.createPayment.mockResolvedValue(expectedPayment as IPayment);
+      paymentService.createPayment.mockResolvedValue(
+        expectedPayment as IPayment,
+      );
 
-      const result = await controller.createPayment(createPaymentDto, mockRequest);
+      const result = await controller.createPayment(
+        createPaymentDto,
+        mockRequest,
+      );
 
       expect(paymentService.createPayment).toHaveBeenCalledWith({
         ...createPaymentDto,
@@ -215,11 +230,15 @@ describe('PaymentController', () => {
         },
       ];
 
-      paymentService.getPaymentsByConversation.mockResolvedValue(payments as IPayment[]);
+      paymentService.getPaymentsByConversation.mockResolvedValue(
+        payments as IPayment[],
+      );
 
       const result = await controller.getPaymentsByConversation(conversationId);
 
-      expect(paymentService.getPaymentsByConversation).toHaveBeenCalledWith(conversationId);
+      expect(paymentService.getPaymentsByConversation).toHaveBeenCalledWith(
+        conversationId,
+      );
       expect(result).toEqual(payments);
     });
   });
@@ -257,11 +276,15 @@ describe('PaymentController', () => {
         },
       ];
 
-      paymentService.getPaymentsByClient.mockResolvedValue(payments as IPayment[]);
+      paymentService.getPaymentsByClient.mockResolvedValue(
+        payments as IPayment[],
+      );
 
       const result = await controller.getClientPayments(mockRequest);
 
-      expect(paymentService.getPaymentsByClient).toHaveBeenCalledWith(mockUser.userId);
+      expect(paymentService.getPaymentsByClient).toHaveBeenCalledWith(
+        mockUser.userId,
+      );
       expect(result).toEqual(payments);
     });
   });
@@ -299,11 +322,15 @@ describe('PaymentController', () => {
         },
       ];
 
-      paymentService.getPaymentsByLawyer.mockResolvedValue(payments as IPayment[]);
+      paymentService.getPaymentsByLawyer.mockResolvedValue(
+        payments as IPayment[],
+      );
 
       const result = await controller.getLawyerPayments(mockRequest);
 
-      expect(paymentService.getPaymentsByLawyer).toHaveBeenCalledWith(mockUser.userId);
+      expect(paymentService.getPaymentsByLawyer).toHaveBeenCalledWith(
+        mockUser.userId,
+      );
       expect(result).toEqual(payments);
     });
   });
@@ -359,7 +386,10 @@ describe('PaymentController', () => {
 
       const result = await controller.refundPayment(paymentId, {});
 
-      expect(paymentService.refundPayment).toHaveBeenCalledWith(paymentId, undefined);
+      expect(paymentService.refundPayment).toHaveBeenCalledWith(
+        paymentId,
+        undefined,
+      );
       expect(result).toEqual(refundResult);
     });
 
@@ -385,9 +415,14 @@ describe('PaymentController', () => {
 
       paymentService.refundPayment.mockResolvedValue(refundResult as IPayment);
 
-      const result = await controller.refundPayment(paymentId, { amount: partialAmount });
+      const result = await controller.refundPayment(paymentId, {
+        amount: partialAmount,
+      });
 
-      expect(paymentService.refundPayment).toHaveBeenCalledWith(paymentId, partialAmount);
+      expect(paymentService.refundPayment).toHaveBeenCalledWith(
+        paymentId,
+        partialAmount,
+      );
       expect(result).toEqual(refundResult);
     });
   });
@@ -413,9 +448,13 @@ describe('PaymentController', () => {
         payment: { id: 'payment-123', status: 'failed' },
       };
 
-      paymentService.processWebhook.mockRejectedValue(new Error('Webhook processing failed'));
+      paymentService.processWebhook.mockRejectedValue(
+        new Error('Webhook processing failed'),
+      );
 
-      await expect(controller.handleWebhook(webhookData)).rejects.toThrow('Webhook processing failed');
+      await expect(controller.handleWebhook(webhookData)).rejects.toThrow(
+        'Webhook processing failed',
+      );
     });
   });
 });

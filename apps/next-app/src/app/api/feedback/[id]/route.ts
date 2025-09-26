@@ -4,12 +4,13 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json();
+    const { id } = await params;
 
-    const response = await fetch(`${API_BASE_URL}/feedback/${params.id}`, {
+    const response = await fetch(`${API_BASE_URL}/feedback/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -38,10 +39,11 @@ export async function PUT(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const response = await fetch(`${API_BASE_URL}/feedback/${params.id}`);
+    const { id } = await params;
+    const response = await fetch(`${API_BASE_URL}/feedback/${id}`);
 
     if (!response.ok) {
       return NextResponse.json(

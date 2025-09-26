@@ -71,15 +71,15 @@ EXEMPLOS DE USO DAS FUNCTIONS:
             ethicalGuidelines: [
               'Manter confidencialidade absoluta',
               'Nunca substituir aconselhamento profissional',
-              'Orientar para consulta com advogado quando necessário'
+              'Orientar para consulta com advogado quando necessário',
             ],
             specializationAreas: [
               'Direito Civil',
               'Direito Trabalhista',
               'Direito Penal',
               'Direito Previdenciário',
-              'Direito do Consumidor'
-            ]
+              'Direito do Consumidor',
+            ],
           },
           classificationSettings: {
             enabled: true,
@@ -88,11 +88,12 @@ EXEMPLOS DE USO DAS FUNCTIONS:
               'Ação Judicial',
               'Assessoria Preventiva',
               'Resolução de Conflitos',
-              'Orientação Legal'
+              'Orientação Legal',
             ],
-            summaryTemplate: 'Caso [categoria] - [complexidade] - Área: [legalArea]'
+            summaryTemplate:
+              'Caso [categoria] - [complexidade] - Área: [legalArea]',
           },
-          updatedBy: 'system'
+          updatedBy: 'system',
         });
       }
     } catch (error) {
@@ -124,17 +125,17 @@ TRIAGEM DE CASOS:
           ethicalGuidelines: [
             'Manter confidencialidade absoluta',
             'Nunca substituir aconselhamento profissional',
-            'Orientar para consulta com advogado quando necessário'
+            'Orientar para consulta com advogado quando necessário',
           ],
           specializationAreas: [
             'Direito Civil',
             'Direito Trabalhista',
             'Direito Penal',
-            'Direito Previdenciário'
-          ]
+            'Direito Previdenciário',
+          ],
         },
         isActive: true,
-        updatedBy: 'system'
+        updatedBy: 'system',
       };
     }
   }
@@ -148,7 +149,7 @@ TRIAGEM DE CASOS:
       const updated = await AIConfig.findByIdAndUpdate(
         this.currentConfig._id,
         { ...updates, updatedBy, updatedAt: new Date() },
-        { new: true }
+        { new: true },
       );
       this.currentConfig = updated;
       return updated;
@@ -168,22 +169,37 @@ TRIAGEM DE CASOS:
       if (!conversation) return null;
 
       // Lógica simplificada de classificação baseada no conteúdo
-      const fullText = messages.map(m => m.text).join(' ').toLowerCase();
+      const fullText = messages
+        .map((m) => m.text)
+        .join(' ')
+        .toLowerCase();
 
       let category = 'Consulta Geral';
       let legalArea = 'Direito Civil';
       let complexity = 'medio';
 
       // Classificação baseada em palavras-chave
-      if (fullText.includes('processo') || fullText.includes('ação') || fullText.includes('juiz')) {
+      if (
+        fullText.includes('processo') ||
+        fullText.includes('ação') ||
+        fullText.includes('juiz')
+      ) {
         category = 'Ação Judicial';
         complexity = 'complexo';
       } else if (fullText.includes('contrato') || fullText.includes('acordo')) {
         category = 'Assessoria Preventiva';
         legalArea = 'Direito Civil';
-      } else if (fullText.includes('trabalh') || fullText.includes('empreg') || fullText.includes('demiss')) {
+      } else if (
+        fullText.includes('trabalh') ||
+        fullText.includes('empreg') ||
+        fullText.includes('demiss')
+      ) {
         legalArea = 'Direito Trabalhista';
-      } else if (fullText.includes('crime') || fullText.includes('polícia') || fullText.includes('prisão')) {
+      } else if (
+        fullText.includes('crime') ||
+        fullText.includes('polícia') ||
+        fullText.includes('prisão')
+      ) {
         legalArea = 'Direito Penal';
         complexity = 'complexo';
       }
@@ -200,14 +216,14 @@ TRIAGEM DE CASOS:
         'summary.text': summary,
         'summary.lastUpdated': new Date(),
         'summary.generatedBy': 'ai',
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
 
       return {
         category,
         complexity,
         legalArea,
-        summary
+        summary,
       };
     } catch (error) {
       console.error('Erro ao classificar conversa:', error);
@@ -223,9 +239,9 @@ TRIAGEM DE CASOS:
           assignedTo: lawyerId,
           assignedAt: new Date(),
           status: 'assigned',
-          updatedAt: new Date()
+          updatedAt: new Date(),
         },
-        { new: true }
+        { new: true },
       );
       return result;
     } catch (error) {
@@ -237,10 +253,7 @@ TRIAGEM DE CASOS:
   async getCasesForLawyer(lawyerId: string) {
     try {
       return await Conversation.find({
-        $or: [
-          { assignedTo: lawyerId },
-          { status: 'open' }
-        ]
+        $or: [{ assignedTo: lawyerId }, { status: 'open' }],
       }).sort({ createdAt: -1 });
     } catch (error) {
       console.error('Erro ao buscar casos:', error);
@@ -251,9 +264,16 @@ TRIAGEM DE CASOS:
   /**
    * Atualiza dados do usuário em uma conversa
    */
-  async updateUserData(conversationId: string, userData: { email?: string | null; phone?: string | null; name?: string }) {
+  async updateUserData(
+    conversationId: string,
+    userData: { email?: string | null; phone?: string | null; name?: string },
+  ) {
     try {
-      const updateData: Partial<{ userEmail: string | null; userPhone: string | null; userName: string }> = {};
+      const updateData: Partial<{
+        userEmail: string | null;
+        userPhone: string | null;
+        userName: string;
+      }> = {};
 
       if (userData.email !== undefined) {
         updateData.userEmail = userData.email;

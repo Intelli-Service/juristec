@@ -20,7 +20,7 @@ export const VerificationCodeSchema = new mongoose.Schema<IVerificationCode>({
   expiresAt: { type: Date, required: true },
   createdAt: { type: Date, default: Date.now },
   attempts: { type: Number, default: 0 },
-  maxAttempts: { type: Number, default: 3 }
+  maxAttempts: { type: Number, default: 3 },
 });
 
 // Índices

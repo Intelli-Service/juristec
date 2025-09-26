@@ -1,7 +1,16 @@
 import 'reflect-metadata';
 import { Test, TestingModule } from '@nestjs/testing';
-import { JwtAuthGuard, JwtPayload, Roles, Permissions } from '../jwt-auth.guard';
-import { UnauthorizedException, ForbiddenException, ExecutionContext } from '@nestjs/common';
+import {
+  JwtAuthGuard,
+  JwtPayload,
+  Roles,
+  Permissions,
+} from '../jwt-auth.guard';
+import {
+  UnauthorizedException,
+  ForbiddenException,
+  ExecutionContext,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import * as jwt from 'jsonwebtoken';
 
@@ -68,11 +77,16 @@ describe('JwtAuthGuard', () => {
       const result = await guard.canActivate(mockExecutionContext);
 
       expect(result).toBe(true);
-      expect(mockedJwt.verify).toHaveBeenCalledWith(validToken, process.env.NEXTAUTH_SECRET);
+      expect(mockedJwt.verify).toHaveBeenCalledWith(
+        validToken,
+        process.env.NEXTAUTH_SECRET,
+      );
     });
 
     it('should deny access without authorization header', async () => {
-      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should deny access with invalid token', async () => {
@@ -81,7 +95,9 @@ describe('JwtAuthGuard', () => {
         throw new Error('Invalid token');
       });
 
-      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should allow access with valid token and matching role', async () => {
@@ -115,7 +131,9 @@ describe('JwtAuthGuard', () => {
       mockedJwt.verify.mockReturnValue(mockJwtPayload as any);
       reflector.get.mockReturnValue(['admin']);
 
-      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(ForbiddenException);
+      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should deny access with insufficient permissions', async () => {
@@ -126,7 +144,9 @@ describe('JwtAuthGuard', () => {
         return undefined;
       });
 
-      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(ForbiddenException);
+      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 

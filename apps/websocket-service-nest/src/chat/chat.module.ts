@@ -19,9 +19,9 @@ import { VerificationCodeSchema } from '../models/VerificationCode';
     MongooseModule.forFeature([
       { name: 'User', schema: UserModel.schema },
       { name: 'Conversation', schema: Conversation.schema },
-      { name: 'VerificationCode', schema: VerificationCodeSchema }
+      { name: 'VerificationCode', schema: VerificationCodeSchema },
     ]),
-    BillingModule
+    BillingModule,
   ],
   providers: [
     ChatGateway,
@@ -30,8 +30,8 @@ import { VerificationCodeSchema } from '../models/VerificationCode';
     MessageService,
     IntelligentUserRegistrationService,
     FluidRegistrationService,
-    VerificationService
+    VerificationService,
   ],
-  exports: [ChatGateway, GeminiService, AIService, MessageService]
+  exports: [ChatGateway, GeminiService, AIService, MessageService],
 })
 export class ChatModule {}

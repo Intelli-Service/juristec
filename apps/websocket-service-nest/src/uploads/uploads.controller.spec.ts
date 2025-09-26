@@ -51,7 +51,7 @@ describe('UploadsController', () => {
       };
 
       const mockReq = {
-        user: { userId: 'user-123' }
+        user: { userId: 'user-123' },
       };
 
       mockUploadsService.uploadFile.mockResolvedValue(mockResult);
@@ -62,28 +62,32 @@ describe('UploadsController', () => {
         success: true,
         data: mockResult,
       });
-      expect(mockUploadsService.uploadFile).toHaveBeenCalledWith(mockFile, 'conv-123', 'user-123');
+      expect(mockUploadsService.uploadFile).toHaveBeenCalledWith(
+        mockFile,
+        'conv-123',
+        'user-123',
+      );
     });
 
     it('should throw BadRequestException for missing file', async () => {
       const mockReq = {
-        user: { userId: 'user-123' }
+        user: { userId: 'user-123' },
       };
 
-      await expect(controller.uploadFile(null as any, 'conv-123', mockReq))
-        .rejects
-        .toThrow('No file uploaded');
+      await expect(
+        controller.uploadFile(null as any, 'conv-123', mockReq),
+      ).rejects.toThrow('No file uploaded');
     });
 
     it('should throw BadRequestException for missing conversationId', async () => {
       const mockFile = { mimetype: 'application/pdf' } as Express.Multer.File;
       const mockReq = {
-        user: { userId: 'user-123' }
+        user: { userId: 'user-123' },
       };
 
-      await expect(controller.uploadFile(mockFile, '', mockReq))
-        .rejects
-        .toThrow('conversationId is required');
+      await expect(
+        controller.uploadFile(mockFile, '', mockReq),
+      ).rejects.toThrow('conversationId is required');
     });
   });
 
@@ -95,25 +99,31 @@ describe('UploadsController', () => {
       ];
 
       const mockReq = {
-        user: { userId: 'user-123' }
+        user: { userId: 'user-123' },
       };
 
       mockUploadsService.getFilesByConversation.mockResolvedValue(mockFiles);
 
-      const result = await controller.getFilesByConversation('conv-123', mockReq);
+      const result = await controller.getFilesByConversation(
+        'conv-123',
+        mockReq,
+      );
 
       expect(result).toEqual({
         success: true,
         data: mockFiles,
       });
-      expect(mockUploadsService.getFilesByConversation).toHaveBeenCalledWith('conv-123', 'user-123');
+      expect(mockUploadsService.getFilesByConversation).toHaveBeenCalledWith(
+        'conv-123',
+        'user-123',
+      );
     });
   });
 
   describe('DELETE /uploads/:fileId', () => {
     it('should delete file successfully', async () => {
       const mockReq = {
-        user: { userId: 'user-123' }
+        user: { userId: 'user-123' },
       };
 
       mockUploadsService.deleteFile.mockResolvedValue(undefined);
@@ -124,7 +134,10 @@ describe('UploadsController', () => {
         success: true,
         message: 'File deleted successfully',
       });
-      expect(mockUploadsService.deleteFile).toHaveBeenCalledWith('file-123', 'user-123');
+      expect(mockUploadsService.deleteFile).toHaveBeenCalledWith(
+        'file-123',
+        'user-123',
+      );
     });
   });
 });

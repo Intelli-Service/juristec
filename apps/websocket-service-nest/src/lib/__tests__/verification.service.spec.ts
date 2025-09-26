@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { VerificationService, IVerificationCode } from '../verification.service';
+import {
+  VerificationService,
+  IVerificationCode,
+} from '../verification.service';
 
 // Mock do Model with support for direct calls and query chaining
 const mockVerificationModel = {
@@ -33,7 +36,9 @@ describe('VerificationService', () => {
     }).compile();
 
     service = module.get<VerificationService>(VerificationService);
-    verificationModel = module.get<Model<IVerificationCode>>(getModelToken('VerificationCode'));
+    verificationModel = module.get<Model<IVerificationCode>>(
+      getModelToken('VerificationCode'),
+    );
   });
 
   afterEach(() => {
@@ -108,9 +113,13 @@ describe('VerificationService', () => {
 
     it('should handle database errors', async () => {
       const contact = { email: 'test@example.com' };
-      mockVerificationModel.create.mockRejectedValue(new Error('Database error'));
+      mockVerificationModel.create.mockRejectedValue(
+        new Error('Database error'),
+      );
 
-      await expect(service.generateCode(contact)).rejects.toThrow('Database error');
+      await expect(service.generateCode(contact)).rejects.toThrow(
+        'Database error',
+      );
     });
   });
 
@@ -220,7 +229,9 @@ describe('VerificationService', () => {
       };
       mockVerificationModel.findOne.mockReturnValue(mockQuery);
 
-      await expect(service.verifyCode(contact, code)).rejects.toThrow('Database error');
+      await expect(service.verifyCode(contact, code)).rejects.toThrow(
+        'Database error',
+      );
     });
   });
 
@@ -281,9 +292,13 @@ describe('VerificationService', () => {
     it('should handle database errors during verification check', async () => {
       const contact = { email: 'test@example.com' };
 
-      mockVerificationModel.findOne.mockRejectedValue(new Error('Database error'));
+      mockVerificationModel.findOne.mockRejectedValue(
+        new Error('Database error'),
+      );
 
-      await expect(service.isVerified(contact)).rejects.toThrow('Database error');
+      await expect(service.isVerified(contact)).rejects.toThrow(
+        'Database error',
+      );
     });
 
     it('should handle invalid contact data', async () => {

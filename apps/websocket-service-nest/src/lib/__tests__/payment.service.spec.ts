@@ -1,9 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { PaymentService } from '../payment.service';
 import { IPayment, PaymentStatus, PaymentMethod } from '../../models/Payment';
-import { IPaymentTransaction, TransactionType, TransactionStatus } from '../../models/PaymentTransaction';
+import {
+  IPaymentTransaction,
+  TransactionType,
+  TransactionStatus,
+} from '../../models/PaymentTransaction';
 
 describe('PaymentService', () => {
   let service: PaymentService;
@@ -35,7 +42,7 @@ describe('PaymentService', () => {
         percentage: 80,
         liable: false,
         chargeProcessingFee: false,
-      }
+      },
     ],
     paidAt: undefined,
     cancelledAt: undefined,
@@ -184,9 +191,9 @@ describe('PaymentService', () => {
     it('should throw BadRequestException when conversation not found', async () => {
       conversationModel.findOne.mockResolvedValue(null);
 
-      await expect(service.createPayment(createPaymentDto))
-        .rejects
-        .toThrow(BadRequestException);
+      await expect(service.createPayment(createPaymentDto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException when card data is missing for credit card', async () => {
@@ -197,9 +204,9 @@ describe('PaymentService', () => {
 
       conversationModel.findOne.mockResolvedValue(mockConversation);
 
-      await expect(service.createPayment(invalidDto))
-        .rejects
-        .toThrow(BadRequestException);
+      await expect(service.createPayment(invalidDto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -265,7 +272,9 @@ describe('PaymentService', () => {
       });
 
       // Should not throw, just log warning
-      expect(paymentModel.findOne).toHaveBeenCalledWith({ externalId: 'external-123' });
+      expect(paymentModel.findOne).toHaveBeenCalledWith({
+        externalId: 'external-123',
+      });
     });
   });
 
@@ -273,18 +282,18 @@ describe('PaymentService', () => {
     it('should throw BadRequestException when payment not found', async () => {
       paymentModel.findById.mockResolvedValue(null);
 
-      await expect(service.refundPayment('invalid-id'))
-        .rejects
-        .toThrow(BadRequestException);
+      await expect(service.refundPayment('invalid-id')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException when payment is not paid', async () => {
       const pendingPayment = { ...mockPayment, status: PaymentStatus.PENDING };
       paymentModel.findById.mockResolvedValue(pendingPayment);
 
-      await expect(service.refundPayment('payment-id'))
-        .rejects
-        .toThrow(BadRequestException);
+      await expect(service.refundPayment('payment-id')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -374,7 +383,7 @@ describe('PaymentService', () => {
         percentage: 80,
         liable: false,
         chargeProcessingFee: false,
-      }
+      },
     ],
     paidAt: undefined,
     cancelledAt: undefined,
@@ -523,9 +532,9 @@ describe('PaymentService', () => {
     it('should throw BadRequestException when conversation not found', async () => {
       conversationModel.findOne.mockResolvedValue(null);
 
-      await expect(service.createPayment(createPaymentDto))
-        .rejects
-        .toThrow(BadRequestException);
+      await expect(service.createPayment(createPaymentDto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException when card data is missing for credit card', async () => {
@@ -536,9 +545,9 @@ describe('PaymentService', () => {
 
       conversationModel.findOne.mockResolvedValue(mockConversation);
 
-      await expect(service.createPayment(invalidDto))
-        .rejects
-        .toThrow(BadRequestException);
+      await expect(service.createPayment(invalidDto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -604,7 +613,9 @@ describe('PaymentService', () => {
       });
 
       // Should not throw, just log warning
-      expect(paymentModel.findOne).toHaveBeenCalledWith({ externalId: 'external-123' });
+      expect(paymentModel.findOne).toHaveBeenCalledWith({
+        externalId: 'external-123',
+      });
     });
   });
 
@@ -612,18 +623,18 @@ describe('PaymentService', () => {
     it('should throw BadRequestException when payment not found', async () => {
       paymentModel.findById.mockResolvedValue(null);
 
-      await expect(service.refundPayment('invalid-id'))
-        .rejects
-        .toThrow(BadRequestException);
+      await expect(service.refundPayment('invalid-id')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException when payment is not paid', async () => {
       const pendingPayment = { ...mockPayment, status: PaymentStatus.PENDING };
       paymentModel.findById.mockResolvedValue(pendingPayment);
 
-      await expect(service.refundPayment('payment-id'))
-        .rejects
-        .toThrow(BadRequestException);
+      await expect(service.refundPayment('payment-id')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 

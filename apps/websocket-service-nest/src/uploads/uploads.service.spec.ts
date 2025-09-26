@@ -49,7 +49,7 @@ describe('UploadsService', () => {
       } as Express.Multer.File;
 
       expect(() => (service as any).validateFile(invalidFile)).toThrow(
-        'Invalid file type. Only PDF, DOC, DOCX, JPG, PNG are allowed.'
+        'Invalid file type. Only PDF, DOC, DOCX, JPG, PNG are allowed.',
       );
     });
 
@@ -60,7 +60,7 @@ describe('UploadsService', () => {
       } as Express.Multer.File;
 
       expect(() => (service as any).validateFile(largeFile)).toThrow(
-        'File size exceeds 10MB limit.'
+        'File size exceeds 10MB limit.',
       );
     });
   });

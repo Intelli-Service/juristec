@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Storage } from '@google-cloud/storage';
-import { FileAttachment, FileAttachmentDocument } from '../models/FileAttachment';
+import {
+  FileAttachment,
+  FileAttachmentDocument,
+} from '../models/FileAttachment';
 
 @Injectable()
 export class UploadsService {
@@ -74,7 +77,9 @@ export class UploadsService {
         const savedFile = await fileAttachment.save();
 
         // Log upload for audit trail
-        console.log(`[AUDIT] File uploaded: ${uniqueFilename} by user ${userId} at ${new Date().toISOString()}`);
+        console.log(
+          `[AUDIT] File uploaded: ${uniqueFilename} by user ${userId} at ${new Date().toISOString()}`,
+        );
 
         resolve(savedFile);
       });
@@ -83,22 +88,30 @@ export class UploadsService {
     });
   }
 
-  async getFilesByConversation(conversationId: string, userId?: string): Promise<FileAttachment[]> {
+  async getFilesByConversation(
+    conversationId: string,
+    userId?: string,
+  ): Promise<FileAttachment[]> {
     const files = await this.fileAttachmentModel
       .find({ conversationId, isDeleted: false })
       .sort({ createdAt: -1 });
 
     // Generate fresh signed URLs for all files
     for (const file of files) {
-      const [signedUrl] = await this.storage.bucket(this.bucket).file(file.gcsPath).getSignedUrl({
-        version: 'v4',
-        action: 'read',
-        expires: Date.now() + 60 * 60 * 1000, // 1 hour
-      });
+      const [signedUrl] = await this.storage
+        .bucket(this.bucket)
+        .file(file.gcsPath)
+        .getSignedUrl({
+          version: 'v4',
+          action: 'read',
+          expires: Date.now() + 60 * 60 * 1000, // 1 hour
+        });
       file.url = signedUrl;
 
       // Log access for audit trail
-      console.log(`[AUDIT] File access: ${file.filename} by user ${userId || 'unknown'} at ${new Date().toISOString()}`);
+      console.log(
+        `[AUDIT] File access: ${file.filename} by user ${userId || 'unknown'} at ${new Date().toISOString()}`,
+      );
     }
 
     return files;
@@ -126,7 +139,9 @@ export class UploadsService {
     );
 
     // Log deletion for audit trail
-    console.log(`[AUDIT] File deleted: ${file.filename} by user ${userId} at ${new Date().toISOString()}`);
+    console.log(
+      `[AUDIT] File deleted: ${file.filename} by user ${userId} at ${new Date().toISOString()}`,
+    );
   }
 
   private validateFile(file: Express.Multer.File): void {
@@ -141,7 +156,9 @@ export class UploadsService {
     const maxSize = 10 * 1024 * 1024; // 10MB
 
     if (!allowedTypes.includes(file.mimetype)) {
-      throw new Error('Invalid file type. Only PDF, DOC, DOCX, JPG, PNG are allowed.');
+      throw new Error(
+        'Invalid file type. Only PDF, DOC, DOCX, JPG, PNG are allowed.',
+      );
     }
 
     if (file.size > maxSize) {

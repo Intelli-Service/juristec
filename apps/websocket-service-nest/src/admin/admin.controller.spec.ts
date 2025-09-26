@@ -14,11 +14,16 @@ describe('AdminController', () => {
     email: 'admin@example.com',
     role: 'super_admin',
     name: 'Admin User',
-    permissions: ['manage_users', 'manage_ai_config', 'view_all_cases', 'assign_cases'],
+    permissions: [
+      'manage_users',
+      'manage_ai_config',
+      'view_all_cases',
+      'assign_cases',
+    ],
   };
 
   const mockRequest = {
-    user: mockUser
+    user: mockUser,
   };
 
   beforeEach(async () => {
@@ -113,7 +118,10 @@ describe('AdminController', () => {
 
         const result = await controller.updateAIConfig(updates, mockRequest);
 
-        expect(aiService.updateConfig).toHaveBeenCalledWith(updates, mockUser.userId);
+        expect(aiService.updateConfig).toHaveBeenCalledWith(
+          updates,
+          mockUser.userId,
+        );
         expect(result).toEqual(updatedConfig);
       });
     });
@@ -123,8 +131,18 @@ describe('AdminController', () => {
     describe('getUsers', () => {
       it('should return all users without passwords', async () => {
         const users = [
-          { _id: '1', name: 'User 1', email: 'user1@example.com', role: UserRole.CLIENT },
-          { _id: '2', name: 'User 2', email: 'user2@example.com', role: UserRole.LAWYER },
+          {
+            _id: '1',
+            name: 'User 1',
+            email: 'user1@example.com',
+            role: UserRole.CLIENT,
+          },
+          {
+            _id: '2',
+            name: 'User 2',
+            email: 'user2@example.com',
+            role: UserRole.LAWYER,
+          },
         ];
 
         const mockQuery = {
@@ -187,9 +205,15 @@ describe('AdminController', () => {
         (User.findByIdAndUpdate as jest.Mock).mockReturnValue(mockQuery);
         mockQuery.select.mockResolvedValue(updatedUser);
 
-        const result = await controller.updateUser(userId, updates, mockRequest);
+        const result = await controller.updateUser(
+          userId,
+          updates,
+          mockRequest,
+        );
 
-        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(userId, updates, { new: true });
+        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(userId, updates, {
+          new: true,
+        });
         expect(mockQuery.select).toHaveBeenCalledWith('-password');
         expect(result).toEqual(updatedUser);
       });
@@ -218,8 +242,18 @@ describe('AdminController', () => {
     describe('getCases', () => {
       it('should return all cases sorted by creation date', async () => {
         const cases = [
-          { _id: '1', title: 'Case 1', status: 'active', createdAt: new Date() },
-          { _id: '2', title: 'Case 2', status: 'closed', createdAt: new Date() },
+          {
+            _id: '1',
+            title: 'Case 1',
+            status: 'active',
+            createdAt: new Date(),
+          },
+          {
+            _id: '2',
+            title: 'Case 2',
+            status: 'closed',
+            createdAt: new Date(),
+          },
         ];
 
         const mockQuery = {
@@ -267,7 +301,11 @@ describe('AdminController', () => {
 
         aiService.assignCase.mockResolvedValue(assignmentResult as any);
 
-        const result = await controller.assignCase(caseId, { lawyerId }, mockRequest);
+        const result = await controller.assignCase(
+          caseId,
+          { lawyerId },
+          mockRequest,
+        );
 
         expect(aiService.assignCase).toHaveBeenCalledWith(caseId, lawyerId);
         expect(result).toEqual(assignmentResult);
@@ -279,8 +317,18 @@ describe('AdminController', () => {
     describe('getLawyers', () => {
       it('should return all lawyers', async () => {
         const lawyers = [
-          { _id: '1', name: 'Lawyer 1', email: 'lawyer1@example.com', role: UserRole.LAWYER },
-          { _id: '2', name: 'Lawyer 2', email: 'lawyer2@example.com', role: UserRole.LAWYER },
+          {
+            _id: '1',
+            name: 'Lawyer 1',
+            email: 'lawyer1@example.com',
+            role: UserRole.LAWYER,
+          },
+          {
+            _id: '2',
+            name: 'Lawyer 2',
+            email: 'lawyer2@example.com',
+            role: UserRole.LAWYER,
+          },
         ];
 
         const mockQuery = {
@@ -300,8 +348,18 @@ describe('AdminController', () => {
     describe('getModerators', () => {
       it('should return all moderators', async () => {
         const moderators = [
-          { _id: '1', name: 'Moderator 1', email: 'mod1@example.com', role: UserRole.MODERATOR },
-          { _id: '2', name: 'Moderator 2', email: 'mod2@example.com', role: UserRole.MODERATOR },
+          {
+            _id: '1',
+            name: 'Moderator 1',
+            email: 'mod1@example.com',
+            role: UserRole.MODERATOR,
+          },
+          {
+            _id: '2',
+            name: 'Moderator 2',
+            email: 'mod2@example.com',
+            role: UserRole.MODERATOR,
+          },
         ];
 
         const mockQuery = {
