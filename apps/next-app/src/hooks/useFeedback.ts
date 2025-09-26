@@ -77,7 +77,7 @@ export function useFeedback({
       const response = await fetch(`/api/feedback/user/pending?userId=${userId}`);
       if (response.ok) {
         const pendingFeedbacks = await response.json();
-        return pendingFeedbacks.filter((f: any) => f.conversationId === conversationId);
+        return pendingFeedbacks.filter((f: { conversationId: string }) => f.conversationId === conversationId);
       }
       return [];
     } catch (error) {

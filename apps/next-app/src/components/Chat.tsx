@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
 import FileUpload from './FileUpload';
 import { useNotifications } from '../hooks/useNotifications';
@@ -284,9 +285,9 @@ export default function Chat() {
         <header className="bg-slate-900 shadow-lg border-b border-slate-800 px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <a href="/" className="flex items-center space-x-2">
+              <Link href="/" className="flex items-center space-x-2">
                 <div className="text-2xl font-bold text-white">Juristec<span className="text-emerald-400">.com.br</span></div>
-              </a>
+              </Link>
               <div className="hidden sm:block text-slate-400 text-sm">
                 Assistente Jurídico Inteligente
               </div>
@@ -296,12 +297,12 @@ export default function Chat() {
                 <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
                 <span>Online</span>
               </div>
-              <a
+              <Link
                 href="/"
                 className="text-slate-300 hover:text-white transition-colors text-sm font-medium"
               >
                 ← Voltar ao Início
-              </a>
+              </Link>
             </div>
           </div>
         </header>

@@ -2,7 +2,7 @@ import { getSession } from 'next-auth/react'
 
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
-  body?: any
+  body?: unknown
   headers?: Record<string, string>
 }
 
@@ -44,11 +44,11 @@ export async function apiGet(endpoint: string) {
   return apiCall(endpoint, { method: 'GET' })
 }
 
-export async function apiPost(endpoint: string, body: any) {
+export async function apiPost(endpoint: string, body: unknown) {
   return apiCall(endpoint, { method: 'POST', body })
 }
 
-export async function apiPut(endpoint: string, body: any) {
+export async function apiPut(endpoint: string, body: unknown) {
   return apiCall(endpoint, { method: 'PUT', body })
 }
 

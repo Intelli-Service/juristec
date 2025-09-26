@@ -8,9 +8,18 @@ import { useFeedback } from '../hooks/useFeedback';
 // Mock dos hooks
 jest.mock('../hooks/useNotifications');
 jest.mock('../hooks/useFeedback');
+
+// Mock do socket.io-client
+jest.mock('socket.io-client', () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
 jest.mock('socket.io-client');
 jest.mock('../components/FileUpload', () => {
-  return function MockFileUpload({ onFileSelect, onFileRemove }: any) {
+  return function MockFileUpload({ onFileSelect, onFileRemove }: {
+    onFileSelect: (file: { name: string }) => void;
+    onFileRemove: () => void;
+  }) {
     return (
       <div data-testid="file-upload">
         <button data-testid="select-file-btn" onClick={() => onFileSelect({ name: 'test.pdf' })}>
@@ -24,7 +33,11 @@ jest.mock('../components/FileUpload', () => {
   };
 });
 jest.mock('../components/feedback/FeedbackModal', () => {
-  return function MockFeedbackModal({ isOpen, onClose, onSubmit }: any) {
+  return function MockFeedbackModal({ isOpen, onClose, onSubmit }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onSubmit: (feedback: { rating: number; comment: string }) => void;
+  }) {
     if (!isOpen) return null;
     return (
       <div data-testid="feedback-modal">
@@ -67,7 +80,8 @@ beforeEach(() => {
   (useFeedback as jest.Mock).mockReturnValue(mockFeedback);
 
   // Mock do socket.io-client
-  require('socket.io-client').mockReturnValue(mockSocket);
+  const mockSocketIO = jest.mocked(require('socket.io-client') as jest.MockedFunction<any>);
+  mockSocketIO.mockReturnValue(mockSocket);
 
   // Mock do fetch
   (global.fetch as jest.Mock).mockResolvedValue({
