@@ -9,12 +9,20 @@ import { useFeedback } from '../hooks/useFeedback';
 jest.mock('../hooks/useNotifications');
 jest.mock('../hooks/useFeedback');
 
-// Mock do socket.io-client
+// Mock do socket.io-client no topo do arquivo
+const mockSocket = {
+  emit: jest.fn(),
+  on: jest.fn(),
+  off: jest.fn(),
+  disconnect: jest.fn(),
+  connect: jest.fn(),
+  connected: true,
+};
+
 jest.mock('socket.io-client', () => ({
   __esModule: true,
-  default: jest.fn(),
+  default: jest.fn(() => mockSocket),
 }));
-jest.mock('socket.io-client');
 jest.mock('../components/FileUpload', () => {
   return function MockFileUpload({ onFileSelect, onFileRemove }: {
     onFileSelect: (file: { name: string }) => void;
@@ -64,26 +72,12 @@ const mockFeedback = {
   submitFeedback: jest.fn(),
 };
 
-const mockSocket = {
-  emit: jest.fn(),
-  on: jest.fn(),
-  off: jest.fn(),
-  disconnect: jest.fn(),
-  connect: jest.fn(),
-};
-
 beforeEach(() => {
   jest.clearAllMocks();
 
   // Setup dos mocks dos hooks
   (useNotifications as jest.Mock).mockReturnValue(mockNotifications);
   (useFeedback as jest.Mock).mockReturnValue(mockFeedback);
-
-// Mock do socket.io-client
-jest.mock('socket.io-client', () => ({
-  __esModule: true,
-  default: jest.fn(() => mockSocket),
-}));
 
   // Mock do fetch
   (global.fetch as jest.Mock).mockResolvedValue({
