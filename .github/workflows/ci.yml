@@ -25,6 +25,9 @@ jobs:
           apps/websocket-service-nest/package-lock.json
 
     # Frontend Tests & Quality Checks
+    - name: Clear npm cache
+      run: cd apps/next-app && npm cache clean --force
+      
     - name: Install Frontend Dependencies
       run: cd apps/next-app && npm ci
 
