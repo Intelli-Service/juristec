@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { AIService } from './ai.service';
+import {
+  UserDataConfigManager,
+  UserDataConfig,
+} from './user-data-config';
 
 export interface ContactInfo {
   email: string | null;
@@ -13,22 +17,31 @@ export interface UserData {
   conversationCount: number;
 }
 
+export interface ConversationUpdateData {
+  userEmail?: string | null;
+  userPhone?: string | null;
+  userName?: string;
+}
+
 @Injectable()
 export class UserDataCollectionService {
-  private static readonly EMAIL_REGEX =
-    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
-  private static readonly PHONE_REGEX = /(\(?\d{2}\)?\s?)?\d{4,5}-?\d{4}/g;
-  private static readonly MINIMUM_MESSAGES_BEFORE_CONTACT_REQUEST = 3;
-  private static readonly CONTACT_REQUEST_MESSAGE = `Para te ajudar melhor e manter seu histórico de conversas seguro, poderia me informar seu email ou WhatsApp? Assim posso garantir que você tenha acesso às suas conversas em outros dispositivos e receber notificações importantes sobre seu caso.`;
+  private configManager: UserDataConfigManager;
 
-  constructor(private readonly aiService: AIService) {}
+  constructor(private readonly aiService: AIService) {
+    this.configManager = UserDataConfigManager.getInstance();
+  }
+
+  private getConfig(): UserDataConfig {
+    return this.configManager.getConfig();
+  }
 
   /**
    * Extrai informações de contato de uma mensagem do usuário
    */
   extractContactInfo(message: string): ContactInfo {
-    const emails = message.match(UserDataCollectionService.EMAIL_REGEX);
-    const phones = message.match(UserDataCollectionService.PHONE_REGEX);
+    const config = this.getConfig();
+    const emails = message.match(config.emailRegex);
+    const phones = message.match(config.phoneRegex);
 
     return {
       email: emails ? emails[0] : null,
@@ -46,17 +59,16 @@ export class UserDataCollectionService {
     }
 
     // Só coletar após algumas mensagens para não ser invasivo
-    return (
-      messageCount >=
-      UserDataCollectionService.MINIMUM_MESSAGES_BEFORE_CONTACT_REQUEST
-    );
+    const config = this.getConfig();
+    return messageCount >= config.minMessagesBeforeRequest;
   }
 
   /**
    * Gera mensagem solicitando informações de contato
    */
   generateContactRequest(): string {
-    return UserDataCollectionService.CONTACT_REQUEST_MESSAGE;
+    const config = this.getConfig();
+    return config.messages.contactRequest;
   }
 
   /**
@@ -77,10 +89,12 @@ export class UserDataCollectionService {
 
     // Se encontrou dados de contato, atualizar
     if (contactInfo.email || contactInfo.phone) {
-      await this.aiService.updateUserData(conversationId, {
+      const updateData: { email?: string | null; phone?: string | null; name?: string } = {
         email: contactInfo.email || userData.email,
         phone: contactInfo.phone || userData.phone,
-      });
+      };
+
+      await this.aiService.updateUserData(conversationId, updateData);
 
       return { shouldRequestContact: false };
     }

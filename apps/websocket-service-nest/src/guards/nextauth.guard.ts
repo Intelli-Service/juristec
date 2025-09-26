@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SetMetadata } from '@nestjs/common';
+import { Request } from 'express';
 
 export interface JwtPayload {
   userId: string;
@@ -17,12 +18,30 @@ export interface JwtPayload {
   exp?: number;
 }
 
+export interface AuthenticatedRequest extends Request {
+  user: JwtPayload;
+}
+
+export interface WebSocketRequest {
+  handshake?: {
+    auth?: {
+      token?: string;
+    };
+  };
+  headers?: {
+    authorization?: string;
+    cookie?: string;
+  };
+}
+
+type RequestWithAuth = Request | WebSocketRequest;
+
 @Injectable()
 export class NextAuthGuard implements CanActivate {
   constructor(private jwtService: JwtService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const token = this.extractTokenFromRequest(request);
     if (!token) {
@@ -38,7 +57,7 @@ export class NextAuthGuard implements CanActivate {
     }
   }
 
-  private extractTokenFromRequest(request: any): string | null {
+  private extractTokenFromRequest(request: RequestWithAuth): string | null {
     // Try Authorization header first (HTTP requests)
     const authHeader = request.headers?.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -46,8 +65,9 @@ export class NextAuthGuard implements CanActivate {
     }
 
     // Try WebSocket auth token
-    if (request.handshake?.auth?.token) {
-      return request.handshake.auth.token;
+    const wsRequest = request as WebSocketRequest;
+    if (wsRequest.handshake?.auth?.token) {
+      return wsRequest.handshake.auth.token;
     }
 
     // Try cookies (HTTP requests)
