@@ -24,6 +24,7 @@ export interface ContactInfo {
 export class FluidRegistrationService {
   constructor(
     @InjectModel('User') private userModel: Model<IUser>,
+    @InjectModel('Conversation') private conversationModel: Model<any>,
     private readonly verificationService: VerificationService
   ) {}
 
@@ -186,7 +187,7 @@ export class FluidRegistrationService {
    * Vincula conversa a um usuário
    */
   private async linkConversationToUser(conversationId: string, userId: string): Promise<void> {
-    await Conversation.findByIdAndUpdate(conversationId, {
+    await this.conversationModel.findByIdAndUpdate(conversationId, {
       'clientInfo.userId': userId,
       updatedAt: new Date()
     });
