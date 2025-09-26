@@ -181,7 +181,7 @@ TRIAGEM DE CASOS:
       } else if (fullText.includes('contrato') || fullText.includes('acordo')) {
         category = 'Assessoria Preventiva';
         legalArea = 'Direito Civil';
-      } else if (fullText.includes('trabalho') || fullText.includes('emprego') || fullText.includes('demissão')) {
+      } else if (fullText.includes('trabalh') || fullText.includes('empreg') || fullText.includes('demiss')) {
         legalArea = 'Direito Trabalhista';
       } else if (fullText.includes('crime') || fullText.includes('polícia') || fullText.includes('prisão')) {
         legalArea = 'Direito Penal';
