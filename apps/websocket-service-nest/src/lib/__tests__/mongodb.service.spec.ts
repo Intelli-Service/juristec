@@ -67,7 +67,7 @@ describe('MongodbService', () => {
       delete process.env.MONGODB_URI;
 
       await expect(service.connect()).rejects.toThrow(
-        'Please define the MONGODB_URI environment variable inside .env.local'
+        'Please define the MONGODB_URI environment variable inside .env.local',
       );
     });
 
@@ -85,16 +85,22 @@ describe('MongodbService', () => {
     it('should create new connection when no cached connection exists', async () => {
       const result = await service.connect();
 
-      expect(mockMongoose.connect).toHaveBeenCalledWith('mongodb://localhost:27017/test', {
-        bufferCommands: false,
-      });
+      expect(mockMongoose.connect).toHaveBeenCalledWith(
+        'mongodb://localhost:27017/test',
+        {
+          bufferCommands: false,
+        },
+      );
       expect(result).toBe(mockMongoose);
       expect((global as any).mongoose.conn).toBe(mockMongoose);
     });
 
     it('should reuse existing promise when connection is in progress', async () => {
       // Configurar cache com promise pendente
-      (global as any).mongoose = { conn: null, promise: Promise.resolve(mockMongoose) };
+      (global as any).mongoose = {
+        conn: null,
+        promise: Promise.resolve(mockMongoose),
+      };
 
       const serviceWithPromise = new MongodbService();
       const result = await serviceWithPromise.connect();
@@ -131,7 +137,7 @@ describe('MongodbService', () => {
         'mongodb://localhost:27017/test',
         expect.objectContaining({
           bufferCommands: false,
-        })
+        }),
       );
     });
   });

@@ -4,22 +4,22 @@ export enum UserRole {
   SUPER_ADMIN = 'super_admin',
   LAWYER = 'lawyer',
   MODERATOR = 'moderator',
-  CLIENT = 'client'
+  CLIENT = 'client',
 }
 
 export enum CaseStatus {
   // Status legados (manter compatibilidade)
-  OPEN = 'open',           // Conversa iniciada, aguardando processamento
-  ASSIGNED = 'assigned',   // Atribuída a um advogado (legado - usar ASSIGNED_TO_LAWYER)
-  CLOSED = 'closed',       // Finalizada (legado - usar COMPLETED)
+  OPEN = 'open', // Conversa iniciada, aguardando processamento
+  ASSIGNED = 'assigned', // Atribuída a um advogado (legado - usar ASSIGNED_TO_LAWYER)
+  CLOSED = 'closed', // Finalizada (legado - usar COMPLETED)
 
   // Novos status para sistema de feedback inteligente
-  ACTIVE = 'active',           // Conversa em andamento, sendo processada
-  RESOLVED_BY_AI = 'resolved_by_ai',     // Resolvida apenas por IA (gatilho de feedback)
+  ACTIVE = 'active', // Conversa em andamento, sendo processada
+  RESOLVED_BY_AI = 'resolved_by_ai', // Resolvida apenas por IA (gatilho de feedback)
   ASSIGNED_TO_LAWYER = 'assigned_to_lawyer', // Atribuída a advogado (gatilho de feedback)
-  COMPLETED = 'completed',     // Finalizada com sucesso (gatilho de feedback)
-  ABANDONED = 'abandoned',     // Abandonada pelo usuário
-  PENDING_REVIEW = 'pending_review'
+  COMPLETED = 'completed', // Finalizada com sucesso (gatilho de feedback)
+  ABANDONED = 'abandoned', // Abandonada pelo usuário
+  PENDING_REVIEW = 'pending_review',
 }
 
 export interface IUser extends Document {
@@ -45,48 +45,50 @@ const UserSchema = new Schema<IUser>({
     type: String,
     required: true,
     unique: true,
-    lowercase: true
+    lowercase: true,
   },
   password: {
     type: String,
-    required: true
+    required: true,
   },
   name: {
     type: String,
-    required: true
+    required: true,
   },
   role: {
     type: String,
     enum: Object.values(UserRole),
-    default: UserRole.CLIENT
+    default: UserRole.CLIENT,
   },
   isActive: {
     type: Boolean,
-    default: true
+    default: true,
   },
-  permissions: [{
-    type: String,
-    enum: [
-      'manage_ai_config',
-      'view_all_cases',
-      'assign_cases',
-      'moderate_conversations',
-      'access_client_chat',
-      'generate_reports'
-    ]
-  }],
+  permissions: [
+    {
+      type: String,
+      enum: [
+        'manage_ai_config',
+        'view_all_cases',
+        'assign_cases',
+        'moderate_conversations',
+        'access_client_chat',
+        'generate_reports',
+      ],
+    },
+  ],
   profile: {
     specialization: [{ type: String }],
     licenseNumber: { type: String },
-    bio: { type: String }
+    bio: { type: String },
   },
   assignedCases: [{ type: String }],
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
+  updatedAt: { type: Date, default: Date.now },
 });
 
 // Definir permissões padrão por role
-UserSchema.pre('save', function(next) {
+UserSchema.pre('save', function (next) {
   if (this.isNew || this.isModified('role')) {
     switch (this.role) {
       case UserRole.SUPER_ADMIN:
@@ -96,21 +98,18 @@ UserSchema.pre('save', function(next) {
           'assign_cases',
           'moderate_conversations',
           'access_client_chat',
-          'generate_reports'
+          'generate_reports',
         ];
         break;
       case UserRole.LAWYER:
         this.permissions = [
           'view_all_cases',
           'assign_cases',
-          'access_client_chat'
+          'access_client_chat',
         ];
         break;
       case UserRole.MODERATOR:
-        this.permissions = [
-          'view_all_cases',
-          'moderate_conversations'
-        ];
+        this.permissions = ['view_all_cases', 'moderate_conversations'];
         break;
       case UserRole.CLIENT:
         this.permissions = [];

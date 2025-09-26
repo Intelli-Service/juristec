@@ -1,5 +1,15 @@
-import { Controller, Get, Query, UseGuards, BadRequestException } from '@nestjs/common';
-import { AnalyticsService, AnalyticsFilters, AnalyticsMetrics } from '../lib/analytics.service';
+import {
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
+import {
+  AnalyticsService,
+  AnalyticsFilters,
+  AnalyticsMetrics,
+} from '../lib/analytics.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 
 @Controller('analytics')
@@ -12,7 +22,7 @@ export class AnalyticsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('period') period?: 'day' | 'week' | 'month' | 'year',
-    @Query('segment') segment?: 'all' | 'client' | 'lawyer' | 'admin'
+    @Query('segment') segment?: 'all' | 'client' | 'lawyer' | 'admin',
   ): Promise<AnalyticsMetrics> {
     try {
       const filters: AnalyticsFilters = {};
@@ -43,7 +53,7 @@ export class AnalyticsController {
   async getRevenueMetrics(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('period') period?: 'day' | 'week' | 'month' | 'year'
+    @Query('period') period?: 'day' | 'week' | 'month' | 'year',
   ) {
     try {
       const filters: AnalyticsFilters = {};
@@ -70,7 +80,7 @@ export class AnalyticsController {
   async getConversationMetrics(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('period') period?: 'day' | 'week' | 'month' | 'year'
+    @Query('period') period?: 'day' | 'week' | 'month' | 'year',
   ) {
     try {
       const filters: AnalyticsFilters = {};
@@ -97,7 +107,7 @@ export class AnalyticsController {
   async getUserMetrics(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('period') period?: 'day' | 'week' | 'month' | 'year'
+    @Query('period') period?: 'day' | 'week' | 'month' | 'year',
   ) {
     try {
       const filters: AnalyticsFilters = {};
@@ -125,7 +135,7 @@ export class AnalyticsController {
     @Query('format') format: 'csv' | 'json' = 'json',
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('period') period?: 'day' | 'week' | 'month' | 'year'
+    @Query('period') period?: 'day' | 'week' | 'month' | 'year',
   ) {
     try {
       const filters: AnalyticsFilters = {};

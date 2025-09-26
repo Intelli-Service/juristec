@@ -97,7 +97,9 @@ export class AnalyticsService {
     @InjectModel('User') private userModel: Model<IUser>,
   ) {}
 
-  async getAnalytics(filters: AnalyticsFilters = {}): Promise<AnalyticsMetrics> {
+  async getAnalytics(
+    filters: AnalyticsFilters = {},
+  ): Promise<AnalyticsMetrics> {
     const { startDate, endDate } = this.buildDateFilter(filters);
 
     // Executar todas as queries em paralelo para performance
@@ -122,10 +124,23 @@ export class AnalyticsService {
     ]);
 
     // Calcular métricas derivadas
-    const conversionMetrics = this.calculateConversionMetrics(conversations, charges);
-    const financialMetrics = this.calculateFinancialMetrics(charges, monthlyRevenue);
-    const performanceMetrics = this.calculatePerformanceMetrics(conversations, messages);
-    const systemMetrics = this.calculateSystemMetrics(messages, messagesPerDay, conversations);
+    const conversionMetrics = this.calculateConversionMetrics(
+      conversations,
+      charges,
+    );
+    const financialMetrics = this.calculateFinancialMetrics(
+      charges,
+      monthlyRevenue,
+    );
+    const performanceMetrics = this.calculatePerformanceMetrics(
+      conversations,
+      messages,
+    );
+    const systemMetrics = this.calculateSystemMetrics(
+      messages,
+      messagesPerDay,
+      conversations,
+    );
 
     return {
       conversion: conversionMetrics,
@@ -139,13 +154,18 @@ export class AnalyticsService {
   }
 
   private buildDateFilter(filters: AnalyticsFilters) {
-    const startDate = filters.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 dias atrás
+    const startDate =
+      filters.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 dias atrás
     const endDate = filters.endDate || new Date();
 
     return { startDate, endDate };
   }
 
-  private async getConversationsData(startDate: Date, endDate: Date, filters: AnalyticsFilters) {
+  private async getConversationsData(
+    startDate: Date,
+    endDate: Date,
+    filters: AnalyticsFilters,
+  ) {
     const matchConditions: any = {
       createdAt: { $gte: startDate, $lte: endDate },
     };
@@ -157,7 +177,11 @@ export class AnalyticsService {
     return await this.conversationModel.find(matchConditions).exec();
   }
 
-  private async getChargesData(startDate: Date, endDate: Date, filters: AnalyticsFilters) {
+  private async getChargesData(
+    startDate: Date,
+    endDate: Date,
+    filters: AnalyticsFilters,
+  ) {
     const matchConditions: any = {
       createdAt: { $gte: startDate, $lte: endDate },
     };
@@ -174,21 +198,31 @@ export class AnalyticsService {
   }
 
   private async getMessagesData(startDate: Date, endDate: Date) {
-    return await this.messageModel.find({
-      createdAt: { $gte: startDate, $lte: endDate },
-    }).exec();
+    return await this.messageModel
+      .find({
+        createdAt: { $gte: startDate, $lte: endDate },
+      })
+      .exec();
   }
 
   private async getUsersData() {
-    const [totalUsers, lawyers, clients, newUsersThisMonth] = await Promise.all([
-      this.userModel.countDocuments({ isActive: true }),
-      this.userModel.countDocuments({ role: UserRole.LAWYER, isActive: true }),
-      this.userModel.countDocuments({ role: UserRole.CLIENT, isActive: true }),
-      this.userModel.countDocuments({
-        createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-        isActive: true,
-      }),
-    ]);
+    const [totalUsers, lawyers, clients, newUsersThisMonth] = await Promise.all(
+      [
+        this.userModel.countDocuments({ isActive: true }),
+        this.userModel.countDocuments({
+          role: UserRole.LAWYER,
+          isActive: true,
+        }),
+        this.userModel.countDocuments({
+          role: UserRole.CLIENT,
+          isActive: true,
+        }),
+        this.userModel.countDocuments({
+          createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          isActive: true,
+        }),
+      ],
+    );
 
     return {
       totalUsers,
@@ -220,7 +254,7 @@ export class AnalyticsService {
       },
     ]);
 
-    return monthlyData.map(item => ({
+    return monthlyData.map((item) => ({
       month: `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
       revenue: item.revenue / 100, // converter centavos para reais
     }));
@@ -242,11 +276,11 @@ export class AnalyticsService {
         },
       },
       {
-        $sort: { '_id': 1 },
+        $sort: { _id: 1 },
       },
     ]);
 
-    return dailyData.map(item => ({
+    return dailyData.map((item) => ({
       date: item._id,
       count: item.count,
     }));
@@ -254,7 +288,9 @@ export class AnalyticsService {
 
   private async getLawyerStats(startDate: Date, endDate: Date) {
     // Buscar advogados
-    const lawyers = await this.userModel.find({ role: UserRole.LAWYER, isActive: true }).exec();
+    const lawyers = await this.userModel
+      .find({ role: UserRole.LAWYER, isActive: true })
+      .exec();
 
     // Estatísticas por advogado
     const lawyerStats: { [key: string]: any } = {};
@@ -288,7 +324,8 @@ export class AnalyticsService {
       ]);
 
       const totalRevenue = revenue.length > 0 ? revenue[0].total / 100 : 0;
-      const conversionRate = conversations > 0 ? (charges / conversations) * 100 : 0;
+      const conversionRate =
+        conversations > 0 ? (charges / conversations) * 100 : 0;
 
       lawyerStats[lawyer._id] = {
         conversations,
@@ -327,7 +364,11 @@ export class AnalyticsService {
         $group: {
           _id: '$type',
           count: { $sum: 1 },
-          totalRevenue: { $sum: { $cond: [{ $eq: ['$status', ChargeStatus.PAID] }, '$amount', 0] } },
+          totalRevenue: {
+            $sum: {
+              $cond: [{ $eq: ['$status', ChargeStatus.PAID] }, '$amount', 0],
+            },
+          },
           totalValue: { $sum: '$amount' },
         },
       },
@@ -337,7 +378,7 @@ export class AnalyticsService {
     const revenueByType: { [key: string]: number } = {};
     const averageValueByType: { [key: string]: number } = {};
 
-    serviceData.forEach(item => {
+    serviceData.forEach((item) => {
       chargesByType[item._id] = item.count;
       revenueByType[item._id] = item.totalRevenue / 100; // centavos para reais
       averageValueByType[item._id] = item.totalValue / item.count / 100; // média em reais
@@ -352,11 +393,17 @@ export class AnalyticsService {
 
   private calculateConversionMetrics(conversations: any[], charges: any[]) {
     const totalConversations = conversations.length;
-    const conversationsWithCharges = new Set(charges.map(c => c.conversationId)).size;
-    const conversionRate = totalConversations > 0 ? (conversationsWithCharges / totalConversations) * 100 : 0;
-    const averageChargeValue = charges.length > 0
-      ? charges.reduce((sum, c) => sum + c.amount, 0) / charges.length / 100
-      : 0;
+    const conversationsWithCharges = new Set(
+      charges.map((c) => c.conversationId),
+    ).size;
+    const conversionRate =
+      totalConversations > 0
+        ? (conversationsWithCharges / totalConversations) * 100
+        : 0;
+    const averageChargeValue =
+      charges.length > 0
+        ? charges.reduce((sum, c) => sum + c.amount, 0) / charges.length / 100
+        : 0;
 
     return {
       totalConversations,
@@ -368,16 +415,28 @@ export class AnalyticsService {
 
   private calculateFinancialMetrics(charges: any[], monthlyRevenue: any[]) {
     const totalCharges = charges.length;
-    const paidCharges = charges.filter(c => c.status === ChargeStatus.PAID).length;
-    const pendingCharges = charges.filter(c => c.status === ChargeStatus.PENDING).length;
-    const rejectedCharges = charges.filter(c => c.status === ChargeStatus.REJECTED).length;
+    const paidCharges = charges.filter(
+      (c) => c.status === ChargeStatus.PAID,
+    ).length;
+    const pendingCharges = charges.filter(
+      (c) => c.status === ChargeStatus.PENDING,
+    ).length;
+    const rejectedCharges = charges.filter(
+      (c) => c.status === ChargeStatus.REJECTED,
+    ).length;
 
-    const totalRevenue = charges
-      .filter(c => c.status === ChargeStatus.PAID)
-      .reduce((sum, c) => sum + c.amount, 0) / 100;
+    const totalRevenue =
+      charges
+        .filter((c) => c.status === ChargeStatus.PAID)
+        .reduce((sum, c) => sum + c.amount, 0) / 100;
 
-    const conversationsWithCharges = new Set(charges.map(c => c.conversationId)).size;
-    const averageRevenuePerConversation = conversationsWithCharges > 0 ? totalRevenue / conversationsWithCharges : 0;
+    const conversationsWithCharges = new Set(
+      charges.map((c) => c.conversationId),
+    ).size;
+    const averageRevenuePerConversation =
+      conversationsWithCharges > 0
+        ? totalRevenue / conversationsWithCharges
+        : 0;
 
     return {
       totalRevenue,
@@ -395,8 +454,13 @@ export class AnalyticsService {
     // Por enquanto, valores mockados
     const averageResponseTime = 15; // minutos
     const averageConversationDuration = 45; // minutos
-    const closedConversations = conversations.filter(c => c.status === 'closed').length;
-    const resolutionRate = conversations.length > 0 ? (closedConversations / conversations.length) * 100 : 0;
+    const closedConversations = conversations.filter(
+      (c) => c.status === 'closed',
+    ).length;
+    const resolutionRate =
+      conversations.length > 0
+        ? (closedConversations / conversations.length) * 100
+        : 0;
     const satisfactionScore = 85; // NPS médio (quando implementado)
 
     return {
@@ -407,9 +471,15 @@ export class AnalyticsService {
     };
   }
 
-  private calculateSystemMetrics(messages: any[], messagesPerDay: any[], conversations: any[]) {
+  private calculateSystemMetrics(
+    messages: any[],
+    messagesPerDay: any[],
+    conversations: any[],
+  ) {
     const totalMessages = messages.length;
-    const activeConversations = conversations.filter(c => c.status === 'open' || c.status === 'assigned').length;
+    const activeConversations = conversations.filter(
+      (c) => c.status === 'open' || c.status === 'assigned',
+    ).length;
     const systemUptime = 99.9; // TODO: implementar monitoramento real
 
     return {
@@ -436,34 +506,49 @@ export class AnalyticsService {
           _id: {
             $dateToString: {
               format: this.getDateFormat(filters.period || 'month'),
-              date: '$createdAt'
-            }
+              date: '$createdAt',
+            },
           },
           totalRevenue: { $sum: '$amount' },
           totalCharges: { $sum: 1 },
           paidCharges: {
-            $sum: { $cond: [{ $eq: ['$status', 'paid'] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ['$status', 'paid'] }, 1, 0] },
           },
           pendingCharges: {
-            $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] },
           },
           rejectedCharges: {
-            $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] }
-          }
-        }
+            $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] },
+          },
+        },
       },
-      { $sort: { '_id': 1 } }
+      { $sort: { _id: 1 } },
     ]);
 
     return {
       revenue: revenueData,
       summary: {
-        totalRevenue: revenueData.reduce((sum, item) => sum + item.totalRevenue, 0),
-        totalCharges: revenueData.reduce((sum, item) => sum + item.totalCharges, 0),
-        paidCharges: revenueData.reduce((sum, item) => sum + item.paidCharges, 0),
-        pendingCharges: revenueData.reduce((sum, item) => sum + item.pendingCharges, 0),
-        rejectedCharges: revenueData.reduce((sum, item) => sum + item.rejectedCharges, 0)
-      }
+        totalRevenue: revenueData.reduce(
+          (sum, item) => sum + item.totalRevenue,
+          0,
+        ),
+        totalCharges: revenueData.reduce(
+          (sum, item) => sum + item.totalCharges,
+          0,
+        ),
+        paidCharges: revenueData.reduce(
+          (sum, item) => sum + item.paidCharges,
+          0,
+        ),
+        pendingCharges: revenueData.reduce(
+          (sum, item) => sum + item.pendingCharges,
+          0,
+        ),
+        rejectedCharges: revenueData.reduce(
+          (sum, item) => sum + item.rejectedCharges,
+          0,
+        ),
+      },
     };
   }
 
@@ -477,8 +562,8 @@ export class AnalyticsService {
           from: 'messages',
           localField: '_id',
           foreignField: 'conversationId',
-          as: 'messages'
-        }
+          as: 'messages',
+        },
       },
       {
         $addFields: {
@@ -486,38 +571,52 @@ export class AnalyticsService {
           duration: {
             $divide: [
               { $subtract: ['$updatedAt', '$createdAt'] },
-              1000 * 60 // em minutos
-            ]
-          }
-        }
+              1000 * 60, // em minutos
+            ],
+          },
+        },
       },
       {
         $group: {
           _id: {
             $dateToString: {
               format: this.getDateFormat(filters.period || 'month'),
-              date: '$createdAt'
-            }
+              date: '$createdAt',
+            },
           },
           totalConversations: { $sum: 1 },
           resolvedConversations: {
-            $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] },
           },
           averageMessages: { $avg: '$messageCount' },
-          averageDuration: { $avg: '$duration' }
-        }
+          averageDuration: { $avg: '$duration' },
+        },
       },
-      { $sort: { '_id': 1 } }
+      { $sort: { _id: 1 } },
     ]);
 
     return {
       conversations: conversationData,
       summary: {
-        totalConversations: conversationData.reduce((sum, item) => sum + item.totalConversations, 0),
-        resolvedConversations: conversationData.reduce((sum, item) => sum + item.resolvedConversations, 0),
-        averageMessages: conversationData.reduce((sum, item) => sum + item.averageMessages, 0) / conversationData.length || 0,
-        averageDuration: conversationData.reduce((sum, item) => sum + item.averageDuration, 0) / conversationData.length || 0
-      }
+        totalConversations: conversationData.reduce(
+          (sum, item) => sum + item.totalConversations,
+          0,
+        ),
+        resolvedConversations: conversationData.reduce(
+          (sum, item) => sum + item.resolvedConversations,
+          0,
+        ),
+        averageMessages:
+          conversationData.reduce(
+            (sum, item) => sum + item.averageMessages,
+            0,
+          ) / conversationData.length || 0,
+        averageDuration:
+          conversationData.reduce(
+            (sum, item) => sum + item.averageDuration,
+            0,
+          ) / conversationData.length || 0,
+      },
     };
   }
 
@@ -531,22 +630,22 @@ export class AnalyticsService {
           _id: {
             $dateToString: {
               format: this.getDateFormat(filters.period || 'month'),
-              date: '$createdAt'
-            }
+              date: '$createdAt',
+            },
           },
           totalUsers: { $sum: 1 },
           lawyers: {
-            $sum: { $cond: [{ $eq: ['$role', 'lawyer'] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ['$role', 'lawyer'] }, 1, 0] },
           },
           clients: {
-            $sum: { $cond: [{ $eq: ['$role', 'client'] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ['$role', 'client'] }, 1, 0] },
           },
           admins: {
-            $sum: { $cond: [{ $eq: ['$role', 'admin'] }, 1, 0] }
-          }
-        }
+            $sum: { $cond: [{ $eq: ['$role', 'admin'] }, 1, 0] },
+          },
+        },
       },
-      { $sort: { '_id': 1 } }
+      { $sort: { _id: 1 } },
     ]);
 
     return {
@@ -555,8 +654,8 @@ export class AnalyticsService {
         totalUsers: userData.reduce((sum, item) => sum + item.totalUsers, 0),
         lawyers: userData.reduce((sum, item) => sum + item.lawyers, 0),
         clients: userData.reduce((sum, item) => sum + item.clients, 0),
-        admins: userData.reduce((sum, item) => sum + item.admins, 0)
-      }
+        admins: userData.reduce((sum, item) => sum + item.admins, 0),
+      },
     };
   }
 
@@ -607,7 +706,10 @@ export class AnalyticsService {
     }
   }
 
-  async exportAnalytics(format: 'csv' | 'json', filters: AnalyticsFilters = {}) {
+  async exportAnalytics(
+    format: 'csv' | 'json',
+    filters: AnalyticsFilters = {},
+  ) {
     const data = await this.getAnalytics(filters);
 
     if (format === 'csv') {

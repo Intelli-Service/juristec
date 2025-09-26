@@ -15,7 +15,7 @@ jest.doMock('mongoose', () => ({
   connection: {
     readyState: 1,
   },
-  Schema: function() {
+  Schema: function () {
     this.Types = {
       ObjectId: jest.fn(),
     };
@@ -131,17 +131,23 @@ describe('ChatGateway - User Data Collection Integration', () => {
     }).compile();
 
     gateway = module.get<ChatGateway>(ChatGateway);
-    intelligentUserRegistrationService = module.get<IntelligentUserRegistrationService>(IntelligentUserRegistrationService);
+    intelligentUserRegistrationService =
+      module.get<IntelligentUserRegistrationService>(
+        IntelligentUserRegistrationService,
+      );
   });
 
   describe('User Data Collection Integration', () => {
     it('should request contact info when appropriate', async () => {
       // Mock do serviço de coleta de dados
-      jest.spyOn(intelligentUserRegistrationService, 'processUserMessage').mockResolvedValue({
-        response: 'Olá! Para te ajudar melhor, preciso de algumas informações. Qual é o seu nome?',
-        userRegistered: false,
-        statusUpdated: false
-      });
+      jest
+        .spyOn(intelligentUserRegistrationService, 'processUserMessage')
+        .mockResolvedValue({
+          response:
+            'Olá! Para te ajudar melhor, preciso de algumas informações. Qual é o seu nome?',
+          userRegistered: false,
+          statusUpdated: false,
+        });
 
       // Simular socket e server
       const mockSocket = {
@@ -160,15 +166,17 @@ describe('ChatGateway - User Data Collection Integration', () => {
       // Chamar o método handleSendMessage
       await gateway.handleSendMessage(
         { roomId: 'test-room', message: 'Olá, preciso de ajuda' },
-        mockSocket as any
+        mockSocket as any,
       );
 
       // Verificar se processUserMessage foi chamado
-      expect(intelligentUserRegistrationService.processUserMessage).toHaveBeenCalledWith(
+      expect(
+        intelligentUserRegistrationService.processUserMessage,
+      ).toHaveBeenCalledWith(
         'Olá, preciso de ajuda',
         'conversation-id',
         undefined,
-        false
+        false,
       );
 
       // Verificar se a mensagem de contato foi enviada
@@ -191,14 +199,19 @@ describe('ChatGateway - User Data Collection Integration', () => {
       });
 
       // Mock do serviço de coleta de dados - usuário já tem dados
-      jest.spyOn(intelligentUserRegistrationService, 'processUserMessage').mockResolvedValue({
-        response: 'Obrigado pelas informações. Como posso te ajudar?',
-        userRegistered: true,
-        statusUpdated: false
-      });
+      jest
+        .spyOn(intelligentUserRegistrationService, 'processUserMessage')
+        .mockResolvedValue({
+          response: 'Obrigado pelas informações. Como posso te ajudar?',
+          userRegistered: true,
+          statusUpdated: false,
+        });
 
       // Mock do GeminiService
-      const generateResponseSpy = jest.spyOn(gateway['geminiService'], 'generateAIResponse');
+      const generateResponseSpy = jest.spyOn(
+        gateway['geminiService'],
+        'generateAIResponse',
+      );
 
       // Simular socket e server
       const mockSocket = {
@@ -217,15 +230,17 @@ describe('ChatGateway - User Data Collection Integration', () => {
       // Chamar o método handleSendMessage
       await gateway.handleSendMessage(
         { roomId: 'test-room', message: 'Olá, preciso de ajuda' },
-        mockSocket as any
+        mockSocket as any,
       );
 
       // Verificar se processUserMessage foi chamado (sempre é chamado agora)
-      expect(intelligentUserRegistrationService.processUserMessage).toHaveBeenCalledWith(
+      expect(
+        intelligentUserRegistrationService.processUserMessage,
+      ).toHaveBeenCalledWith(
         'Olá, preciso de ajuda',
         'conversation-id',
         undefined,
-        false
+        false,
       );
     }, 10000);
   });

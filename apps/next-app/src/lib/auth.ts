@@ -1,8 +1,10 @@
 import { NextAuthOptions } from 'next-auth'
+import type { JWT } from 'next-auth/jwt'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { MongoDBAdapter } from '@auth/mongodb-adapter'
 import { MongoClient } from 'mongodb'
 import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 
 // MongoDB client for NextAuth adapter
 const client = new MongoClient(process.env.MONGODB_URI!)
@@ -107,12 +109,16 @@ export const authOptions: NextAuthOptions = {
     maxAge: 24 * 60 * 60, // 24 hours
     // Forçar JWT puro em vez de JWE
     encode: async ({ secret, token }) => {
-      const jwt = require('jsonwebtoken')
+      if (!token) throw new Error('Token is required')
       return jwt.sign(token, secret)
     },
     decode: async ({ secret, token }) => {
-      const jwt = require('jsonwebtoken')
-      return jwt.verify(token, secret)
+      if (!token) return null
+      try {
+        return jwt.verify(token, secret) as JWT
+      } catch {
+        return null
+      }
     },
   },
   callbacks: {

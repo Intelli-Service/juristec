@@ -1,0 +1,185 @@
+name: Performance Testing - K6 Load Tests
+
+on:
+  schedule:
+    # Run performance tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of performance test to run'
+        required: true
+        default: 'load'
+        type: choice
+        options:
+          - load
+          - stress
+          - both
+
+jobs:
+  performance-tests:
+    name: K6 Performance Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      mongodb:
+        image: mongo:7
+        env:
+          MONGO_INITDB_ROOT_USERNAME: admin
+          MONGO_INITDB_ROOT_PASSWORD: password
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "echo 'db.runCommand(\"ping\").ok' | mongosh localhost:27017/test --quiet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: |
+          apps/next-app/package-lock.json
+          apps/websocket-service-nest/package-lock.json
+
+    - name: Install K6
+      run: |
+        sudo gpg -k
+        sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+
+    - name: Install Dependencies
+      run: |
+        cd apps/next-app && npm ci
+        cd ../websocket-service-nest && npm ci
+
+    - name: Build Applications
+      run: |
+        cd apps/next-app && npm run build
+        cd ../websocket-service-nest && npm run build
+
+    - name: Start Applications
+      run: |
+        # Start backend
+        cd apps/websocket-service-nest
+        npm run start:prod &
+        BACKEND_PID=$!
+        echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
+        
+        # Start frontend
+        cd ../next-app
+        npm start &
+        FRONTEND_PID=$!
+        echo "FRONTEND_PID=$FRONTEND_PID" >> $GITHUB_ENV
+        
+        # Wait for services to be ready
+        sleep 30
+        
+        # Health check
+        curl -f http://localhost:3000 || exit 1
+        curl -f http://localhost:4000/health || echo "Backend health check failed"
+
+    - name: Run Load Tests
+      if: github.event.inputs.test_type == 'load' || github.event.inputs.test_type == 'both' || github.event.inputs.test_type == ''
+      run: |
+        cd apps/websocket-service-nest
+        k6 run test/performance/load-test.js --out json=load-test-results.json
+      env:
+        BASE_URL: http://localhost:4000
+        WS_URL: ws://localhost:4000
+
+    - name: Run Stress Tests
+      if: github.event.inputs.test_type == 'stress' || github.event.inputs.test_type == 'both'
+      run: |
+        cd apps/websocket-service-nest
+        k6 run test/performance/stress-test.js --out json=stress-test-results.json
+      env:
+        BASE_URL: http://localhost:4000
+        WS_URL: ws://localhost:4000
+
+    - name: Upload Performance Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-test-results
+        path: |
+          apps/websocket-service-nest/*-test-results.json
+          apps/websocket-service-nest/test/performance/*-results.json
+
+    - name: Analyze Results
+      run: |
+        echo "## Performance Test Results" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "apps/websocket-service-nest/load-test-results.json" ]; then
+          echo "### Load Test Results" >> $GITHUB_STEP_SUMMARY
+          # Parse and display key metrics
+          node -e "
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('apps/websocket-service-nest/load-test-results.json', 'utf8'));
+            const metrics = data.metrics;
+            console.log('- HTTP Requests:', metrics.http_reqs?.values?.count || 'N/A');
+            console.log('- Average Response Time:', Math.round(metrics.http_req_duration?.values?.avg || 0) + 'ms');
+            console.log('- 95th Percentile:', Math.round(metrics.http_req_duration?.values?.p95 || 0) + 'ms');
+            console.log('- Error Rate:', ((metrics.http_req_failed?.values?.rate || 0) * 100).toFixed(2) + '%');
+          " >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ -f "apps/websocket-service-nest/stress-test-results.json" ]; then
+          echo "### Stress Test Results" >> $GITHUB_STEP_SUMMARY
+          node -e "
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('apps/websocket-service-nest/stress-test-results.json', 'utf8'));
+            const metrics = data.metrics;
+            console.log('- Peak Users:', metrics.vus?.values?.max || 'N/A');
+            console.log('- HTTP Requests:', metrics.http_reqs?.values?.count || 'N/A');
+            console.log('- Average Response Time:', Math.round(metrics.http_req_duration?.values?.avg || 0) + 'ms');
+            console.log('- Max Response Time:', Math.round(metrics.http_req_duration?.values?.max || 0) + 'ms');
+            console.log('- Error Rate:', ((metrics.http_req_failed?.values?.rate || 0) * 100).toFixed(2) + '%');
+          " >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Performance Threshold Check
+      run: |
+        # Basic performance threshold validation
+        if [ -f "apps/websocket-service-nest/load-test-results.json" ]; then
+          node -e "
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('apps/websocket-service-nest/load-test-results.json', 'utf8'));
+            const p95 = data.metrics.http_req_duration?.values?.p95 || 0;
+            const errorRate = (data.metrics.http_req_failed?.values?.rate || 0) * 100;
+            
+            console.log('Performance Analysis:');
+            console.log('- 95th Percentile Response Time:', Math.round(p95) + 'ms');
+            console.log('- Error Rate:', errorRate.toFixed(2) + '%');
+            
+            if (p95 > 1000) {
+              console.log('⚠️  WARNING: Response time exceeds 1 second');
+              process.exit(1);
+            }
+            
+            if (errorRate > 5) {
+              console.log('⚠️  WARNING: Error rate exceeds 5%');
+              process.exit(1);
+            }
+            
+            console.log('✅ Performance thresholds met');
+          "
+        fi
+
+    - name: Cleanup
+      if: always()
+      run: |
+        # Kill background processes
+        if [ ! -z "$BACKEND_PID" ]; then
+          kill $BACKEND_PID || true
+        fi
+        if [ ! -z "$FRONTEND_PID" ]; then
+          kill $FRONTEND_PID || true
+        fi

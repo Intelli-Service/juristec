@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-export async function POST(request: NextRequest, { params }: { params: { chargeId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ chargeId: string }> }) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, { params }: { params: { chargeI
       );
     }
 
-    const { chargeId } = params;
+    const { chargeId } = await params;
     const body = await request.json();
     const { reason } = body;
 

@@ -11,7 +11,7 @@ describe('Authentication Integration (Next.js)', () => {
   const baseUrl = 'http://localhost:3000'
   
   // Helper para fazer requests reais contra Next.js
-  const realRequest = async (url: string, options: { method?: string, data?: any, headers?: any } = {}) => {
+  const realRequest = async (url: string, options: { method?: string, data?: unknown, headers?: Record<string, string> } = {}) => {
     try {
       const response = await axios({
         url,
@@ -23,8 +23,9 @@ describe('Authentication Integration (Next.js)', () => {
         timeout: 5000
       })
       return response
-    } catch (error: any) {
-      if (error?.code === 'ECONNREFUSED') {
+    } catch (error: unknown) {
+      const axiosError = error as { code?: string }
+      if (axiosError?.code === 'ECONNREFUSED') {
         throw new Error('NEXTJS_NOT_RUNNING')
       }
       throw error
@@ -38,8 +39,9 @@ describe('Authentication Integration (Next.js)', () => {
       if (healthCheck.status !== 200) {
         return // Pula teste silenciosamente se NextAuth não estiver disponível
       }
-    } catch (error: any) {
-      if (error.message === 'NEXTJS_NOT_RUNNING') {
+    } catch (error: unknown) {
+      const customError = error as { message?: string }
+      if (customError.message === 'NEXTJS_NOT_RUNNING') {
         return // Pula teste silenciosamente se Next.js não estiver rodando
       }
       throw error
@@ -53,14 +55,14 @@ describe('Authentication Integration (Next.js)', () => {
       // 2. Obter CSRF token
       const csrfResponse = await realRequest(`${baseUrl}/api/auth/csrf`)
       expect(csrfResponse.status).toBe(200)
-      const csrfData = csrfResponse.data as any
+      const csrfData = csrfResponse.data as { csrfToken?: string }
       expect(csrfData.csrfToken).toBeDefined()
 
       // 3. Tentar login com credenciais corretas
       const loginData = new URLSearchParams({
         email: 'admin@demo.com',
         password: 'admin123',
-        csrfToken: csrfData.csrfToken,
+        csrfToken: csrfData.csrfToken!,
         callbackUrl: `${baseUrl}/admin`,
         json: 'true'
       }).toString()

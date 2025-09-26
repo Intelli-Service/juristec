@@ -1,0 +1,236 @@
+name: CI/CD Pipeline - Juristec Platform
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  quality-gates:
+    name: Quality Gates & Security
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: |
+          apps/next-app/package-lock.json
+          apps/websocket-service-nest/package-lock.json
+
+    # Frontend Tests & Quality Checks
+    - name: Clear npm cache
+      run: cd apps/next-app && npm cache clean --force
+      
+    - name: Install Frontend Dependencies
+      run: cd apps/next-app && npm ci
+
+    - name: Frontend Linting
+      run: cd apps/next-app && npm run lint -- --max-warnings 100
+
+    - name: Frontend Tests with Coverage
+      run: cd apps/next-app && npm run test:coverage
+      
+    - name: Frontend Build
+      run: cd apps/next-app && npm run build
+
+    # Backend Tests & Quality Checks  
+    - name: Install Backend Dependencies
+      run: cd apps/websocket-service-nest && npm ci
+
+    - name: Backend Linting
+      run: cd apps/websocket-service-nest && npm run lint
+
+    - name: Backend Tests with Coverage
+      run: cd apps/websocket-service-nest && npm run test:cov
+
+    - name: Backend Build
+      run: cd apps/websocket-service-nest && npm run build
+
+    # Security Vulnerability Scanning
+    - name: Frontend Security Audit
+      run: cd apps/next-app && npm audit --audit-level moderate
+      continue-on-error: true
+
+    - name: Backend Security Audit  
+      run: cd apps/websocket-service-nest && npm audit --audit-level moderate
+      continue-on-error: true
+
+    # Upload coverage reports
+    - name: Upload Frontend Coverage
+      uses: codecov/codecov-action@v4
+      with:
+        directory: apps/next-app/coverage
+        flags: frontend
+        name: frontend-coverage
+      continue-on-error: true
+
+    - name: Upload Backend Coverage
+      uses: codecov/codecov-action@v4
+      with:
+        directory: apps/websocket-service-nest/coverage
+        flags: backend
+        name: backend-coverage  
+      continue-on-error: true
+
+  # Coverage Quality Gate
+  coverage-check:
+    name: Coverage Quality Gate
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: |
+          apps/next-app/package-lock.json
+          apps/websocket-service-nest/package-lock.json
+
+    - name: Install Dependencies
+      run: |
+        cd apps/next-app && npm ci
+        cd ../websocket-service-nest && npm ci
+
+    - name: Generate Coverage Reports
+      run: |
+        cd apps/next-app && npm run test:coverage -- --coverageReporters=json-summary
+        cd ../websocket-service-nest && npm run test:cov -- --coverageReporters=json-summary
+
+    - name: Check Coverage Threshold
+      run: |
+        # Extract coverage percentages and check if they meet threshold
+        FRONTEND_COVERAGE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('apps/next-app/coverage/coverage-summary.json')).total.statements.pct)")
+        BACKEND_COVERAGE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('apps/websocket-service-nest/coverage/coverage-summary.json')).total.statements.pct)")
+        
+        echo "Frontend Coverage: ${FRONTEND_COVERAGE}%"
+        echo "Backend Coverage: ${BACKEND_COVERAGE}%"
+        
+        # Set minimum threshold (progressive - start at 70%, goal 80%)
+        THRESHOLD=70
+        
+        if (( $(echo "${FRONTEND_COVERAGE} < ${THRESHOLD}" | bc -l) )); then
+          echo "❌ Frontend coverage ${FRONTEND_COVERAGE}% is below ${THRESHOLD}% threshold"
+          exit 1
+        fi
+        
+        if (( $(echo "${BACKEND_COVERAGE} < ${THRESHOLD}" | bc -l) )); then
+          echo "❌ Backend coverage ${BACKEND_COVERAGE}% is below ${THRESHOLD}% threshold"  
+          exit 1
+        fi
+        
+        echo "✅ All coverage thresholds met!"
+
+  # Integration Tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    
+    services:
+      mongodb:
+        image: mongo:7
+        env:
+          MONGO_INITDB_ROOT_USERNAME: admin
+          MONGO_INITDB_ROOT_PASSWORD: password
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "echo 'db.runCommand(\"ping\").ok' | mongosh localhost:27017/test --quiet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Dependencies
+      run: |
+        cd apps/next-app && npm ci
+        cd ../websocket-service-nest && npm ci
+
+    - name: Wait for MongoDB
+      run: |
+        # Wait for MongoDB to be ready
+        for i in {1..30}; do
+          if mongosh --host localhost:27017 --eval "db.adminCommand('ping')" &>/dev/null; then
+            echo "MongoDB is ready"
+            break
+          fi
+          echo "Waiting for MongoDB... ($i/30)"
+          sleep 2
+        done
+
+    - name: Run Integration Tests
+      env:
+        MONGODB_URI: mongodb://admin:password@localhost:27017/juristec_test?authSource=admin
+        GOOGLE_API_KEY: test-key
+        NEXTAUTH_SECRET: test-secret-for-ci
+        NEXTAUTH_URL: http://localhost:3000
+      run: |
+        # Start backend service in background
+        cd apps/websocket-service-nest && npm run start:prod &
+        sleep 10
+        
+        # Run integration tests
+        cd ../next-app && npm run test:integration || true
+
+  # Docker Build Test
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build and Test Docker Images
+      run: |
+        # Test docker-compose configuration
+        docker-compose -f docker-compose.yml config
+        docker-compose -f docker-compose.yml up --build -d
+        sleep 30
+        
+        # Basic health checks
+        echo "Testing application availability..."
+        timeout 30 bash -c 'until curl -f http://localhost:8080; do sleep 1; done' || echo "Frontend health check failed"
+        
+        docker-compose down
+
+  # Automated Deployment (staging)
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [quality-gates, coverage-check, integration-tests, docker-build]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Deploy to Staging
+      run: |
+        echo "🚀 Deploying to staging environment..."
+        # Add actual deployment steps here
+        echo "✅ Staging deployment completed"

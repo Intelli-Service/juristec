@@ -26,7 +26,7 @@ describe('FluidRegistrationService', () => {
         {
           provide: getModelToken('User'),
           useValue: Object.assign(
-            function() {
+            function () {
               return {
                 _id: new mongoose.Types.ObjectId(),
                 name: 'João Silva',
@@ -43,7 +43,7 @@ describe('FluidRegistrationService', () => {
             {
               findOne: jest.fn(),
               create: jest.fn(),
-            }
+            },
           ),
         },
         {
@@ -70,7 +70,9 @@ describe('FluidRegistrationService', () => {
       // Mock usuário não encontrado
       userModel.findOne.mockResolvedValue(null);
 
-      jest.spyOn(verificationService, 'generateCode').mockResolvedValue('123456');
+      jest
+        .spyOn(verificationService, 'generateCode')
+        .mockResolvedValue('123456');
       conversationModel.findByIdAndUpdate.mockResolvedValue({});
 
       const result = await service.processFluidRegistration(
@@ -80,7 +82,7 @@ describe('FluidRegistrationService', () => {
           phone: '+5511999999999',
         },
         new mongoose.Types.ObjectId().toString(),
-        'room-123'
+        'room-123',
       );
 
       expect(result.success).toBe(true);
@@ -107,7 +109,7 @@ describe('FluidRegistrationService', () => {
           email: 'joao@email.com',
         },
         new mongoose.Types.ObjectId().toString(),
-        'room-123'
+        'room-123',
       );
 
       expect(result.success).toBe(true);
@@ -125,14 +127,16 @@ describe('FluidRegistrationService', () => {
 
       userModel.findOne.mockResolvedValue(existingUser);
       jest.spyOn(verificationService, 'isVerified').mockResolvedValue(false);
-      jest.spyOn(verificationService, 'generateCode').mockResolvedValue('123456');
+      jest
+        .spyOn(verificationService, 'generateCode')
+        .mockResolvedValue('123456');
 
       const result = await service.processFluidRegistration(
         {
           email: 'joao@email.com',
         },
         new mongoose.Types.ObjectId().toString(),
-        'room-123'
+        'room-123',
       );
 
       expect(result.success).toBe(true);
@@ -158,7 +162,7 @@ describe('FluidRegistrationService', () => {
       const result = await service.verifyAndCompleteRegistration(
         { email: 'joao@email.com' },
         '123456',
-        new mongoose.Types.ObjectId().toString()
+        new mongoose.Types.ObjectId().toString(),
       );
 
       expect(result.success).toBe(true);
@@ -172,7 +176,7 @@ describe('FluidRegistrationService', () => {
       const result = await service.verifyAndCompleteRegistration(
         { email: 'joao@email.com' },
         'wrong-code',
-        new mongoose.Types.ObjectId().toString()
+        new mongoose.Types.ObjectId().toString(),
       );
 
       expect(result.success).toBe(false);

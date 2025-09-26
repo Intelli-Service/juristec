@@ -184,7 +184,7 @@ export default function Home() {
                   <div className="text-slate-500 text-sm">Empresária</div>
                 </div>
               </div>
-              <p className="text-slate-600 italic">"A plataforma me ajudou a entender meus direitos trabalhistas em minutos. Evitou um processo longo e custoso."</p>
+              <p className="text-slate-600 italic">&ldquo;A plataforma me ajudou a entender meus direitos trabalhistas em minutos. Evitou um processo longo e custoso.&rdquo;</p>
             </div>
             <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200 animate-fade-in-up animation-delay-400">
               <div className="flex items-center mb-4">
@@ -196,7 +196,7 @@ export default function Home() {
                   <div className="text-slate-500 text-sm">Advogado</div>
                 </div>
               </div>
-              <p className="text-slate-600 italic">"Como advogado, recomendo esta ferramenta. A IA é surpreendentemente precisa e ajuda meus clientes a se prepararem melhor."</p>
+              <p className="text-slate-600 italic">&ldquo;Como advogado, recomendo esta ferramenta. A IA é surpreendentemente precisa e ajuda meus clientes a se prepararem melhor.&rdquo;</p>
             </div>
             <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200 animate-fade-in-up animation-delay-600">
               <div className="flex items-center mb-4">
@@ -208,7 +208,7 @@ export default function Home() {
                   <div className="text-slate-500 text-sm">Estudante de Direito</div>
                 </div>
               </div>
-              <p className="text-slate-600 italic">"Ferramenta incrível para estudos. Me ajuda a praticar casos reais e entender aplicações práticas da legislação."</p>
+              <p className="text-slate-600 italic">&ldquo;Ferramenta incrível para estudos. Me ajuda a praticar casos reais e entender aplicações práticas da legislação.&rdquo;</p>
             </div>
           </div>
         </div>

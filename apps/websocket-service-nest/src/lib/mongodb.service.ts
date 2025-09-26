@@ -15,7 +15,9 @@ export class MongodbService {
     const MONGODB_URI = process.env.MONGODB_URI!;
 
     if (!MONGODB_URI) {
-      throw new Error('Please define the MONGODB_URI environment variable inside .env.local');
+      throw new Error(
+        'Please define the MONGODB_URI environment variable inside .env.local',
+      );
     }
 
     if (this.cached.conn) {
@@ -27,9 +29,11 @@ export class MongodbService {
         bufferCommands: false,
       };
 
-      this.cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-        return mongoose;
-      });
+      this.cached.promise = mongoose
+        .connect(MONGODB_URI, opts)
+        .then((mongoose) => {
+          return mongoose;
+        });
     }
     this.cached.conn = await this.cached.promise;
     return this.cached.conn;

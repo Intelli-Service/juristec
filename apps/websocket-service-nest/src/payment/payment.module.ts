@@ -12,15 +12,15 @@ import Conversation from '../models/Conversation';
     MongooseModule.forFeature([
       { name: 'Payment', schema: PaymentSchema },
       { name: 'PaymentTransaction', schema: PaymentTransactionSchema },
-      { name: 'Conversation', schema: Conversation.schema }
+      { name: 'Conversation', schema: Conversation.schema },
     ]),
     JwtModule.register({
       secret: process.env.NEXTAUTH_SECRET || 'dev-secret',
-      signOptions: { expiresIn: '7d' }
-    })
+      signOptions: { expiresIn: '7d' },
+    }),
   ],
   controllers: [PaymentController],
   providers: [PaymentService],
-  exports: [PaymentService]
+  exports: [PaymentService],
 })
 export class PaymentModule {}

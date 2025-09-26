@@ -1,9 +1,18 @@
-import { Injectable, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as pagarme from 'pagarme';
 import { IPayment, PaymentStatus, PaymentMethod } from '../models/Payment';
-import { IPaymentTransaction, TransactionType, TransactionStatus } from '../models/PaymentTransaction';
+import {
+  IPaymentTransaction,
+  TransactionType,
+  TransactionStatus,
+} from '../models/PaymentTransaction';
 import Conversation from '../models/Conversation';
 import Payment from '../models/Payment';
 import PaymentTransaction from '../models/PaymentTransaction';
@@ -48,14 +57,17 @@ export class PaymentService {
 
   constructor(
     @InjectModel('Payment') private paymentModel: Model<IPayment>,
-    @InjectModel('PaymentTransaction') private transactionModel: Model<IPaymentTransaction>,
+    @InjectModel('PaymentTransaction')
+    private transactionModel: Model<IPaymentTransaction>,
     @InjectModel('Conversation') private conversationModel: Model<any>,
   ) {
     this.config = {
       apiKey: process.env.PAGARME_API_KEY || '',
       encryptionKey: process.env.PAGARME_ENCRYPTION_KEY || '',
       platformFee: parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || '20'), // 20% padrão
-      lawyerPercentage: parseFloat(process.env.LAWYER_PAYMENT_PERCENTAGE || '80'), // 80% para o advogado
+      lawyerPercentage: parseFloat(
+        process.env.LAWYER_PAYMENT_PERCENTAGE || '80',
+      ), // 80% para o advogado
     };
 
     if (!this.config.apiKey) {
@@ -66,14 +78,34 @@ export class PaymentService {
   async createPayment(createPaymentDto: CreatePaymentDto): Promise<IPayment> {
     try {
       // Buscar dados da conversa para enriquecer o pagamento
-      const conversation = await this.conversationModel.findOne({ roomId: createPaymentDto.conversationId });
+      const conversation = await this.conversationModel.findOne({
+        roomId: createPaymentDto.conversationId,
+      });
       if (!conversation) {
         throw new BadRequestException('Conversa não encontrada');
       }
 
       // Calcular valores do split
-      const platformFeeAmount = Math.round(createPaymentDto.amount * (this.config.platformFee / 100));
+      const platformFeeAmount = Math.round(
+        createPaymentDto.amount * (this.config.platformFee / 100),
+      );
       const lawyerAmount = createPaymentDto.amount - platformFeeAmount;
+
+      // Validar dados de pagamento antes de salvar
+      switch (createPaymentDto.paymentMethod) {
+        case PaymentMethod.CREDIT_CARD:
+        case PaymentMethod.DEBIT_CARD:
+          if (!createPaymentDto.cardData) {
+            throw new BadRequestException('Dados do cartão são obrigatórios');
+          }
+          break;
+        case PaymentMethod.PIX:
+          // PIX não requer validação adicional
+          break;
+        case PaymentMethod.BOLETO:
+          // Boleto não requer validação adicional
+          break;
+      }
 
       // Criar registro do pagamento
       const payment = new this.paymentModel({
@@ -96,11 +128,15 @@ export class PaymentService {
             percentage: this.config.lawyerPercentage,
             liable: false,
             chargeProcessingFee: false,
-          }
+          },
         ],
         metadata: {
-          caseCategory: createPaymentDto.metadata?.caseCategory || conversation.classification?.category,
-          caseComplexity: createPaymentDto.metadata?.caseComplexity || conversation.classification?.complexity,
+          caseCategory:
+            createPaymentDto.metadata?.caseCategory ||
+            conversation.classification?.category,
+          caseComplexity:
+            createPaymentDto.metadata?.caseComplexity ||
+            conversation.classification?.complexity,
           lawyerSpecialization: createPaymentDto.metadata?.lawyerSpecialization,
           platformFee: platformFeeAmount,
         },
@@ -109,7 +145,10 @@ export class PaymentService {
       await payment.save();
 
       // Processar pagamento no Pagar.me
-      const pagarmeData = await this.processPagarmePayment(payment, createPaymentDto);
+      const pagarmeData = await this.processPagarmePayment(
+        payment,
+        createPaymentDto,
+      );
 
       // Atualizar pagamento com dados do Pagar.me
       payment.externalId = pagarmeData.id;
@@ -118,17 +157,33 @@ export class PaymentService {
       await payment.save();
 
       // Criar transação
-      await this.createTransaction(payment, pagarmeData, TransactionType.PAYMENT);
+      await this.createTransaction(
+        payment,
+        pagarmeData,
+        TransactionType.PAYMENT,
+      );
 
       return payment;
     } catch (error) {
-      this.logger.error(`Erro ao criar pagamento: ${error.message}`, error.stack);
+      // Permitir que BadRequestException seja propagada (de validações de entrada)
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error(
+        `Erro ao criar pagamento: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException('Erro ao processar pagamento');
     }
   }
 
-  private async processPagarmePayment(payment: IPayment, dto: CreatePaymentDto): Promise<any> {
-    const client = await pagarme.client.connect({ api_key: this.config.apiKey });
+  private async processPagarmePayment(
+    payment: IPayment,
+    dto: CreatePaymentDto,
+  ): Promise<any> {
+    const client = await pagarme.client.connect({
+      api_key: this.config.apiKey,
+    });
 
     const paymentData: any = {
       amount: payment.amount,
@@ -139,14 +194,16 @@ export class PaymentService {
         name: 'Cliente', // TODO: Buscar nome do usuário
         email: 'cliente@email.com', // TODO: Buscar email do usuário
       },
-      items: [{
-        id: payment._id.toString(),
-        title: payment.description,
-        unit_price: payment.amount,
-        quantity: 1,
-        tangible: false,
-      }],
-      split_rules: payment.splitRules?.map(rule => ({
+      items: [
+        {
+          id: payment._id.toString(),
+          title: payment.description,
+          unit_price: payment.amount,
+          quantity: 1,
+          tangible: false,
+        },
+      ],
+      split_rules: payment.splitRules?.map((rule) => ({
         recipient_id: rule.recipientId,
         percentage: rule.percentage,
         liable: rule.liable,
@@ -158,13 +215,11 @@ export class PaymentService {
     switch (dto.paymentMethod) {
       case PaymentMethod.CREDIT_CARD:
       case PaymentMethod.DEBIT_CARD:
-        if (!dto.cardData) {
-          throw new BadRequestException('Dados do cartão são obrigatórios');
-        }
-        paymentData.card_number = dto.cardData.cardNumber.replace(/\s/g, '');
-        paymentData.card_holder_name = dto.cardData.cardHolderName;
-        paymentData.card_expiration_date = dto.cardData.cardExpirationDate.replace(/\D/g, '');
-        paymentData.card_cvv = dto.cardData.cardCvv;
+        paymentData.card_number = dto.cardData!.cardNumber.replace(/\s/g, '');
+        paymentData.card_holder_name = dto.cardData!.cardHolderName;
+        paymentData.card_expiration_date =
+          dto.cardData!.cardExpirationDate.replace(/\D/g, '');
+        paymentData.card_cvv = dto.cardData!.cardCvv;
         break;
 
       case PaymentMethod.PIX:
@@ -185,7 +240,9 @@ export class PaymentService {
       return transaction;
     } catch (error) {
       this.logger.error(`Erro no Pagar.me: ${error.message}`, error);
-      throw new BadRequestException(`Erro no processamento do pagamento: ${error.message}`);
+      throw new BadRequestException(
+        `Erro no processamento do pagamento: ${error.message}`,
+      );
     }
   }
 
@@ -211,7 +268,7 @@ export class PaymentService {
   private async createTransaction(
     payment: IPayment,
     pagarmeData: any,
-    type: TransactionType
+    type: TransactionType,
   ): Promise<IPaymentTransaction> {
     const transaction = new this.transactionModel({
       paymentId: payment._id,
@@ -242,7 +299,10 @@ export class PaymentService {
   }
 
   async getPaymentsByConversation(conversationId: string): Promise<IPayment[]> {
-    return this.paymentModel.find({ conversationId }).sort({ createdAt: -1 }).exec();
+    return this.paymentModel
+      .find({ conversationId })
+      .sort({ createdAt: -1 })
+      .exec();
   }
 
   async getPaymentsByClient(clientId: string): Promise<IPayment[]> {
@@ -271,7 +331,11 @@ export class PaymentService {
       // Atualizar datas específicas
       if (newStatus === PaymentStatus.PAID && !payment.paidAt) {
         payment.paidAt = new Date();
-      } else if (newStatus === PaymentStatus.CANCELLED && !payment.cancelledAt) {
+      } else if (
+        (newStatus === PaymentStatus.CANCELLED ||
+          newStatus === PaymentStatus.FAILED) &&
+        !payment.cancelledAt
+      ) {
         payment.cancelledAt = new Date();
       } else if (newStatus === PaymentStatus.REFUNDED && !payment.refundedAt) {
         payment.refundedAt = new Date();
@@ -289,14 +353,19 @@ export class PaymentService {
               event,
               data: webhookData,
               receivedAt: new Date(),
-            }
-          }
-        }
+            },
+          },
+        },
       );
 
-      this.logger.log(`Webhook processado: ${event} para pagamento ${payment._id}`);
+      this.logger.log(
+        `Webhook processado: ${event} para pagamento ${payment._id}`,
+      );
     } catch (error) {
-      this.logger.error(`Erro ao processar webhook: ${error.message}`, error.stack);
+      this.logger.error(
+        `Erro ao processar webhook: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -308,11 +377,15 @@ export class PaymentService {
     }
 
     if (payment.status !== PaymentStatus.PAID) {
-      throw new BadRequestException('Apenas pagamentos pagos podem ser reembolsados');
+      throw new BadRequestException(
+        'Apenas pagamentos pagos podem ser reembolsados',
+      );
     }
 
     try {
-      const client = await pagarme.client.connect({ api_key: this.config.apiKey });
+      const client = await pagarme.client.connect({
+        api_key: this.config.apiKey,
+      });
       const refundData = {
         id: payment.externalId,
         amount: amount || payment.amount,
@@ -331,7 +404,10 @@ export class PaymentService {
 
       return payment;
     } catch (error) {
-      this.logger.error(`Erro ao reembolsar pagamento: ${error.message}`, error);
+      this.logger.error(
+        `Erro ao reembolsar pagamento: ${error.message}`,
+        error,
+      );
       throw new InternalServerErrorException('Erro ao processar reembolso');
     }
   }

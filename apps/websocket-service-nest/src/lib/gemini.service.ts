@@ -16,7 +16,12 @@ export interface RegisterUserFunctionCall {
 export interface UpdateConversationStatusFunctionCall {
   name: 'update_conversation_status';
   parameters: {
-    status: 'active' | 'resolved_by_ai' | 'assigned_to_lawyer' | 'completed' | 'abandoned';
+    status:
+      | 'active'
+      | 'resolved_by_ai'
+      | 'assigned_to_lawyer'
+      | 'completed'
+      | 'abandoned';
     lawyer_needed: boolean;
     specialization_required?: string;
     notes?: string;
@@ -27,12 +32,19 @@ export interface DetectConversationCompletionFunctionCall {
   name: 'detect_conversation_completion';
   parameters: {
     should_show_feedback: boolean;
-    completion_reason: 'resolved_by_ai' | 'assigned_to_lawyer' | 'user_satisfied' | 'user_abandoned';
+    completion_reason:
+      | 'resolved_by_ai'
+      | 'assigned_to_lawyer'
+      | 'user_satisfied'
+      | 'user_abandoned';
     feedback_context?: string;
   };
 }
 
-export type FunctionCall = RegisterUserFunctionCall | UpdateConversationStatusFunctionCall | DetectConversationCompletionFunctionCall;
+export type FunctionCall =
+  | RegisterUserFunctionCall
+  | UpdateConversationStatusFunctionCall
+  | DetectConversationCompletionFunctionCall;
 
 @Injectable()
 export class GeminiService {
@@ -52,100 +64,124 @@ export class GeminiService {
           functionDeclarations: [
             {
               name: 'register_user',
-              description: 'Registra um novo usuário no sistema com dados coletados da conversa',
+              description:
+                'Registra um novo usuário no sistema com dados coletados da conversa',
               parameters: {
                 type: SchemaType.OBJECT,
                 properties: {
                   name: {
                     type: SchemaType.STRING,
-                    description: 'Nome completo do usuário'
+                    description: 'Nome completo do usuário',
                   },
                   email: {
                     type: SchemaType.STRING,
-                    description: 'Email do usuário (opcional se não fornecido)'
+                    description: 'Email do usuário (opcional se não fornecido)',
                   },
                   phone: {
                     type: SchemaType.STRING,
-                    description: 'Telefone/WhatsApp do usuário (opcional se não fornecido)'
+                    description:
+                      'Telefone/WhatsApp do usuário (opcional se não fornecido)',
                   },
                   problem_description: {
                     type: SchemaType.STRING,
-                    description: 'Descrição resumida do problema jurídico relatado'
+                    description:
+                      'Descrição resumida do problema jurídico relatado',
                   },
                   urgency_level: {
                     type: SchemaType.STRING,
                     format: 'enum',
                     enum: ['low', 'medium', 'high', 'urgent'],
-                    description: 'Nível de urgência do caso baseado na descrição'
-                  }
+                    description:
+                      'Nível de urgência do caso baseado na descrição',
+                  },
                 },
-                required: ['name', 'problem_description', 'urgency_level']
-              }
+                required: ['name', 'problem_description', 'urgency_level'],
+              },
             },
             {
               name: 'update_conversation_status',
-              description: 'Atualiza o status da conversa e determina próximos passos',
+              description:
+                'Atualiza o status da conversa e determina próximos passos',
               parameters: {
                 type: SchemaType.OBJECT,
                 properties: {
                   status: {
                     type: SchemaType.STRING,
                     format: 'enum',
-                    enum: ['active', 'resolved_by_ai', 'assigned_to_lawyer', 'completed', 'abandoned'],
-                    description: 'Status atual da conversa para controle de feedback inteligente'
+                    enum: [
+                      'active',
+                      'resolved_by_ai',
+                      'assigned_to_lawyer',
+                      'completed',
+                      'abandoned',
+                    ],
+                    description:
+                      'Status atual da conversa para controle de feedback inteligente',
                   },
                   lawyer_needed: {
                     type: SchemaType.BOOLEAN,
-                    description: 'Se é necessário conectar com um advogado'
+                    description: 'Se é necessário conectar com um advogado',
                   },
                   specialization_required: {
                     type: SchemaType.STRING,
-                    description: 'Especialização jurídica necessária (se lawyer_needed for true)'
+                    description:
+                      'Especialização jurídica necessária (se lawyer_needed for true)',
                   },
                   notes: {
                     type: SchemaType.STRING,
-                    description: 'Notas adicionais sobre a conversa ou decisão'
-                  }
+                    description: 'Notas adicionais sobre a conversa ou decisão',
+                  },
                 },
-                required: ['status', 'lawyer_needed']
-              }
+                required: ['status', 'lawyer_needed'],
+              },
             },
             {
               name: 'detect_conversation_completion',
-              description: 'Detecta quando uma conversa deve mostrar feedback baseado no contexto e intenção do usuário',
+              description:
+                'Detecta quando uma conversa deve mostrar feedback baseado no contexto e intenção do usuário',
               parameters: {
                 type: SchemaType.OBJECT,
                 properties: {
                   should_show_feedback: {
                     type: SchemaType.BOOLEAN,
-                    description: 'Se deve mostrar o modal de feedback para esta conversa'
+                    description:
+                      'Se deve mostrar o modal de feedback para esta conversa',
                   },
                   completion_reason: {
                     type: SchemaType.STRING,
                     format: 'enum',
-                    enum: ['resolved_by_ai', 'assigned_to_lawyer', 'user_satisfied', 'user_abandoned'],
-                    description: 'Razão pela qual a conversa deve mostrar feedback'
+                    enum: [
+                      'resolved_by_ai',
+                      'assigned_to_lawyer',
+                      'user_satisfied',
+                      'user_abandoned',
+                    ],
+                    description:
+                      'Razão pela qual a conversa deve mostrar feedback',
                   },
                   feedback_context: {
                     type: SchemaType.STRING,
-                    description: 'Contexto adicional sobre por que o feedback deve ser mostrado'
-                  }
+                    description:
+                      'Contexto adicional sobre por que o feedback deve ser mostrado',
+                  },
                 },
-                required: ['should_show_feedback', 'completion_reason']
-              }
-            }
-          ]
-        }
-      ]
+                required: ['should_show_feedback', 'completion_reason'],
+              },
+            },
+          ],
+        },
+      ],
     });
   }
 
-  async generateAIResponse(messages: { text: string; sender: string }[]): Promise<string> {
+  async generateAIResponse(
+    messages: { text: string; sender: string }[],
+  ): Promise<string> {
     const model = this.getModel();
     const config = this.aiService.getCurrentConfig();
 
     // Preparar histórico para chat session
-    const history = messages.slice(0, -1).map(msg => ({
+    const history = messages.slice(0, -1).map((msg) => ({
       role: msg.sender === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }],
     }));
@@ -167,13 +203,13 @@ export class GeminiService {
   }
 
   async generateAIResponseWithFunctions(
-    messages: { text: string; sender: string }[]
+    messages: { text: string; sender: string }[],
   ): Promise<{ response: string; functionCalls?: FunctionCall[] }> {
     const model = this.getModel();
     const config = this.aiService.getCurrentConfig();
 
     // Preparar histórico para chat session
-    const history = messages.slice(0, -1).map(msg => ({
+    const history = messages.slice(0, -1).map((msg) => ({
       role: msg.sender === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }],
     }));
@@ -190,7 +226,10 @@ export class GeminiService {
     // Última mensagem do usuário
     const lastMessage = messages[messages.length - 1];
     console.log('🔍 Enviando para Gemini:', lastMessage.text);
-    console.log('🔍 System prompt ativo:', config?.systemPrompt?.substring(0, 200) + '...');
+    console.log(
+      '🔍 System prompt ativo:',
+      config?.systemPrompt?.substring(0, 200) + '...',
+    );
 
     const result = await chat.sendMessage(lastMessage.text);
 
@@ -198,27 +237,34 @@ export class GeminiService {
     const functionCalls: FunctionCall[] = [];
 
     // Debug: verificar estrutura da resposta
-    console.log('🔍 Resposta completa do Gemini:', JSON.stringify(response, null, 2));
+    console.log(
+      '🔍 Resposta completa do Gemini:',
+      JSON.stringify(response, null, 2),
+    );
 
     // Verificar function calls na resposta
     if (response.functionCalls && Array.isArray(response.functionCalls)) {
-      console.log(`🔧 Encontradas ${response.functionCalls.length} function calls`);
+      console.log(
+        `🔧 Encontradas ${response.functionCalls.length} function calls`,
+      );
       for (const call of response.functionCalls) {
         console.log(`🔧 Function call: ${call.name}`, call.args);
         if (call.name === 'register_user') {
           functionCalls.push({
             name: 'register_user',
-            parameters: call.args as RegisterUserFunctionCall['parameters']
+            parameters: call.args as RegisterUserFunctionCall['parameters'],
           });
         } else if (call.name === 'update_conversation_status') {
           functionCalls.push({
             name: 'update_conversation_status',
-            parameters: call.args as UpdateConversationStatusFunctionCall['parameters']
+            parameters:
+              call.args as UpdateConversationStatusFunctionCall['parameters'],
           });
         } else if (call.name === 'detect_conversation_completion') {
           functionCalls.push({
             name: 'detect_conversation_completion',
-            parameters: call.args as DetectConversationCompletionFunctionCall['parameters']
+            parameters:
+              call.args as DetectConversationCompletionFunctionCall['parameters'],
           });
         }
       }
@@ -228,14 +274,16 @@ export class GeminiService {
 
     return {
       response: response.text(),
-      functionCalls: functionCalls.length > 0 ? functionCalls : undefined
+      functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
     };
   }
 
   // Método para atualizar o prompt do sistema (para administração)
   updateSystemPrompt(newPrompt: string) {
     // Este método agora delega para o AIService
-    console.log('Use AIService.updateConfig() para atualizar o prompt do sistema');
+    console.log(
+      'Use AIService.updateConfig() para atualizar o prompt do sistema',
+    );
   }
 
   // Método para obter o prompt atual

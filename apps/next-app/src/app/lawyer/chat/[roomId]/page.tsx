@@ -82,7 +82,7 @@ export default function LawyerChatPage() {
       }
 
       const messagesData = await response.json();
-      setMessages(messagesData.map((msg: any) => ({
+      setMessages(messagesData.map((msg: { _id: string; text: string; sender: string; createdAt: string }) => ({
         id: msg._id,
         text: msg.text,
         sender: msg.sender,

@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException } from '@nestjs/common';
-import { MessageService, CreateMessageData, MessageFilters } from '../message.service';
+import {
+  MessageService,
+  CreateMessageData,
+  MessageFilters,
+} from '../message.service';
 import Message from '../../models/Message';
 import Conversation from '../../models/Conversation';
 
@@ -107,10 +111,15 @@ describe('MessageService', () => {
       expect(result).toBeDefined();
       expect(result.text).toBe('Test message');
       expect(result.sender).toBe('user');
-      expect(MockConversation.findById).toHaveBeenCalledWith('conversation-id-123');
-      expect(MockConversation.findByIdAndUpdate).toHaveBeenCalledWith('conversation-id-123', {
-        updatedAt: expect.any(Date),
-      });
+      expect(MockConversation.findById).toHaveBeenCalledWith(
+        'conversation-id-123',
+      );
+      expect(MockConversation.findByIdAndUpdate).toHaveBeenCalledWith(
+        'conversation-id-123',
+        {
+          updatedAt: expect.any(Date),
+        },
+      );
     });
 
     it('should create a message successfully for AI sender', async () => {
@@ -173,7 +182,7 @@ describe('MessageService', () => {
 
       // Act & Assert
       await expect(service.createMessage(validMessageData)).rejects.toThrow(
-        'Conversa não encontrada'
+        'Conversa não encontrada',
       );
     });
 
@@ -186,7 +195,7 @@ describe('MessageService', () => {
 
       // Act & Assert
       await expect(service.createMessage(validMessageData)).rejects.toThrow(
-        ForbiddenException
+        ForbiddenException,
       );
       expect(MockMessage).not.toHaveBeenCalled();
     });
@@ -201,7 +210,7 @@ describe('MessageService', () => {
 
       // Act & Assert
       await expect(service.createMessage(aiMessageData)).rejects.toThrow(
-        ForbiddenException
+        ForbiddenException,
       );
     });
 
@@ -220,7 +229,7 @@ describe('MessageService', () => {
 
       // Act & Assert
       await expect(service.createMessage(lawyerMessageData)).rejects.toThrow(
-        ForbiddenException
+        ForbiddenException,
       );
     });
 
@@ -234,7 +243,7 @@ describe('MessageService', () => {
 
       // Act & Assert
       await expect(service.createMessage(invalidMessageData)).rejects.toThrow(
-        ForbiddenException
+        ForbiddenException,
       );
     });
   });
@@ -340,9 +349,9 @@ describe('MessageService', () => {
       });
 
       // Act & Assert
-      await expect(service.getMessages(filters, requestingUser)).rejects.toThrow(
-        ForbiddenException
-      );
+      await expect(
+        service.getMessages(filters, requestingUser),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should allow super_admin access to any conversation', async () => {
@@ -410,9 +419,9 @@ describe('MessageService', () => {
       });
 
       // Act & Assert
-      await expect(service.getMessageById(messageId, requestingUser)).rejects.toThrow(
-        'Mensagem não encontrada'
-      );
+      await expect(
+        service.getMessageById(messageId, requestingUser),
+      ).rejects.toThrow('Mensagem não encontrada');
     });
 
     it('should throw ForbiddenException for unauthorized access', async () => {
@@ -433,9 +442,9 @@ describe('MessageService', () => {
       });
 
       // Act & Assert
-      await expect(service.getMessageById(messageId, requestingUser)).rejects.toThrow(
-        ForbiddenException
-      );
+      await expect(
+        service.getMessageById(messageId, requestingUser),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -482,11 +491,17 @@ describe('MessageService', () => {
   describe('validateConversationAccess', () => {
     it('should allow super_admin access', async () => {
       // Arrange
-      const user = { userId: 'admin-123', role: 'super_admin', permissions: [] };
+      const user = {
+        userId: 'admin-123',
+        role: 'super_admin',
+        permissions: [],
+      };
       MockConversation.findById.mockResolvedValue(mockConversationInstance);
 
       // Act & Assert
-      await expect(service['validateConversationAccess']('conv-1', user)).resolves.not.toThrow();
+      await expect(
+        service['validateConversationAccess']('conv-1', user),
+      ).resolves.not.toThrow();
     });
 
     it('should allow lawyer access to assigned conversation', async () => {
@@ -498,7 +513,9 @@ describe('MessageService', () => {
       });
 
       // Act & Assert
-      await expect(service['validateConversationAccess']('conv-1', user)).resolves.not.toThrow();
+      await expect(
+        service['validateConversationAccess']('conv-1', user),
+      ).resolves.not.toThrow();
     });
 
     it('should deny lawyer access to unassigned conversation', async () => {
@@ -510,9 +527,9 @@ describe('MessageService', () => {
       });
 
       // Act & Assert
-      await expect(service['validateConversationAccess']('conv-1', user)).rejects.toThrow(
-        ForbiddenException
-      );
+      await expect(
+        service['validateConversationAccess']('conv-1', user),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should allow moderator access with permissions', async () => {
@@ -525,7 +542,9 @@ describe('MessageService', () => {
       MockConversation.findById.mockResolvedValue(mockConversationInstance);
 
       // Act & Assert
-      await expect(service['validateConversationAccess']('conv-1', user)).resolves.not.toThrow();
+      await expect(
+        service['validateConversationAccess']('conv-1', user),
+      ).resolves.not.toThrow();
     });
 
     it('should deny moderator access without permissions', async () => {
@@ -534,9 +553,9 @@ describe('MessageService', () => {
       MockConversation.findById.mockResolvedValue(mockConversationInstance);
 
       // Act & Assert
-      await expect(service['validateConversationAccess']('conv-1', user)).rejects.toThrow(
-        ForbiddenException
-      );
+      await expect(
+        service['validateConversationAccess']('conv-1', user),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should deny client access', async () => {
@@ -545,20 +564,24 @@ describe('MessageService', () => {
       MockConversation.findById.mockResolvedValue(mockConversationInstance);
 
       // Act & Assert
-      await expect(service['validateConversationAccess']('conv-1', user)).rejects.toThrow(
-        ForbiddenException
-      );
+      await expect(
+        service['validateConversationAccess']('conv-1', user),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw error for non-existent conversation', async () => {
       // Arrange
-      const user = { userId: 'admin-123', role: 'super_admin', permissions: [] };
+      const user = {
+        userId: 'admin-123',
+        role: 'super_admin',
+        permissions: [],
+      };
       MockConversation.findById.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service['validateConversationAccess']('non-existent', user)).rejects.toThrow(
-        'Conversa não encontrada'
-      );
+      await expect(
+        service['validateConversationAccess']('non-existent', user),
+      ).rejects.toThrow('Conversa não encontrada');
     });
   });
 });

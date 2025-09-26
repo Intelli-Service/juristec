@@ -25,7 +25,7 @@ export class FluidRegistrationService {
   constructor(
     @InjectModel('User') private userModel: Model<IUser>,
     @InjectModel('Conversation') private conversationModel: Model<any>,
-    private readonly verificationService: VerificationService
+    private readonly verificationService: VerificationService,
   ) {}
 
   /**
@@ -34,7 +34,7 @@ export class FluidRegistrationService {
   async processFluidRegistration(
     contactInfo: ContactInfo,
     conversationId: string,
-    roomId: string
+    roomId: string,
   ): Promise<FluidRegistrationResult> {
     try {
       // Verificar se já existe usuário com este contato
@@ -42,15 +42,19 @@ export class FluidRegistrationService {
 
       if (existingUser) {
         // Usuário existe - verificar se já verificado
-        const isVerified = await this.verificationService.isVerified(contactInfo);
+        const isVerified =
+          await this.verificationService.isVerified(contactInfo);
 
         if (isVerified) {
           // Já verificado - conectar automaticamente
-          await this.linkConversationToUser(conversationId, existingUser._id.toString());
+          await this.linkConversationToUser(
+            conversationId,
+            existingUser._id.toString(),
+          );
           return {
             success: true,
             message: 'Conta encontrada e conectada automaticamente.',
-            userId: existingUser._id.toString()
+            userId: existingUser._id.toString(),
           };
         } else {
           // Existe mas não verificado - enviar código de verificação
@@ -59,9 +63,10 @@ export class FluidRegistrationService {
 
           return {
             success: true,
-            message: 'Enviamos um código de verificação. Por favor, informe o código para confirmar.',
+            message:
+              'Enviamos um código de verificação. Por favor, informe o código para confirmar.',
             verificationSent: true,
-            needsVerification: true
+            needsVerification: true,
           };
         }
       } else {
@@ -71,22 +76,26 @@ export class FluidRegistrationService {
         await this.sendVerificationCode(contactInfo, code);
 
         // Vincular conversa temporariamente
-        await this.linkConversationToUser(conversationId, tempUser._id.toString());
+        await this.linkConversationToUser(
+          conversationId,
+          tempUser._id.toString(),
+        );
 
         return {
           success: true,
-          message: 'Criamos sua conta automaticamente. Enviamos um código de verificação para confirmar.',
+          message:
+            'Criamos sua conta automaticamente. Enviamos um código de verificação para confirmar.',
           userCreated: true,
           verificationSent: true,
           needsVerification: true,
-          userId: tempUser._id.toString()
+          userId: tempUser._id.toString(),
         };
       }
     } catch (error) {
       console.error('Erro no cadastro fluido:', error);
       return {
         success: false,
-        message: 'Erro ao processar cadastro. Tente novamente.'
+        message: 'Erro ao processar cadastro. Tente novamente.',
       };
     }
   }
@@ -97,15 +106,18 @@ export class FluidRegistrationService {
   async verifyAndCompleteRegistration(
     contactInfo: ContactInfo,
     code: string,
-    conversationId: string
+    conversationId: string,
   ): Promise<FluidRegistrationResult> {
     try {
-      const isValid = await this.verificationService.verifyCode(contactInfo, code);
+      const isValid = await this.verificationService.verifyCode(
+        contactInfo,
+        code,
+      );
 
       if (!isValid) {
         return {
           success: false,
-          message: 'Código inválido ou expirado. Tente novamente.'
+          message: 'Código inválido ou expirado. Tente novamente.',
         };
       }
 
@@ -115,7 +127,7 @@ export class FluidRegistrationService {
       if (!user) {
         return {
           success: false,
-          message: 'Usuário não encontrado. Tente o cadastro novamente.'
+          message: 'Usuário não encontrado. Tente o cadastro novamente.',
         };
       }
 
@@ -130,14 +142,15 @@ export class FluidRegistrationService {
 
       return {
         success: true,
-        message: 'Conta verificada com sucesso! Agora você pode acessar seu histórico em qualquer dispositivo.',
-        userId: user._id.toString()
+        message:
+          'Conta verificada com sucesso! Agora você pode acessar seu histórico em qualquer dispositivo.',
+        userId: user._id.toString(),
       };
     } catch (error) {
       console.error('Erro na verificação:', error);
       return {
         success: false,
-        message: 'Erro ao verificar código. Tente novamente.'
+        message: 'Erro ao verificar código. Tente novamente.',
       };
     }
   }
@@ -145,7 +158,9 @@ export class FluidRegistrationService {
   /**
    * Busca usuário por email ou telefone
    */
-  private async findUserByContact(contactInfo: ContactInfo): Promise<IUser | null> {
+  private async findUserByContact(
+    contactInfo: ContactInfo,
+  ): Promise<IUser | null> {
     const query: any = {};
 
     if (contactInfo.email) {
@@ -174,9 +189,9 @@ export class FluidRegistrationService {
       isActive: false, // Temporário até verificação
       permissions: [],
       profile: {
-        phone: contactInfo.phone
+        phone: contactInfo.phone,
       },
-      assignedCases: []
+      assignedCases: [],
     };
 
     const user = new this.userModel(userData);
@@ -186,17 +201,23 @@ export class FluidRegistrationService {
   /**
    * Vincula conversa a um usuário
    */
-  private async linkConversationToUser(conversationId: string, userId: string): Promise<void> {
+  private async linkConversationToUser(
+    conversationId: string,
+    userId: string,
+  ): Promise<void> {
     await this.conversationModel.findByIdAndUpdate(conversationId, {
       'clientInfo.userId': userId,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
   }
 
   /**
    * Envia código de verificação (simulado - implementar email/SMS real)
    */
-  private async sendVerificationCode(contactInfo: ContactInfo, code: string): Promise<void> {
+  private async sendVerificationCode(
+    contactInfo: ContactInfo,
+    code: string,
+  ): Promise<void> {
     if (contactInfo.email) {
       console.log(`📧 Enviando código ${code} para ${contactInfo.email}`);
       // TODO: Implementar envio real por email

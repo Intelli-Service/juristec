@@ -52,7 +52,9 @@ describe('IntelligentUserRegistrationService', () => {
       ],
     }).compile();
 
-    service = module.get<IntelligentUserRegistrationService>(IntelligentUserRegistrationService);
+    service = module.get<IntelligentUserRegistrationService>(
+      IntelligentUserRegistrationService,
+    );
   });
 
   it('should be defined', () => {

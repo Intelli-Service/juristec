@@ -25,26 +25,35 @@ export class JwtAuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const token = this.extractTokenFromHeader(request);
-    
+
     if (!token) {
       throw new UnauthorizedException('Access token not found');
     }
 
     try {
-      const payload = jwt.verify(token, process.env.NEXTAUTH_SECRET!) as JwtPayload;
+      const payload = jwt.verify(
+        token,
+        process.env.NEXTAUTH_SECRET!,
+      ) as JwtPayload;
       request.user = payload;
 
       // Check required roles if specified
-      const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
+      const requiredRoles = this.reflector.get<string[]>(
+        'roles',
+        context.getHandler(),
+      );
       if (requiredRoles && !requiredRoles.includes(payload.role)) {
         throw new ForbiddenException('Insufficient role permissions');
       }
 
       // Check required permissions if specified
-      const requiredPermissions = this.reflector.get<string[]>('permissions', context.getHandler());
+      const requiredPermissions = this.reflector.get<string[]>(
+        'permissions',
+        context.getHandler(),
+      );
       if (requiredPermissions) {
-        const hasPermission = requiredPermissions.some(permission =>
-          payload.permissions.includes(permission)
+        const hasPermission = requiredPermissions.some((permission) =>
+          payload.permissions.includes(permission),
         );
         if (!hasPermission) {
           throw new ForbiddenException('Insufficient permissions');
@@ -70,4 +79,5 @@ export class JwtAuthGuard implements CanActivate {
 import { SetMetadata } from '@nestjs/common';
 
 export const Roles = (...roles: string[]) => SetMetadata('roles', roles);
-export const Permissions = (...permissions: string[]) => SetMetadata('permissions', permissions);
+export const Permissions = (...permissions: string[]) =>
+  SetMetadata('permissions', permissions);

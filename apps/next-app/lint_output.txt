@@ -1,0 +1,102 @@
+
+> idea-app@0.1.0 lint
+> eslint
+
+
+/Users/jeanc/idea-app/apps/next-app/coverage/block-navigation.js
+  1:1  warning  Unused eslint-disable directive (no problems were reported)
+
+/Users/jeanc/idea-app/apps/next-app/coverage/lcov-report/block-navigation.js
+  1:1  warning  Unused eslint-disable directive (no problems were reported)
+
+/Users/jeanc/idea-app/apps/next-app/src/__tests__/Toast.test.tsx
+   6:7   warning  'mockAnimation' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  16:25  error    Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+
+/Users/jeanc/idea-app/apps/next-app/src/__tests__/auth-config.test.ts
+  123:19  warning  'password' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  167:54  error    Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+  193:63  error    Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+
+/Users/jeanc/idea-app/apps/next-app/src/__tests__/auth-integration.test.ts
+  58:45  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/jeanc/idea-app/apps/next-app/src/__tests__/integration/api-integration.test.ts
+   25:16  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+   41:16  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+   60:16  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+   75:16  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+   95:16  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+  112:16  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+  129:16  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+  136:51  warning  '_' is defined but never used      @typescript-eslint/no-unused-vars
+  136:54  warning  'i' is defined but never used      @typescript-eslint/no-unused-vars
+  147:16  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/__tests__/useNotifications.test.tsx
+    3:25  warning  'useToast' is defined but never used             @typescript-eslint/no-unused-vars
+  104:11  warning  'mockAction' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  127:21  error    Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+
+/Users/jeanc/idea-app/apps/next-app/src/app/admin/page.tsx
+  498:65  warning  'index' is defined but never used  @typescript-eslint/no-unused-vars
+  529:66  warning  'index' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/app/api/admin/billing-reports/route.ts
+  5:27  warning  'request' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/app/api/auth/token/route.ts
+  6:27  warning  'request' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/app/api/billing/client-charges/route.ts
+  5:27  warning  'request' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/app/api/billing/client-stats/route.ts
+  5:27  warning  'request' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/app/api/feedback/[id]/route.ts
+  21:13  warning  'error' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/app/api/feedback/route.ts
+  18:13  warning  'error' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/app/auth/signin/page.tsx
+  42:14  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/app/lawyer/chat/[roomId]/page.tsx
+  69:6  warning  React Hook useEffect has missing dependencies: 'initializeSocket' and 'loadConversation'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/jeanc/idea-app/apps/next-app/src/app/lawyer/page.tsx
+  155:9  warning  'transferCase' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/components/Chat.tsx
+  192:6  warning  React Hook useEffect has missing dependencies: 'feedbackSubmitted' and 'showFeedbackModal'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/jeanc/idea-app/apps/next-app/src/components/FileUpload.tsx
+  17:3  warning  'showHelp' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/components/Toast.tsx
+  75:6  warning  React Hook useEffect has a missing dependency: 'handleClose'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/jeanc/idea-app/apps/next-app/src/components/feedback/FeedbackDashboard.tsx
+  29:6  warning  React Hook useEffect has a missing dependency: 'fetchStats'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/jeanc/idea-app/apps/next-app/src/hooks/useNotifications.ts
+  4:10  warning  'ToastType' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/lib/auth.ts
+   4:10  warning  'MongoDBAdapter' is defined but never used  @typescript-eslint/no-unused-vars
+  13:11  warning  'AuthUser' is defined but never used        @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/lib/gemini.ts
+  1:30  warning  'ChatSession' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/src/types/next-auth.d.ts
+  2:10  warning  'JWT' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/jeanc/idea-app/apps/next-app/tests/e2e/chat-flow.spec.ts
+  43:11  warning  'messageInput' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+✖ 42 problems (5 errors, 37 warnings)
+  0 errors and 2 warnings potentially fixable with the `--fix` option.
+

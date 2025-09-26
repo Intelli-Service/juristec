@@ -1,4 +1,13 @@
-import { Controller, Post, Get, Put, Param, Body, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Put,
+  Param,
+  Body,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { PaymentService } from '../lib/payment.service';
 import { NextAuthGuard, Roles, JwtPayload } from '../guards/nextauth.guard';
 import { PaymentMethod } from '../models/Payment';
@@ -47,7 +56,9 @@ export class PaymentController {
 
   @Get('conversation/:conversationId')
   @Roles('client', 'lawyer', 'super_admin')
-  async getPaymentsByConversation(@Param('conversationId') conversationId: string) {
+  async getPaymentsByConversation(
+    @Param('conversationId') conversationId: string,
+  ) {
     return this.paymentService.getPaymentsByConversation(conversationId);
   }
 
@@ -73,7 +84,10 @@ export class PaymentController {
 
   @Post(':id/refund')
   @Roles('super_admin')
-  async refundPayment(@Param('id') paymentId: string, @Body() body: { amount?: number }) {
+  async refundPayment(
+    @Param('id') paymentId: string,
+    @Body() body: { amount?: number },
+  ) {
     return this.paymentService.refundPayment(paymentId, body.amount);
   }
 
