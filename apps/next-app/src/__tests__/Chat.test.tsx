@@ -79,9 +79,11 @@ beforeEach(() => {
   (useNotifications as jest.Mock).mockReturnValue(mockNotifications);
   (useFeedback as jest.Mock).mockReturnValue(mockFeedback);
 
-  // Mock do socket.io-client
-  const mockSocketIO = jest.mocked(require('socket.io-client') as jest.MockedFunction<any>);
-  mockSocketIO.mockReturnValue(mockSocket);
+// Mock do socket.io-client
+jest.mock('socket.io-client', () => ({
+  __esModule: true,
+  default: jest.fn(() => mockSocket),
+}));
 
   // Mock do fetch
   (global.fetch as jest.Mock).mockResolvedValue({

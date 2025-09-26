@@ -90,7 +90,7 @@ describe('Authentication Configuration', () => {
   describe('NextAuth Provider Configuration', () => {
     it('should configure credentials provider correctly', async () => {
       // Mock da função authorize do NextAuth
-      const authorizeFunction = async (credentials: any) => {
+      const authorizeFunction = async (credentials: { email?: string; password?: string }) => {
         if (!credentials?.email || !credentials?.password) {
           return null
         }
@@ -164,7 +164,7 @@ describe('Authentication Configuration', () => {
   describe('JWT and Session Callbacks', () => {
     it('should include user role and permissions in JWT token', () => {
       // Mock do callback JWT do NextAuth
-      const jwtCallback = ({ token, user }: any) => {
+      const jwtCallback = ({ token, user }: { token: any; user?: { role: string; permissions: string[] } }) => {
         if (user) {
           token.role = user.role
           token.permissions = user.permissions
@@ -190,7 +190,7 @@ describe('Authentication Configuration', () => {
 
     it('should include token data in session', () => {
       // Mock do callback session do NextAuth
-      const sessionCallback = ({ session, token }: any) => {
+      const sessionCallback = ({ session, token }: { session: any; token?: { sub?: string; role?: string; permissions?: string[] } }) => {
         if (token) {
           session.user.id = token.sub
           session.user.role = token.role
