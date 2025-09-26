@@ -8,16 +8,16 @@ test.describe('Chat Flow E2E Tests', () => {
 
   test('should load chat interface successfully', async ({ page }) => {
     // Check if chat interface loads
-    await expect(page.locator('input[type="text"], textarea').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="chat-input"]')).toBeVisible({ timeout: 10000 });
     
     // Check for send button
-    const sendButton = page.locator('button:has-text("Enviar"), button[type="submit"], button:has([data-testid="send"])').first();
+    const sendButton = page.locator('[data-testid="send-button"]');
     await expect(sendButton).toBeVisible();
   });
 
   test('should send and receive messages', async ({ page }) => {
-    const messageInput = page.locator('input[type="text"], textarea').first();
-    const sendButton = page.locator('button:has-text("Enviar"), button[type="submit"], button:has([data-testid="send"])').first();
+    const messageInput = page.locator('[data-testid="chat-input"]');
+    const sendButton = page.locator('[data-testid="send-button"]');
 
     await expect(messageInput).toBeVisible();
     
@@ -34,20 +34,20 @@ test.describe('Chat Flow E2E Tests', () => {
     await page.waitForTimeout(3000);
     
     // Check if there are multiple messages (user + AI response)
-    const messages = page.locator('[data-testid="message"], .message').count();
+    const messages = page.locator('[data-testid="message"]').count();
     // We expect at least 1 message (the one we sent)
     expect(await messages).toBeGreaterThanOrEqual(1);
   });
 
   test('should handle empty message submission', async ({ page }) => {
-    const messageInput = page.locator('input[type="text"], textarea').first();
-    const sendButton = page.locator('button:has-text("Enviar"), button[type="submit"], button:has([data-testid="send"])').first();
+    const messageInput = page.locator('[data-testid="chat-input"]');
+    const sendButton = page.locator('[data-testid="send-button"]');
 
     // Try to send empty message
     await sendButton.click();
     
     // Input should still be focused or message shouldn't be sent
-    const messageCount = await page.locator('[data-testid="message"], .message').count();
+    const messageCount = await page.locator('[data-testid="message"]').count();
     // If no messages exist yet, that's expected behavior
     expect(messageCount).toBeGreaterThanOrEqual(0);
   });

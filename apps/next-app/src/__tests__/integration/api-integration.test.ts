@@ -3,8 +3,7 @@
  * Tests the full stack integration between Frontend and Backend services
  */
 
-import fetch from 'node-fetch'
-
+// Use native fetch instead of node-fetch for better compatibility
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000'
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000'
 

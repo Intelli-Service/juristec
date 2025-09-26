@@ -331,7 +331,7 @@ export default function Chat() {
             </div>
           )}
           {messages.map((message) => (
-            <div key={message.id} className="space-y-1">
+            <div key={message.id} className="space-y-1" data-testid="message">
               {message.sender !== 'user' && message.sender !== 'system' && (
                 <div className="flex justify-start">
                   <div className="flex items-center space-x-2 mb-1">
@@ -369,6 +369,7 @@ export default function Chat() {
                       ? 'bg-purple-50 text-purple-900 shadow-md border border-purple-200'
                       : 'bg-white text-slate-800 shadow-md border border-slate-200'
                   }`}
+                  data-testid={`message-${message.sender}`}
                 >
                   {message.text}
                 </div>
@@ -422,11 +423,13 @@ export default function Chat() {
               placeholder="Digite sua mensagem jurídica..."
               className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-slate-800 placeholder-slate-500"
               disabled={isLoading}
+              data-testid="chat-input"
             />
             <button
               onClick={sendMessage}
               disabled={isLoading || (!input.trim() && !selectedFile)}
               className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              data-testid="send-button"
             >
               {isLoading ? 'Enviando...' : 'Enviar'}
             </button>
