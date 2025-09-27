@@ -216,7 +216,7 @@ jobs:
         SMTP_PORT: 1025
       run: |
         # Use docker compose for integration tests (non-blocking, production-like)
-        docker compose -f docker-compose.yml up --build -d --scale websocket-service-nest=1
+        docker compose -f docker-compose.yml up --build -d --scale backend=1
         sleep 30
         
         # Run integration tests against running services
