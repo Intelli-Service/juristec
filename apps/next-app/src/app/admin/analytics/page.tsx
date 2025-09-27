@@ -63,7 +63,7 @@ export default function AnalyticsDashboard() {
       if (filters.period) queryParams.append('period', filters.period);
       if (filters.segment !== 'all') queryParams.append('segment', filters.segment);
 
-      const response = await fetch(`/api/admin/analytics/dashboard?${queryParams}`);
+      const response = await fetch(`/api/analytics/dashboard?${queryParams}`);
       if (response.ok) {
         const data = await response.json();
         setAnalytics(data);
@@ -101,7 +101,7 @@ export default function AnalyticsDashboard() {
       if (filters.period) queryParams.append('period', filters.period);
       if (filters.segment !== 'all') queryParams.append('segment', filters.segment);
 
-      const response = await fetch(`/api/admin/analytics/export?${queryParams}`);
+      const response = await fetch(`/api/analytics/export?${queryParams}`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);

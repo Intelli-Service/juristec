@@ -66,7 +66,7 @@ export default function AdminDashboard() {
 
   const loadBillingReport = async () => {
     try {
-      const response = await fetch('/api/admin/billing-reports', {
+      const response = await fetch('/api/analytics/dashboard', {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
