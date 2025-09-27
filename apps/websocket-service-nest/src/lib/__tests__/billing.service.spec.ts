@@ -127,7 +127,7 @@ describe('BillingService', () => {
       jest
         .spyOn(conversationModel, 'findOne')
         .mockResolvedValue(mockConversation as IConversation);
-      jest.spyOn(chargeModel, 'create').mockResolvedValue(mockCharge as any);
+      jest.spyOn(chargeModel, 'create').mockResolvedValue(mockCharge);
 
       const result = await service.createCharge(createChargeDto);
 

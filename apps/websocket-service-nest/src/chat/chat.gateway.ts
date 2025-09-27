@@ -232,11 +232,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Buscar mensagens para contexto (se o DB estiver funcionando)
-      let messages: any[] = [];
+      let _messages: any[] = [];
       // Tentar carregar histórico de mensagens (apenas se usuário autenticado)
       if (client.data.isAuthenticated) {
         try {
-          messages = await this.messageService.getMessages(
+          _messages = await this.messageService.getMessages(
             { conversationId: conversation._id },
             {
               userId: client.data.user.id,
@@ -247,11 +247,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         } catch (_dbError) {
           console.warn('Não foi possível carregar histórico de mensagens');
           // Usar apenas a mensagem atual como contexto
-          messages = [userMessage];
+          _messages = [userMessage];
         }
       } else {
         // Para usuários anônimos, usar apenas a mensagem atual
-        messages = [userMessage];
+        _messages = [userMessage];
       }
 
       // Verificar se a mensagem é um código de verificação (6 dígitos)

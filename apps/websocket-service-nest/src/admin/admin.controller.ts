@@ -37,7 +37,7 @@ export class AdminController {
   @Permissions('manage_ai_config')
   async updateAIConfig(
     @Body() updates: any,
-    @Request() req: { user: JwtPayload },
+    @Request() _req: { user: JwtPayload },
   ) {
     return this.aiService.updateConfig(updates);
   }

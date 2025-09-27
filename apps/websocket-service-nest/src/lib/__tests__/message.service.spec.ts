@@ -9,7 +9,7 @@ import {
 } from '../message.service';
 import MessageModel, { IMessage, MessageSender } from '../../models/Message';
 import ConversationModel, { IConversation } from '../../models/Conversation';
-import { IUser, CaseStatus } from '../../models/User';
+import { CaseStatus } from '../../models/User';
 
 // Mock dos modelos
 jest.mock('../../models/Message');
@@ -166,23 +166,17 @@ describe('MessageService', () => {
       } as IConversation);
       MockMessage.findByIdAndUpdate.mockResolvedValue(mockConversationInstance);
 
-      // Spy on Message constructor
-      const messageConstructorSpy = jest.spyOn(require('../../models/Message'), 'default');
-      messageConstructorSpy.mockImplementation((data: any) => {
-        const messageInstance = {
+      // Configurar o mock do MessageModel para retornar uma instância com save()
+      (MessageModel as any).mockImplementation((data: any) => ({
+        ...mockMessageInstance,
+        ...(data || {}),
+        _id: 'mock-message-id',
+        save: jest.fn().mockResolvedValue({
           ...mockMessageInstance,
           ...(data || {}),
           _id: 'mock-message-id',
-          save: jest.fn().mockImplementation(() => {
-            return Promise.resolve({
-              ...mockMessageInstance,
-              ...(data || {}),
-              _id: 'mock-message-id',
-            });
-          }),
-        };
-        return messageInstance;
-      });
+        }),
+      }));
 
       // Act
       const result = await service.createMessage(validMessageData);
@@ -439,7 +433,7 @@ describe('MessageService', () => {
       const superAdminUser = {
         ...requestingUser,
         role: 'super_admin',
-      } as any;
+      };
       const filters: MessageFilters = { conversationId: 'conv-1' };
       MockConversation.findById.mockResolvedValue(mockConversationInstance);
       const mockQuery = {
