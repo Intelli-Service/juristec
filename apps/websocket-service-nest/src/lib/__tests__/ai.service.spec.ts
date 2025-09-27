@@ -53,11 +53,7 @@ jest.mock('@google/generative-ai', () => {
 
 jest.mock('../../models/AIConfig');
 
-// Mock do function-calling
-jest.mock('../function-calling', () => ({
-  registerUserFunction: jest.fn(),
-  updateConversationStatusFunction: jest.fn(),
-}));
+jest.mock('../../models/AIConfig');
 
 const MockAIConfig = AIConfig as jest.Mocked<typeof AIConfig>;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
