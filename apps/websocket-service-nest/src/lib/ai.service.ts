@@ -23,13 +23,12 @@ export class AIService {
     try {
       const config = await AIConfig.findOne().sort({ createdAt: -1 }).exec();
       if (!config) {
-        this.logger.warn('AI configuration not found, using default values.');
-        return this.getDefaultConfig();
+        throw new Error('AI configuration not found in database. System cannot operate without proper configuration.');
       }
       return config;
     } catch (error) {
       this.logger.error('Error fetching AI configuration:', error);
-      return this.getDefaultConfig();
+      throw new Error('System is currently experiencing technical difficulties. Please try again later.');
     }
   }
 
@@ -117,6 +116,12 @@ export class AIService {
       return { type: 'text', content: text };
     } catch (error) {
       this.logger.error('Error generating AI response:', error);
+
+      // Se o erro for relacionado à configuração do sistema, propagar a mensagem específica
+      if (error instanceof Error && error.message.includes('technical difficulties')) {
+        throw error;
+      }
+
       throw new Error('Failed to generate AI response');
     }
   }

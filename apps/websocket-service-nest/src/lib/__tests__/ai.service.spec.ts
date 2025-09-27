@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import { AIService } from '../ai.service';
 import AIConfig from '../../models/AIConfig';
 import { IConversation } from '../../models/Conversation';
@@ -177,25 +178,27 @@ describe('AIService', () => {
       });
     });
 
-    it('should use default config if database fetch fails', async () => {
+    it('should throw an error if database fetch fails', async () => {
+      // Silenciar logs apenas neste teste que simula erro de DB
+      const loggerSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+
       MockAIConfig.findOne.mockReturnValue({
         sort: jest.fn().mockReturnValue({
           exec: jest.fn().mockRejectedValue(new Error('DB Error')),
         }),
       } as any);
 
-      await service.generateResponse(conversationHistory, mockConversation);
+      await expect(
+        service.generateResponse(conversationHistory, mockConversation),
+      ).rejects.toThrow('System is currently experiencing technical difficulties. Please try again later.');
 
-      expect(mockGetGenerativeModel).toHaveBeenCalledWith(
-        expect.objectContaining({
-          systemInstruction: expect.stringContaining(
-            'Você é um assistente jurídico brasileiro',
-          ),
-        }),
-      );
+      loggerSpy.mockRestore();
     });
 
     it('should throw an error if the API call fails', async () => {
+      // Silenciar logs apenas neste teste que simula erro de API
+      const loggerSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+
       MockAIConfig.findOne.mockReturnValue({
         sort: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue(mockAiConfig),
@@ -207,6 +210,8 @@ describe('AIService', () => {
       await expect(
         service.generateResponse(conversationHistory, mockConversation),
       ).rejects.toThrow('Failed to generate AI response');
+
+      loggerSpy.mockRestore();
     });
 
     it('should throw an error if GOOGLE_API_KEY is not configured', async () => {
