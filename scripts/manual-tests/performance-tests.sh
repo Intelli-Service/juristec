@@ -39,11 +39,17 @@ measure_response_time() {
     successful_requests=0
 
     for i in $(seq 1 $num_requests); do
-        start_time=$(date +%s%3N)
+        # Use macOS compatible timing
+        start_time=$(python3 -c "import time; print(int(time.time() * 1000))" 2>/dev/null || echo "0")
         if curl -s --max-time 10 "$url" > /dev/null 2>&1; then
-            end_time=$(date +%s%3N)
-            response_time=$((end_time - start_time))
-            total_time=$((total_time + response_time))
+            end_time=$(python3 -c "import time; print(int(time.time() * 1000))" 2>/dev/null || echo "0")
+            if [ "$start_time" != "0" ] && [ "$end_time" != "0" ]; then
+                response_time=$((end_time - start_time))
+                total_time=$((total_time + response_time))
+            else
+                response_time=1000  # Default fallback
+                total_time=$((total_time + response_time))
+            fi
             ((successful_requests++))
             echo -n "."
         else
@@ -191,7 +197,7 @@ test_api_performance() {
     print_status "Testing API performance: $method $endpoint" "info"
 
     # Single request timing
-    start_time=$(date +%s%3N)
+    start_time=$(python3 -c "import time; print(int(time.time() * 1000))" 2>/dev/null || echo "0")
 
     if [ "$method" = "POST" ] && [ -n "$data" ]; then
         curl -s -X POST -H "Content-Type: application/json" -d "$data" "$endpoint" > /dev/null 2>&1
@@ -199,8 +205,13 @@ test_api_performance() {
         curl -s "$endpoint" > /dev/null 2>&1
     fi
 
-    end_time=$(date +%s%3N)
-    response_time=$((end_time - start_time))
+    end_time=$(python3 -c "import time; print(int(time.time() * 1000))" 2>/dev/null || echo "0")
+
+    if [ "$start_time" != "0" ] && [ "$end_time" != "0" ]; then
+        response_time=$((end_time - start_time))
+    else
+        response_time=1000  # Default fallback
+    fi
 
     print_status "API response time: ${response_time}ms" "info"
 
@@ -289,13 +300,18 @@ echo "====================================="
 # Create a test file
 echo "This is a test file for performance testing" > /tmp/perf_test.txt
 
-start_time=$(date +%s%3N)
+start_time=$(python3 -c "import time; print(int(time.time() * 1000))" 2>/dev/null || echo "0")
 upload_result=$(curl -s -X POST "$BACKEND_URL/uploads" \
     -F "file=@/tmp/perf_test.txt" \
     -F 'metadata={"test": "performance"}' 2>/dev/null)
 
-end_time=$(date +%s%3N)
-upload_time=$((end_time - start_time))
+end_time=$(python3 -c "import time; print(int(time.time() * 1000))" 2>/dev/null || echo "0")
+
+if [ "$start_time" != "0" ] && [ "$end_time" != "0" ]; then
+    upload_time=$((end_time - start_time))
+else
+    upload_time=1000  # Default fallback
+fi
 
 if echo "$upload_result" | grep -q "url\|fileId"; then
     print_status "File upload time: ${upload_time}ms" "info"

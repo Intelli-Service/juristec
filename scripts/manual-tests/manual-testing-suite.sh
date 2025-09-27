@@ -157,6 +157,8 @@ print_status "2. INFRASTRUCTURE TESTS" "section"
 echo "==========================="
 
 run_test "Start Docker Compose services" "docker-compose up -d"
+print_status "Waiting for services to initialize..." "info"
+# sleep 60 # Wait for services to initialize
 run_test "Check Docker containers status" "docker-compose ps | grep -c 'Up' | grep -q '3'"
 
 # 3. Service Availability Tests
@@ -257,7 +259,14 @@ echo "========================="
 # Run specific integration test scripts
 if [ -f "scripts/manual-tests/integration-tests.sh" ]; then
     print_status "Running integration test suite" "info"
-    bash scripts/manual-tests/integration-tests.sh
+    if bash scripts/manual-tests/integration-tests.sh; then
+        print_status "Integration tests - PASSED" "success"
+        ((passed_tests++))
+    else
+        print_status "Integration tests - FAILED" "error"
+        ((failed_tests++))
+    fi
+    ((total_tests++))
 else
     print_status "Integration test script not found - creating placeholder" "warning"
     ((skipped_tests++))
@@ -270,7 +279,14 @@ echo "========================="
 # Run comprehensive functional test scripts
 if [ -f "scripts/manual-tests/functional-tests.sh" ]; then
     print_status "Running functional test suite" "info"
-    bash scripts/manual-tests/functional-tests.sh
+    if bash scripts/manual-tests/functional-tests.sh; then
+        print_status "Functional tests - PASSED" "success"
+        ((passed_tests++))
+    else
+        print_status "Functional tests - FAILED" "error"
+        ((failed_tests++))
+    fi
+    ((total_tests++))
 else
     print_status "Functional test script not found - creating placeholder" "warning"
     ((skipped_tests++))
@@ -283,7 +299,14 @@ echo "========================="
 # Run specific integration test scripts
 if [ -f "scripts/manual-tests/integration-tests.sh" ]; then
     print_status "Running integration test suite" "info"
-    bash scripts/manual-tests/integration-tests.sh
+    if bash scripts/manual-tests/integration-tests.sh; then
+        print_status "Integration tests - PASSED" "success"
+        ((passed_tests++))
+    else
+        print_status "Integration tests - FAILED" "error"
+        ((failed_tests++))
+    fi
+    ((total_tests++))
 else
     print_status "Integration test script not found - creating placeholder" "warning"
     ((skipped_tests++))
@@ -363,7 +386,8 @@ fi
 print_status "10. CLEANUP" "section"
 echo "==============="
 
-run_test "Stop Docker Compose services" "docker-compose down"
+# Not stopping services to allow verification logs if needed
+# run_test "Stop Docker Compose services" "docker-compose down"
 
 # Final Summary
 print_status "TESTING SUMMARY" "section"
