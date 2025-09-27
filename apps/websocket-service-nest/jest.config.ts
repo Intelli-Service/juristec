@@ -19,9 +19,6 @@ const config: Config = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
-  // Configuração de verbosidade baseada na flag --verbose
-  silent: !process.argv.includes('--verbose'),
-  verbose: process.argv.includes('--verbose'),
 };
 
 export default config;

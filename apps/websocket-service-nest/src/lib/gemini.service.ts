@@ -225,30 +225,15 @@ export class GeminiService {
 
     // Última mensagem do usuário
     const lastMessage = messages[messages.length - 1];
-    console.log('🔍 Enviando para Gemini:', lastMessage.text);
-    console.log(
-      '🔍 System prompt ativo:',
-      config?.systemPrompt?.substring(0, 200) + '...',
-    );
 
     const result = await chat.sendMessage(lastMessage.text);
 
     const response = result.response;
     const functionCalls: FunctionCall[] = [];
 
-    // Debug: verificar estrutura da resposta
-    console.log(
-      '🔍 Resposta completa do Gemini:',
-      JSON.stringify(response, null, 2),
-    );
-
     // Verificar function calls na resposta
     if (response.functionCalls && Array.isArray(response.functionCalls)) {
-      console.log(
-        `🔧 Encontradas ${response.functionCalls.length} function calls`,
-      );
       for (const call of response.functionCalls) {
-        console.log(`🔧 Function call: ${call.name}`, call.args);
         if (call.name === 'register_user') {
           functionCalls.push({
             name: 'register_user',
@@ -269,7 +254,7 @@ export class GeminiService {
         }
       }
     } else {
-      console.log('ℹ️ Nenhuma function call na resposta');
+      // Nenhuma function call na resposta
     }
 
     return {
@@ -281,9 +266,7 @@ export class GeminiService {
   // Método para atualizar o prompt do sistema (para administração)
   updateSystemPrompt() {
     // Este método agora delega para o AIService
-    console.log(
-      'Use AIService.updateConfig() para atualizar o prompt do sistema',
-    );
+    // Use AIService.updateConfig() para atualizar o prompt do sistema
   }
 
   // Método para obter o prompt atual

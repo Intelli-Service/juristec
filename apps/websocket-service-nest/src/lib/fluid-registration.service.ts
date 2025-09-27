@@ -214,12 +214,10 @@ export class FluidRegistrationService {
    */
   private sendVerificationCode(contactInfo: ContactInfo, code: string): void {
     if (contactInfo.email) {
-      console.log(`📧 Enviando código ${code} para ${contactInfo.email}`);
       // TODO: Implementar envio real por email
     }
 
     if (contactInfo.phone) {
-      console.log(`📱 Enviando código ${code} para ${contactInfo.phone}`);
       // TODO: Implementar envio real por SMS
     }
   }
