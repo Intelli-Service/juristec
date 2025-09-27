@@ -2,11 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { LawyerController } from './lawyer.controller';
 import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
+import { NextAuthGuard } from '../guards/nextauth.guard';
 
 describe('LawyerController', () => {
   let controller: LawyerController;
-  let aiService: AIService;
-  let messageService: MessageService;
 
   const mockAIService = {
     getCasesForLawyer: jest.fn(),
@@ -25,13 +24,11 @@ describe('LawyerController', () => {
         { provide: MessageService, useValue: mockMessageService },
       ],
     })
-      .overrideGuard(require('../guards/nextauth.guard').NextAuthGuard)
+      .overrideGuard(NextAuthGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
     controller = module.get<LawyerController>(LawyerController);
-    aiService = module.get<AIService>(AIService);
-    messageService = module.get<MessageService>(MessageService);
   });
 
   it('should be defined', () => {

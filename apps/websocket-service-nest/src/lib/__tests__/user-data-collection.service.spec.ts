@@ -4,7 +4,6 @@ import { UserDataCollectionService } from '../user-data-collection.service';
 
 describe('UserDataCollectionService', () => {
   let service: UserDataCollectionService;
-  let aiService: AIService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -21,7 +20,6 @@ describe('UserDataCollectionService', () => {
     }).compile();
 
     service = module.get<UserDataCollectionService>(UserDataCollectionService);
-    aiService = module.get<AIService>(AIService);
   });
 
   it('should be defined', () => {
@@ -64,7 +62,7 @@ describe('UserDataCollectionService', () => {
 
   describe('shouldCollectContactInfo', () => {
     it('should return true when user has no contact info and conversation is progressing', () => {
-      const userData = { email: null, phone: null };
+      const userData = { email: null, phone: null, conversationCount: 0 };
       const messageCount = 3;
 
       const result = service.shouldCollectContactInfo(userData, messageCount);
@@ -73,7 +71,11 @@ describe('UserDataCollectionService', () => {
     });
 
     it('should return false when user already has contact info', () => {
-      const userData = { email: 'teste@email.com', phone: null };
+      const userData = {
+        email: 'teste@email.com',
+        phone: null,
+        conversationCount: 0,
+      };
       const messageCount = 1;
 
       const result = service.shouldCollectContactInfo(userData, messageCount);
@@ -81,8 +83,8 @@ describe('UserDataCollectionService', () => {
       expect(result).toBe(false);
     });
 
-    it('should return false when conversation is too short', () => {
-      const userData = { email: null, phone: null };
+    it('should return false when message count is low', () => {
+      const userData = { email: null, phone: null, conversationCount: 0 };
       const messageCount = 1;
 
       const result = service.shouldCollectContactInfo(userData, messageCount);

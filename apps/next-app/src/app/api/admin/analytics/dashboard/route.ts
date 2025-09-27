@@ -25,8 +25,6 @@ export async function GET(request: NextRequest) {
     if (endDate) queryParams.append('endDate', endDate);
     if (period) queryParams.append('period', period);
     if (segment && segment !== 'all') queryParams.append('segment', segment);
-
-    console.log('Calling backend:', `${backendUrl}/analytics/dashboard?${queryParams}`);
     
     const response = await fetch(`${backendUrl}/analytics/dashboard?${queryParams}`, {
       headers: {

@@ -5,7 +5,6 @@ import { GeminiService } from './gemini.service';
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
 import { FluidRegistrationService } from './fluid-registration.service';
-import Conversation from '../models/Conversation';
 
 describe('IntelligentUserRegistrationService', () => {
   let service: IntelligentUserRegistrationService;
@@ -62,8 +61,8 @@ describe('IntelligentUserRegistrationService', () => {
   });
 
   it('should have required methods', () => {
-    expect(service.processUserMessage).toBeDefined();
-    expect(service.checkIfNeedsLawyerIntervention).toBeDefined();
-    expect(service.getConversationStats).toBeDefined();
+    expect(typeof service.processUserMessage).toBe('function');
+    expect(typeof service.checkIfNeedsLawyerIntervention).toBe('function');
+    expect(typeof service.getConversationStats).toBe('function');
   });
 });

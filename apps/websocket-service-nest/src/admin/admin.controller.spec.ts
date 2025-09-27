@@ -45,6 +45,7 @@ describe('AdminController', () => {
     const mockConversationModel = {
       find: jest.fn(),
       findById: jest.fn(),
+      findByIdAndUpdate: jest.fn(),
       sort: jest.fn(),
     };
 
@@ -57,6 +58,8 @@ describe('AdminController', () => {
 
     (Conversation.find as jest.Mock) = mockConversationModel.find;
     (Conversation.findById as jest.Mock) = mockConversationModel.findById;
+    (Conversation.findByIdAndUpdate as jest.Mock) =
+      mockConversationModel.findByIdAndUpdate;
     (Conversation as any).prototype.sort = mockConversationModel.sort;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -92,7 +95,7 @@ describe('AdminController', () => {
 
         aiService.getCurrentConfig.mockResolvedValue(config as any);
 
-        const result = await controller.getAIConfig(mockRequest);
+        const result = await controller.getAIConfig();
 
         expect(aiService.getCurrentConfig).toHaveBeenCalled();
         expect(result).toEqual(config);
@@ -111,17 +114,13 @@ describe('AdminController', () => {
           maxTokens: 1500,
           model: 'gemini-pro',
           systemPrompt: 'You are a legal assistant',
-          updatedBy: mockUser.userId,
         };
 
         aiService.updateConfig.mockResolvedValue(updatedConfig as any);
 
         const result = await controller.updateAIConfig(updates, mockRequest);
 
-        expect(aiService.updateConfig).toHaveBeenCalledWith(
-          updates,
-          mockUser.userId,
-        );
+        expect(aiService.updateConfig).toHaveBeenCalledWith(updates);
         expect(result).toEqual(updatedConfig);
       });
     });
@@ -151,7 +150,7 @@ describe('AdminController', () => {
         (User.find as jest.Mock).mockReturnValue(mockQuery);
         mockQuery.select.mockResolvedValue(users);
 
-        const result = await controller.getUsers(mockRequest);
+        const result = await controller.getUsers();
 
         expect(User.find).toHaveBeenCalled();
         expect(mockQuery.select).toHaveBeenCalledWith('-password');
@@ -261,7 +260,7 @@ describe('AdminController', () => {
         };
         (Conversation.find as jest.Mock).mockReturnValue(mockQuery);
 
-        const result = await controller.getCases(mockRequest);
+        const result = await controller.getCases();
 
         expect(Conversation.find).toHaveBeenCalled();
         expect(mockQuery.sort).toHaveBeenCalledWith({ createdAt: -1 });
@@ -281,7 +280,7 @@ describe('AdminController', () => {
 
         (Conversation.findById as jest.Mock).mockResolvedValue(caseData);
 
-        const result = await controller.getCase(caseId, mockRequest);
+        const result = await controller.getCase(caseId);
 
         expect(Conversation.findById).toHaveBeenCalledWith(caseId);
         expect(result).toEqual(caseData);
@@ -292,23 +291,24 @@ describe('AdminController', () => {
       it('should assign a case to a lawyer', async () => {
         const caseId = 'case-123';
         const lawyerId = 'lawyer-456';
-        const assignmentResult = {
-          success: true,
-          caseId,
-          lawyerId,
-          assignedAt: new Date(),
+        const updatedCase = {
+          _id: caseId,
+          assignedTo: lawyerId,
+          status: 'assigned',
         };
 
-        aiService.assignCase.mockResolvedValue(assignmentResult as any);
-
-        const result = await controller.assignCase(
-          caseId,
-          { lawyerId },
-          mockRequest,
+        (Conversation.findByIdAndUpdate as jest.Mock).mockResolvedValue(
+          updatedCase as any,
         );
 
-        expect(aiService.assignCase).toHaveBeenCalledWith(caseId, lawyerId);
-        expect(result).toEqual(assignmentResult);
+        const result = await controller.assignCase(caseId, { lawyerId });
+
+        expect(Conversation.findByIdAndUpdate).toHaveBeenCalledWith(
+          caseId,
+          { assignedTo: lawyerId },
+          { new: true },
+        );
+        expect(result).toEqual(updatedCase);
       });
     });
   });
@@ -337,7 +337,7 @@ describe('AdminController', () => {
         (User.find as jest.Mock).mockReturnValue(mockQuery);
         mockQuery.select.mockResolvedValue(lawyers);
 
-        const result = await controller.getLawyers(mockRequest);
+        const result = await controller.getLawyers();
 
         expect(User.find).toHaveBeenCalledWith({ role: UserRole.LAWYER });
         expect(mockQuery.select).toHaveBeenCalledWith('-password');
@@ -368,7 +368,7 @@ describe('AdminController', () => {
         (User.find as jest.Mock).mockReturnValue(mockQuery);
         mockQuery.select.mockResolvedValue(moderators);
 
-        const result = await controller.getModerators(mockRequest);
+        const result = await controller.getModerators();
 
         expect(User.find).toHaveBeenCalledWith({ role: UserRole.MODERATOR });
         expect(mockQuery.select).toHaveBeenCalledWith('-password');

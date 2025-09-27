@@ -1,7 +1,7 @@
-import mongoose from 'mongoose';
+import mongoose, { Document, Schema } from 'mongoose';
 import { CaseStatus } from './User';
 
-interface IConversation extends mongoose.Document {
+export interface IConversation extends Document {
   roomId: string;
   status: CaseStatus;
   classification: {
@@ -38,7 +38,7 @@ interface IConversation extends mongoose.Document {
   updatedAt: Date;
 }
 
-const ConversationSchema = new mongoose.Schema<IConversation>({
+const ConversationSchema = new Schema<IConversation>({
   roomId: { type: String, required: true, unique: true },
   status: {
     type: String,

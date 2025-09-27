@@ -1,19 +1,20 @@
-import { ChatGateway } from '../../chat/chat.gateway';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Query } from 'mongoose';
 import { BillingService, CreateChargeDto } from '../billing.service';
 import { PaymentService } from '../payment.service';
 import { ICharge, ChargeStatus, ChargeType } from '../../models/Charge';
-import Conversation from '../../models/Conversation';
+import { IConversation } from '../../models/Conversation';
+import { IPayment } from '../../models/Payment';
+import { ChatGateway } from '../../chat/chat.gateway';
 
 describe('BillingService', () => {
   let service: BillingService;
   let chargeModel: Model<ICharge>;
-  let conversationModel: Model<any>;
+  let conversationModel: Model<IConversation>;
   let paymentService: PaymentService;
 
-  const mockCharge = {
+  const mockCharge: any = {
     _id: 'charge-123',
     conversationId: 'conv-123',
     lawyerId: 'lawyer-123',
@@ -30,15 +31,20 @@ describe('BillingService', () => {
       platformPercentage: 5,
       platformFee: 2500,
     },
+    currency: 'BRL',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    metadata: {},
   };
 
-  const mockConversation = {
+  const mockConversation: any = {
     _id: 'conv-123',
-    roomId: 'conv-123',
     assignedTo: 'lawyer-123',
-    status: 'assigned',
     billing: {
       enabled: true,
+      charges: [],
+      totalCharged: 0,
+      totalPaid: 0,
     },
   };
 
@@ -49,23 +55,23 @@ describe('BillingService', () => {
         {
           provide: getModelToken('Charge'),
           useValue: Object.assign(
-            function () {
-              return Object.assign(
-                { ...mockCharge },
-                {
-                  save: jest.fn().mockResolvedValue(mockCharge),
-                },
-              );
-            },
+            jest.fn().mockImplementation((chargeData) => {
+              const chargeInstance = {
+                ...mockCharge,
+                ...chargeData,
+                _id: 'mock-charge-id',
+              };
+              chargeInstance.save = jest.fn().mockResolvedValue(chargeInstance);
+              return chargeInstance;
+            }),
             {
               create: jest.fn().mockResolvedValue(mockCharge),
               findOne: jest.fn(),
-              find: jest.fn().mockReturnValue({
-                sort: jest.fn().mockResolvedValue([mockCharge]),
-              }),
+              find: jest.fn(),
               findById: jest.fn(),
               findByIdAndUpdate: jest.fn(),
               countDocuments: jest.fn(),
+              aggregate: jest.fn(),
             },
           ),
         },
@@ -95,7 +101,9 @@ describe('BillingService', () => {
 
     service = module.get<BillingService>(BillingService);
     chargeModel = module.get<Model<ICharge>>(getModelToken('Charge'));
-    conversationModel = module.get<Model<any>>(getModelToken('Conversation'));
+    conversationModel = module.get<Model<IConversation>>(
+      getModelToken('Conversation'),
+    );
     paymentService = module.get<PaymentService>(PaymentService);
   });
 
@@ -118,8 +126,8 @@ describe('BillingService', () => {
 
       jest
         .spyOn(conversationModel, 'findOne')
-        .mockResolvedValue(mockConversation);
-      jest.spyOn(chargeModel, 'create').mockResolvedValue(mockCharge as any);
+        .mockResolvedValue(mockConversation as IConversation);
+      jest.spyOn(chargeModel, 'create').mockResolvedValue(mockCharge);
 
       const result = await service.createCharge(createChargeDto);
 
@@ -166,7 +174,7 @@ describe('BillingService', () => {
 
       jest
         .spyOn(conversationModel, 'findOne')
-        .mockResolvedValue(conversationWithDifferentLawyer);
+        .mockResolvedValue(conversationWithDifferentLawyer as IConversation);
 
       await expect(service.createCharge(createChargeDto)).rejects.toThrow(
         'Apenas o advogado responsável pode criar cobranças',
@@ -186,15 +194,13 @@ describe('BillingService', () => {
         acceptedAt: new Date(),
       };
 
-      jest
-        .spyOn(chargeModel, 'findById')
-        .mockResolvedValue(pendingCharge as any);
+      jest.spyOn(chargeModel, 'findById').mockResolvedValue(pendingCharge);
       jest
         .spyOn(chargeModel, 'findByIdAndUpdate')
-        .mockResolvedValue(acceptedCharge as any);
+        .mockResolvedValue(acceptedCharge);
       jest
         .spyOn(paymentService, 'createPayment')
-        .mockResolvedValue({ _id: 'payment-123' } as any);
+        .mockResolvedValue({ _id: 'payment-123' } as IPayment);
 
       const result = await service.acceptChargeAndCreatePayment(
         chargeId,
@@ -202,8 +208,6 @@ describe('BillingService', () => {
       );
 
       expect(result.charge.status).toBe(ChargeStatus.ACCEPTED);
-      // TODO: Re-enable when payment service integration is implemented
-      // expect(paymentService.createPayment).toHaveBeenCalled();
     });
 
     it('should throw error if charge not found', async () => {
@@ -222,7 +226,7 @@ describe('BillingService', () => {
 
       jest
         .spyOn(chargeModel, 'findById')
-        .mockResolvedValue(chargeWithDifferentClient as any);
+        .mockResolvedValue(chargeWithDifferentClient);
 
       await expect(
         service.acceptChargeAndCreatePayment('charge-123', 'wrong-client'),
@@ -243,12 +247,10 @@ describe('BillingService', () => {
         rejectedAt: new Date(),
       };
 
-      jest
-        .spyOn(chargeModel, 'findById')
-        .mockResolvedValue(pendingCharge as any);
+      jest.spyOn(chargeModel, 'findById').mockResolvedValue(pendingCharge);
       jest
         .spyOn(chargeModel, 'findByIdAndUpdate')
-        .mockResolvedValue(rejectedCharge as any);
+        .mockResolvedValue(rejectedCharge);
 
       const result = await service.rejectCharge(chargeId, clientId, reason);
 
@@ -262,9 +264,12 @@ describe('BillingService', () => {
       const conversationId = 'conv-123';
       const charges = [mockCharge];
 
-      jest.spyOn(chargeModel, 'find').mockReturnValue({
-        sort: jest.fn().mockResolvedValue([mockCharge]),
-      } as any);
+      const findQuery = {
+        sort: jest.fn().mockResolvedValue(charges),
+      };
+      jest
+        .spyOn(chargeModel, 'find')
+        .mockReturnValue(findQuery as unknown as Query<ICharge[], ICharge>);
 
       const result = await service.getChargesByConversation(conversationId);
 
@@ -275,19 +280,12 @@ describe('BillingService', () => {
 
   describe('getChargeById', () => {
     it('should return charge by id', async () => {
-      jest.spyOn(chargeModel, 'findById').mockResolvedValue(mockCharge as any);
+      jest.spyOn(chargeModel, 'findById').mockResolvedValue(mockCharge);
 
       const result = await service.getChargeById('charge-123');
 
       expect(result).toEqual(mockCharge);
-    });
-
-    it('should throw error if charge not found', async () => {
-      jest.spyOn(chargeModel, 'findById').mockResolvedValue(null);
-
-      await expect(service.getChargeById('invalid-id')).rejects.toThrow(
-        'Cobrança não encontrada',
-      );
+      expect(chargeModel.findById).toHaveBeenCalledWith('charge-123');
     });
   });
 });

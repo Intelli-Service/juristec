@@ -3,12 +3,10 @@ import {
   GeminiService,
   RegisterUserFunctionCall,
   UpdateConversationStatusFunctionCall,
-  DetectConversationCompletionFunctionCall,
 } from './gemini.service';
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
 import { FluidRegistrationService } from './fluid-registration.service';
-import Conversation from '../models/Conversation';
 import { IUser } from '../models/User';
 import { CaseStatus } from '../models/User';
 import { InjectModel } from '@nestjs/mongoose';
@@ -217,7 +215,6 @@ export class IntelligentUserRegistrationService {
         await this.fluidRegistrationService.processFluidRegistration(
           contactInfo,
           conversationId,
-          '', // roomId será determinado pelo serviço
         );
 
       if (fluidResult.success) {

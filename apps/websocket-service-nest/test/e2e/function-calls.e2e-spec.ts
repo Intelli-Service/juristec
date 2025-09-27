@@ -182,7 +182,7 @@ describe('Function Calls Integration Test', () => {
           {
             name: 'update_conversation_status' as const,
             parameters: {
-              status: 'connecting_lawyer' as const,
+              status: 'assigned_to_lawyer' as const,
               lawyer_needed: true,
               specialization_required: 'Direito Trabalhista',
               notes:
@@ -204,7 +204,7 @@ describe('Function Calls Integration Test', () => {
       const mockConversationModel = {
         findByIdAndUpdate: jest.fn().mockResolvedValue({
           _id: 'conversation-id-123',
-          status: 'connecting_lawyer',
+          status: 'assigned_to_lawyer',
         }),
       };
 
@@ -224,7 +224,7 @@ describe('Function Calls Integration Test', () => {
       );
       expect(result.userRegistered).toBe(false);
       expect(result.statusUpdated).toBe(true);
-      expect(result.newStatus).toBe('connecting_lawyer');
+      expect(result.newStatus).toBe('assigned_to_lawyer');
       expect(result.lawyerNeeded).toBe(true);
       expect(result.specializationRequired).toBe('Direito Trabalhista');
 
@@ -232,7 +232,7 @@ describe('Function Calls Integration Test', () => {
       expect(mockConversationModel.findByIdAndUpdate).toHaveBeenCalledWith(
         'conversation-id-123',
         {
-          status: 'connecting_lawyer',
+          status: 'assigned_to_lawyer',
           lawyerNeeded: true,
           lastUpdated: expect.any(Date),
           classification: {
@@ -274,7 +274,7 @@ describe('Function Calls Integration Test', () => {
           {
             name: 'update_conversation_status' as const,
             parameters: {
-              status: 'connecting_lawyer' as const,
+              status: 'assigned_to_lawyer' as const,
               lawyer_needed: true,
               specialization_required: 'Direito de Família',
               notes: 'Divórcio litigioso com urgência',

@@ -2,6 +2,7 @@
 /dist
 /node_modules
 /build
+apps/websocket-service-nest
 
 # Logs
 logs
@@ -17,6 +18,7 @@ lerna-debug.log*
 
 # Tests
 /coverage
+apps/coverage/
 /.nyc_output
 
 # IDEs and editors

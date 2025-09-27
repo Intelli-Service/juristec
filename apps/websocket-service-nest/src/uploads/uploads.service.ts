@@ -54,34 +54,37 @@ export class UploadsService {
     return new Promise((resolve, reject) => {
       stream.on('error', reject);
 
-      stream.on('finish', async () => {
+      stream.on('finish', () => {
         // Generate signed URL for secure access (expires in 1 hour)
-        const [signedUrl] = await blob.getSignedUrl({
-          version: 'v4',
-          action: 'read',
-          expires: Date.now() + 60 * 60 * 1000, // 1 hour
-        });
+        blob
+          .getSignedUrl({
+            version: 'v4',
+            action: 'read',
+            expires: Date.now() + 60 * 60 * 1000, // 1 hour
+          })
+          .then(async ([signedUrl]) => {
+            // Save metadata to database
+            const fileAttachment = new this.fileAttachmentModel({
+              filename: uniqueFilename,
+              originalName: file.originalname,
+              mimeType: file.mimetype,
+              size: file.size,
+              url: signedUrl, // Use signed URL instead of public URL
+              gcsPath,
+              conversationId,
+              userId,
+            });
 
-        // Save metadata to database
-        const fileAttachment = new this.fileAttachmentModel({
-          filename: uniqueFilename,
-          originalName: file.originalname,
-          mimeType: file.mimetype,
-          size: file.size,
-          url: signedUrl, // Use signed URL instead of public URL
-          gcsPath,
-          conversationId,
-          userId,
-        });
+            const savedFile = await fileAttachment.save();
 
-        const savedFile = await fileAttachment.save();
+            // Log upload for audit trail
+            console.log(
+              `[AUDIT] File uploaded: ${uniqueFilename} by user ${userId} at ${new Date().toISOString()}`,
+            );
 
-        // Log upload for audit trail
-        console.log(
-          `[AUDIT] File uploaded: ${uniqueFilename} by user ${userId} at ${new Date().toISOString()}`,
-        );
-
-        resolve(savedFile);
+            resolve(savedFile);
+          })
+          .catch(reject);
       });
 
       stream.end(file.buffer);

@@ -33,7 +33,7 @@ export class MessageService {
     }
 
     // Validar permissões baseadas no tipo de sender
-    await this.validateMessagePermissions(data, conversation);
+    this.validateMessagePermissions(data, conversation);
 
     // Criar a mensagem
     const message = new Message({
@@ -127,10 +127,10 @@ export class MessageService {
   /**
    * Valida se um usuário tem permissão para criar uma mensagem
    */
-  private async validateMessagePermissions(
+  private validateMessagePermissions(
     data: CreateMessageData,
     conversation: any,
-  ): Promise<void> {
+  ): void {
     switch (data.sender) {
       case 'user':
         // Usuários podem enviar mensagens apenas se a conversa não estiver fechada

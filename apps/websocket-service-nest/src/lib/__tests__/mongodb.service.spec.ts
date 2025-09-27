@@ -38,7 +38,7 @@ describe('MongodbService', () => {
     it('should initialize cached property when global mongoose does not exist', () => {
       delete (global as any).mongoose;
 
-      const newService = new MongodbService();
+      const _newService = new MongodbService();
 
       expect((global as any).mongoose).toEqual({ conn: null, promise: null });
     });
@@ -47,7 +47,7 @@ describe('MongodbService', () => {
       const existingCache = { conn: 'existing', promise: 'existing' };
       (global as any).mongoose = existingCache;
 
-      const newService = new MongodbService();
+      const _newService = new MongodbService();
 
       expect((global as any).mongoose).toBe(existingCache);
     });

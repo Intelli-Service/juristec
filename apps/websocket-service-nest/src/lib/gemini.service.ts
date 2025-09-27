@@ -54,8 +54,8 @@ export class GeminiService {
     this.genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
   }
 
-  getModel() {
-    const config = this.aiService.getCurrentConfig();
+  async getModel() {
+    const config = await this.aiService.getCurrentConfig();
     return this.genAI.getGenerativeModel({
       model: 'gemini-1.5-flash',
       systemInstruction: config?.systemPrompt || 'Você é um assistente útil.',
@@ -177,8 +177,8 @@ export class GeminiService {
   async generateAIResponse(
     messages: { text: string; sender: string }[],
   ): Promise<string> {
-    const model = this.getModel();
-    const config = this.aiService.getCurrentConfig();
+    const model = await this.getModel();
+    const config = await this.aiService.getCurrentConfig();
 
     // Preparar histórico para chat session
     const history = messages.slice(0, -1).map((msg) => ({
@@ -205,8 +205,8 @@ export class GeminiService {
   async generateAIResponseWithFunctions(
     messages: { text: string; sender: string }[],
   ): Promise<{ response: string; functionCalls?: FunctionCall[] }> {
-    const model = this.getModel();
-    const config = this.aiService.getCurrentConfig();
+    const model = await this.getModel();
+    const config = await this.aiService.getCurrentConfig();
 
     // Preparar histórico para chat session
     const history = messages.slice(0, -1).map((msg) => ({
@@ -225,30 +225,15 @@ export class GeminiService {
 
     // Última mensagem do usuário
     const lastMessage = messages[messages.length - 1];
-    console.log('🔍 Enviando para Gemini:', lastMessage.text);
-    console.log(
-      '🔍 System prompt ativo:',
-      config?.systemPrompt?.substring(0, 200) + '...',
-    );
 
     const result = await chat.sendMessage(lastMessage.text);
 
     const response = result.response;
     const functionCalls: FunctionCall[] = [];
 
-    // Debug: verificar estrutura da resposta
-    console.log(
-      '🔍 Resposta completa do Gemini:',
-      JSON.stringify(response, null, 2),
-    );
-
     // Verificar function calls na resposta
     if (response.functionCalls && Array.isArray(response.functionCalls)) {
-      console.log(
-        `🔧 Encontradas ${response.functionCalls.length} function calls`,
-      );
       for (const call of response.functionCalls) {
-        console.log(`🔧 Function call: ${call.name}`, call.args);
         if (call.name === 'register_user') {
           functionCalls.push({
             name: 'register_user',
@@ -269,7 +254,7 @@ export class GeminiService {
         }
       }
     } else {
-      console.log('ℹ️ Nenhuma function call na resposta');
+      // Nenhuma function call na resposta
     }
 
     return {
@@ -279,16 +264,14 @@ export class GeminiService {
   }
 
   // Método para atualizar o prompt do sistema (para administração)
-  updateSystemPrompt(newPrompt: string) {
+  updateSystemPrompt() {
     // Este método agora delega para o AIService
-    console.log(
-      'Use AIService.updateConfig() para atualizar o prompt do sistema',
-    );
+    // Use AIService.updateConfig() para atualizar o prompt do sistema
   }
 
   // Método para obter o prompt atual
-  getSystemPrompt(): string {
-    const config = this.aiService.getCurrentConfig();
+  async getSystemPrompt(): Promise<string> {
+    const config = await this.aiService.getCurrentConfig();
     return config?.systemPrompt || '';
   }
 }

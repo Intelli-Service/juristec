@@ -40,7 +40,7 @@ type RequestWithAuth = Request | WebSocketRequest;
 export class NextAuthGuard implements CanActivate {
   constructor(private jwtService: JwtService) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const token = this.extractTokenFromRequest(request);
@@ -49,10 +49,10 @@ export class NextAuthGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.validateToken(token);
+      const payload = this.validateToken(token);
       request.user = payload;
       return true;
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('Invalid token');
     }
   }
@@ -85,25 +85,21 @@ export class NextAuthGuard implements CanActivate {
     return null;
   }
 
-  private async validateToken(token: string): Promise<JwtPayload> {
-    try {
-      // Verificar JWT diretamente
-      const payload = this.jwtService.verify(token, {
-        secret: process.env.NEXTAUTH_SECRET || 'fallback-secret',
-      });
+  private validateToken(token: string): JwtPayload {
+    // Verificar JWT diretamente
+    const payload = this.jwtService.verify(token, {
+      secret: process.env.NEXTAUTH_SECRET || 'fallback-secret',
+    });
 
-      return {
-        userId: payload.sub || payload.userId,
-        role: payload.role,
-        permissions: payload.permissions || [],
-        email: payload.email,
-        name: payload.name,
-        iat: payload.iat,
-        exp: payload.exp,
-      };
-    } catch (error) {
-      throw error;
-    }
+    return {
+      userId: payload.sub || payload.userId,
+      role: payload.role,
+      permissions: payload.permissions || [],
+      email: payload.email,
+      name: payload.name,
+      iat: payload.iat,
+      exp: payload.exp,
+    };
   }
 
   private parseCookie(cookieHeader: string, name: string): string | undefined {

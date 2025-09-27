@@ -3,7 +3,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { VerificationService } from './verification.service';
 import { IUser, UserRole } from '../models/User';
-import Conversation from '../models/Conversation';
 
 export interface FluidRegistrationResult {
   success: boolean;
@@ -34,7 +33,6 @@ export class FluidRegistrationService {
   async processFluidRegistration(
     contactInfo: ContactInfo,
     conversationId: string,
-    roomId: string,
   ): Promise<FluidRegistrationResult> {
     try {
       // Verificar se já existe usuário com este contato
@@ -59,7 +57,7 @@ export class FluidRegistrationService {
         } else {
           // Existe mas não verificado - enviar código de verificação
           const code = await this.verificationService.generateCode(contactInfo);
-          await this.sendVerificationCode(contactInfo, code);
+          this.sendVerificationCode(contactInfo, code);
 
           return {
             success: true,
@@ -73,7 +71,7 @@ export class FluidRegistrationService {
         // Usuário não existe - criar conta temporária e enviar verificação
         const tempUser = await this.createTemporaryUser(contactInfo);
         const code = await this.verificationService.generateCode(contactInfo);
-        await this.sendVerificationCode(contactInfo, code);
+        this.sendVerificationCode(contactInfo, code);
 
         // Vincular conversa temporariamente
         await this.linkConversationToUser(
@@ -214,17 +212,12 @@ export class FluidRegistrationService {
   /**
    * Envia código de verificação (simulado - implementar email/SMS real)
    */
-  private async sendVerificationCode(
-    contactInfo: ContactInfo,
-    code: string,
-  ): Promise<void> {
+  private sendVerificationCode(contactInfo: ContactInfo, _code: string): void {
     if (contactInfo.email) {
-      console.log(`📧 Enviando código ${code} para ${contactInfo.email}`);
       // TODO: Implementar envio real por email
     }
 
     if (contactInfo.phone) {
-      console.log(`📱 Enviando código ${code} para ${contactInfo.phone}`);
       // TODO: Implementar envio real por SMS
     }
   }

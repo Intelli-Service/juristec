@@ -56,37 +56,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
         client.data.user = payload;
         client.data.isAuthenticated = true;
-        console.log(
-          'Usuário autenticado conectado:',
-          client.id,
-          'User:',
-          payload.email,
-        );
       } else {
         client.data.isAuthenticated = false;
         client.data.user = null;
-        console.log('Cliente anônimo conectado:', client.id);
       }
-    } catch (error) {
+    } catch (_error) {
       // Se o token for inválido, tratar como anônimo
       client.data.isAuthenticated = false;
       client.data.user = null;
-      console.log('Cliente anônimo conectado (token inválido):', client.id);
     }
   }
 
-  handleDisconnect(client: Socket) {
-    console.log('Usuário desconectado:', client.id);
-  }
-
-  @SubscribeMessage('join-room')
+  handleDisconnect(_client: Socket) {}
   async handleJoinRoom(
     @MessageBody() data: { roomId: string },
     @ConnectedSocket() client: Socket,
   ) {
     const roomId = data.roomId;
     client.join(roomId);
-    console.log(`Usuário ${client.id} entrou na sala ${roomId}`);
 
     try {
       let conversation = await Conversation.findOne({ roomId });
@@ -156,10 +143,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.join(roomId); // Sala principal do cliente
       client.join(`lawyer-${roomId}`); // Sala específica dos advogados
 
-      console.log(
-        `Advogado ${client.data.user.email} entrou na sala do caso ${roomId}`,
-      );
-
       // Carregar histórico completo da conversa
       const messages = await this.messageService.getMessages(
         { conversationId: conversation._id },
@@ -190,7 +173,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
   ) {
     const { roomId, message } = data;
-    console.log(`Mensagem na sala ${roomId}: ${message}`);
 
     let conversation: any;
 
@@ -220,7 +202,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           sender: 'user',
           senderId: client.data.user?.userId, // Pode ser null para usuários anônimos
         });
-      } catch (dbError) {
+      } catch (_dbError) {
         console.warn(
           'Erro ao salvar mensagem do usuário, continuando sem persistência',
         );
@@ -232,11 +214,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Buscar mensagens para contexto (se o DB estiver funcionando)
-      let messages: any[] = [];
+      let _messages: any[] = [];
       // Tentar carregar histórico de mensagens (apenas se usuário autenticado)
       if (client.data.isAuthenticated) {
         try {
-          messages = await this.messageService.getMessages(
+          _messages = await this.messageService.getMessages(
             { conversationId: conversation._id },
             {
               userId: client.data.user.id,
@@ -244,14 +226,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
               permissions: client.data.user.permissions || [],
             },
           );
-        } catch (dbError) {
+        } catch (_dbError) {
           console.warn('Não foi possível carregar histórico de mensagens');
           // Usar apenas a mensagem atual como contexto
-          messages = [userMessage];
+          _messages = [userMessage];
         }
       } else {
         // Para usuários anônimos, usar apenas a mensagem atual
-        messages = [userMessage];
+        _messages = [userMessage];
       }
 
       // Verificar se a mensagem é um código de verificação (6 dígitos)
@@ -309,22 +291,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Log de eventos importantes
       if (registrationResult.userRegistered) {
-        console.log(`Usuário registrado na conversa ${roomId}`);
+        // Usuário registrado na conversa
       }
       if (registrationResult.statusUpdated) {
-        console.log(
-          `Status da conversa ${roomId} atualizado para: ${registrationResult.newStatus}`,
-        );
+        // Status da conversa atualizado
         if (registrationResult.lawyerNeeded) {
-          console.log(
-            `Conversa ${roomId} necessita advogado especializado em: ${registrationResult.specializationRequired}`,
-          );
+          // Conversa necessita advogado especializado
         }
       }
       if (registrationResult.shouldShowFeedback) {
-        console.log(
-          `Feedback deve ser mostrado para conversa ${roomId}. Razão: ${registrationResult.feedbackReason}`,
-        );
         // Mapear feedbackReason para uma mensagem de contexto apropriada
         const feedbackContextMap: Record<string, string> = {
           resolved_by_ai: 'Conversa resolvida com sucesso pela IA',
@@ -351,7 +326,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           sender: 'ai',
           metadata: { generatedBy: 'gemini' },
         });
-      } catch (dbError) {
+      } catch (_dbError) {
         console.warn(
           'Erro ao salvar mensagem da IA, continuando sem persistência',
         );
@@ -364,10 +339,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Tentar classificar conversa (opcional)
       try {
-        await this.aiService.classifyConversation(
-          roomId,
-          messages.concat([aiMessage]),
-        );
+        await this.aiService.classifyConversation(roomId);
       } catch (classifyError) {
         console.warn('Erro ao classificar conversa:', classifyError.message);
       }
@@ -427,7 +399,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             },
           });
         }
-      } catch (dbError) {
+      } catch (_dbError) {
         console.warn('Erro ao salvar mensagem de erro no banco de dados');
       }
 
@@ -566,10 +538,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         messageId: lawyerMessage._id.toString(),
         createdAt: lawyerMessage.createdAt,
       });
-
-      console.log(
-        `Mensagem do advogado ${client.data.user.email} enviada para caso ${roomId}: ${message}`,
-      );
     } catch (error) {
       console.error('Erro ao enviar mensagem do advogado:', error);
       client.emit('error', {
@@ -606,10 +574,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         status: charge.status,
         createdAt: charge.createdAt,
       });
-
-      console.log(
-        `Notificação de cobrança enviada para caso ${roomId}: R$ ${(charge.amount / 100).toFixed(2)}`,
-      );
     } catch (error) {
       console.error('Erro ao notificar cobrança criada:', error);
     }
@@ -634,10 +598,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         clientId: charge.clientId,
         updatedAt: charge.updatedAt,
       });
-
-      console.log(
-        `Notificação de atualização de cobrança enviada para caso ${roomId}: ${charge.status}`,
-      );
     } catch (error) {
       console.error('Erro ao notificar atualização de cobrança:', error);
     }

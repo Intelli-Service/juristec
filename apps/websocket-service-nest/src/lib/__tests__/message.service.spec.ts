@@ -1,30 +1,41 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getModelToken } from '@nestjs/mongoose';
 import { ForbiddenException } from '@nestjs/common';
+import { Model, Query, Document } from 'mongoose';
 import {
   MessageService,
   CreateMessageData,
   MessageFilters,
 } from '../message.service';
-import Message from '../../models/Message';
-import Conversation from '../../models/Conversation';
+import MessageModel, { IMessage, MessageSender } from '../../models/Message';
+import ConversationModel, { IConversation } from '../../models/Conversation';
+import { CaseStatus } from '../../models/User';
 
 // Mock dos modelos
 jest.mock('../../models/Message');
 jest.mock('../../models/Conversation');
 
-const MockMessage = Message as jest.MockedFunction<any>;
-const MockConversation = Conversation as jest.MockedFunction<any>;
+// Tipagem para o modelo mockado
+type MockModel<T extends Document> = Model<T> & {
+  [K in keyof Model<T>]: jest.Mock;
+} & {
+  new (data?: any): T;
+};
+
+const MockMessage = MessageModel as unknown as MockModel<IMessage>;
+const MockConversation =
+  ConversationModel as unknown as MockModel<IConversation>;
 
 describe('MessageService', () => {
   let service: MessageService;
-  let mockMessageInstance: any;
-  let mockConversationInstance: any;
+  let mockMessageInstance: IMessage;
+  let mockConversationInstance: IConversation;
 
   beforeEach(async () => {
     // Reset dos mocks
     jest.clearAllMocks();
 
-    // Criar instâncias mockadas
+    // Criar instâncias mockadas com tipos
     mockMessageInstance = {
       _id: 'message-id-123',
       conversationId: 'conversation-id-123',
@@ -44,44 +55,95 @@ describe('MessageService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       }),
-    };
+    } as unknown as IMessage;
 
     mockConversationInstance = {
       _id: 'conversation-id-123',
       roomId: 'room-123',
-      status: 'open',
+      status: CaseStatus.OPEN,
       assignedTo: 'lawyer-id-123',
-      save: jest.fn().mockResolvedValue(mockConversationInstance),
-    };
+      save: jest.fn().mockResolvedValue(this),
+    } as unknown as IConversation;
 
     // Configurar Message mock
-    MockMessage.mockImplementation((data) => ({
-      ...mockMessageInstance,
-      ...data,
-      save: jest.fn().mockResolvedValue({
-        ...mockMessageInstance,
-        ...data,
+    const MockMessage = Object.assign(
+      jest.fn().mockImplementation((data: Partial<IMessage>) => {
+        const messageInstance = {
+          ...mockMessageInstance,
+          ...data,
+          _id: 'mock-message-id',
+        };
+        messageInstance.save = jest.fn().mockResolvedValue(messageInstance);
+        return messageInstance;
       }),
-    }));
-    MockMessage.find = jest.fn();
-    MockMessage.findById = jest.fn().mockReturnValue({
+      {
+        create: jest.fn().mockResolvedValue(mockMessageInstance),
+        find: jest.fn(),
+        findOne: jest.fn(),
+        findById: jest.fn(),
+        findByIdAndUpdate: jest.fn(),
+        countDocuments: jest.fn(),
+        aggregate: jest.fn(),
+      },
+    );
+
+    const mockMessageQuery = {
       populate: jest.fn().mockResolvedValue({
         _id: 'msg-123',
-        conversationId: { _id: 'conv-1', roomId: 'room-1', status: 'open' },
+        conversationId: {
+          _id: 'conv-1',
+          roomId: 'room-1',
+          status: CaseStatus.OPEN,
+        },
         text: 'Test message',
         sender: 'user',
       }),
-    });
-    MockMessage.countDocuments = jest.fn();
-    MockMessage.findByIdAndUpdate = jest.fn();
+      sort: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([]),
+    };
+
+    MockMessage.find.mockReturnValue(
+      mockMessageQuery as unknown as Query<IMessage[], IMessage>,
+    );
+    MockMessage.findById.mockReturnValue(
+      mockMessageQuery as unknown as Query<IMessage | null, IMessage>,
+    );
+    MockMessage.countDocuments.mockResolvedValue(0);
+    MockMessage.findByIdAndUpdate.mockResolvedValue(mockMessageInstance);
+    MockMessage.create.mockResolvedValue(mockMessageInstance);
 
     // Configurar Conversation mock
-    MockConversation.mockImplementation(() => mockConversationInstance);
-    MockConversation.findById = jest.fn();
-    MockConversation.findByIdAndUpdate = jest.fn();
+    const MockConversation = Object.assign(
+      jest.fn().mockImplementation(() => mockConversationInstance),
+      {
+        create: jest.fn(),
+        find: jest.fn(),
+        findOne: jest.fn(),
+        findById: jest.fn(),
+        findByIdAndUpdate: jest.fn(),
+        countDocuments: jest.fn(),
+        aggregate: jest.fn(),
+      },
+    );
+    MockConversation.findById.mockResolvedValue(mockConversationInstance);
+    MockConversation.findByIdAndUpdate.mockResolvedValue(
+      mockConversationInstance,
+    );
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [MessageService],
+      providers: [
+        MessageService,
+        {
+          provide: getModelToken('Message'),
+          useValue: MockMessage,
+        },
+        {
+          provide: getModelToken('Conversation'),
+          useValue: MockConversation,
+        },
+      ],
     }).compile();
 
     service = module.get<MessageService>(MessageService);
@@ -101,8 +163,20 @@ describe('MessageService', () => {
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
         status: 'open',
-      });
+      } as IConversation);
       MockMessage.findByIdAndUpdate.mockResolvedValue(mockConversationInstance);
+
+      // Configurar o mock do MessageModel para retornar uma instância com save()
+      (MessageModel as any).mockImplementation((data: any) => ({
+        ...mockMessageInstance,
+        ...(data || {}),
+        _id: 'mock-message-id',
+        save: jest.fn().mockResolvedValue({
+          ...mockMessageInstance,
+          ...(data || {}),
+          _id: 'mock-message-id',
+        }),
+      }));
 
       // Act
       const result = await service.createMessage(validMessageData);
@@ -127,8 +201,8 @@ describe('MessageService', () => {
       const aiMessageData = { ...validMessageData, sender: 'ai' as const };
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
-        status: 'open',
-      });
+        status: CaseStatus.OPEN,
+      } as IConversation);
 
       // Act
       const result = await service.createMessage(aiMessageData);
@@ -147,9 +221,9 @@ describe('MessageService', () => {
       };
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
-        status: 'assigned',
+        status: CaseStatus.ASSIGNED,
         assignedTo: 'lawyer-id-123',
-      });
+      } as IConversation);
 
       // Act
       const result = await service.createMessage(lawyerMessageData);
@@ -161,7 +235,7 @@ describe('MessageService', () => {
 
     it('should create a message successfully for system sender', async () => {
       // Arrange
-      const systemMessageData = {
+      const systemMessageData: CreateMessageData = {
         ...validMessageData,
         sender: 'system' as const,
         senderId: undefined,
@@ -190,8 +264,8 @@ describe('MessageService', () => {
       // Arrange
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
-        status: 'closed',
-      });
+        status: CaseStatus.CLOSED,
+      } as IConversation);
 
       // Act & Assert
       await expect(service.createMessage(validMessageData)).rejects.toThrow(
@@ -205,8 +279,8 @@ describe('MessageService', () => {
       const aiMessageData = { ...validMessageData, sender: 'ai' as const };
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
-        status: 'closed',
-      });
+        status: CaseStatus.CLOSED,
+      } as IConversation);
 
       // Act & Assert
       await expect(service.createMessage(aiMessageData)).rejects.toThrow(
@@ -223,9 +297,9 @@ describe('MessageService', () => {
       };
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
-        status: 'assigned',
+        status: CaseStatus.ASSIGNED_TO_LAWYER,
         assignedTo: 'lawyer-id-123',
-      });
+      } as IConversation);
 
       // Act & Assert
       await expect(service.createMessage(lawyerMessageData)).rejects.toThrow(
@@ -237,7 +311,7 @@ describe('MessageService', () => {
       // Arrange
       const invalidMessageData = {
         ...validMessageData,
-        sender: 'invalid' as any,
+        sender: 'invalid' as MessageSender,
       };
       MockConversation.findById.mockResolvedValue(mockConversationInstance);
 
@@ -253,19 +327,19 @@ describe('MessageService', () => {
       userId: 'user-id-123',
       role: 'lawyer',
       permissions: ['moderate_conversations'],
-    };
+    } as any;
 
-    const mockMessages = [
+    const mockMessages: Partial<IMessage>[] = [
       {
         _id: 'msg-1',
-        conversationId: { _id: 'conv-1', roomId: 'room-1', status: 'open' },
+        conversationId: 'conv-1' as any,
         text: 'Message 1',
         sender: 'user',
         createdAt: new Date(),
       },
       {
         _id: 'msg-2',
-        conversationId: { _id: 'conv-1', roomId: 'room-1', status: 'open' },
+        conversationId: 'conv-1' as any,
         text: 'Message 2',
         sender: 'ai',
         createdAt: new Date(),
@@ -278,18 +352,18 @@ describe('MessageService', () => {
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
         assignedTo: 'user-id-123', // Mesmo ID do requestingUser
-      });
-      MockMessage.find.mockReturnValue({
-        sort: jest.fn().mockReturnValue({
-          limit: jest.fn().mockReturnValue({
-            skip: jest.fn().mockReturnValue({
-              populate: jest.fn().mockReturnValue({
-                exec: jest.fn().mockResolvedValue(mockMessages),
-              }),
-            }),
-          }),
-        }),
-      });
+      } as IConversation);
+
+      const mockQuery = {
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockMessages),
+      };
+      MockMessage.find.mockReturnValue(
+        mockQuery as unknown as Query<IMessage[], IMessage>,
+      );
 
       // Act
       const result = await service.getMessages(filters, requestingUser);
@@ -312,18 +386,18 @@ describe('MessageService', () => {
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
         assignedTo: 'user-id-123', // Mesmo ID do requestingUser
-      });
-      MockMessage.find.mockReturnValue({
-        sort: jest.fn().mockReturnValue({
-          limit: jest.fn().mockReturnValue({
-            skip: jest.fn().mockReturnValue({
-              populate: jest.fn().mockReturnValue({
-                exec: jest.fn().mockResolvedValue([mockMessages[0]]),
-              }),
-            }),
-          }),
-        }),
-      });
+      } as IConversation);
+
+      const mockQuery = {
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([mockMessages[0]]),
+      };
+      MockMessage.find.mockReturnValue(
+        mockQuery as unknown as Query<IMessage[], IMessage>,
+      );
 
       // Act
       const result = await service.getMessages(filters, requestingUser);
@@ -346,7 +420,7 @@ describe('MessageService', () => {
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
         assignedTo: 'different-lawyer-id',
-      });
+      } as IConversation);
 
       // Act & Assert
       await expect(
@@ -356,20 +430,22 @@ describe('MessageService', () => {
 
     it('should allow super_admin access to any conversation', async () => {
       // Arrange
-      const superAdminUser = { ...requestingUser, role: 'super_admin' };
+      const superAdminUser = {
+        ...requestingUser,
+        role: 'super_admin',
+      };
       const filters: MessageFilters = { conversationId: 'conv-1' };
       MockConversation.findById.mockResolvedValue(mockConversationInstance);
-      MockMessage.find.mockReturnValue({
-        sort: jest.fn().mockReturnValue({
-          limit: jest.fn().mockReturnValue({
-            skip: jest.fn().mockReturnValue({
-              populate: jest.fn().mockReturnValue({
-                exec: jest.fn().mockResolvedValue(mockMessages),
-              }),
-            }),
-          }),
-        }),
-      });
+      const mockQuery = {
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockMessages),
+      };
+      MockMessage.find.mockReturnValue(
+        mockQuery as unknown as Query<IMessage[], IMessage>,
+      );
 
       // Act
       const result = await service.getMessages(filters, superAdminUser);
@@ -384,24 +460,32 @@ describe('MessageService', () => {
       userId: 'user-id-123',
       role: 'lawyer',
       permissions: ['moderate_conversations'],
-    };
+    } as any;
 
     it('should get message by id successfully', async () => {
       // Arrange
       const messageId = 'msg-123';
       const mockMessage = {
         _id: messageId,
-        conversationId: { _id: 'conv-1', roomId: 'room-1', status: 'open' },
+        conversationId: {
+          _id: 'conv-1',
+          roomId: 'room-1',
+          status: CaseStatus.OPEN,
+        },
         text: 'Test message',
         sender: 'user',
-      };
-      MockMessage.findById.mockReturnValue({
+      } as unknown as IMessage;
+
+      const mockQuery = {
         populate: jest.fn().mockResolvedValue(mockMessage),
-      });
+      };
+      MockMessage.findById.mockReturnValue(
+        mockQuery as unknown as Query<IMessage | null, IMessage>,
+      );
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
         assignedTo: 'user-id-123', // Mesmo ID do requestingUser
-      });
+      } as IConversation);
 
       // Act
       const result = await service.getMessageById(messageId, requestingUser);
@@ -414,9 +498,12 @@ describe('MessageService', () => {
     it('should throw error when message not found', async () => {
       // Arrange
       const messageId = 'non-existent-msg';
-      MockMessage.findById.mockReturnValue({
+      const mockQuery = {
         populate: jest.fn().mockResolvedValue(null),
-      });
+      };
+      MockMessage.findById.mockReturnValue(
+        mockQuery as unknown as Query<IMessage | null, IMessage>,
+      );
 
       // Act & Assert
       await expect(
@@ -429,17 +516,25 @@ describe('MessageService', () => {
       const messageId = 'msg-123';
       const mockMessage = {
         _id: messageId,
-        conversationId: { _id: 'conv-1', roomId: 'room-1', status: 'open' },
+        conversationId: {
+          _id: 'conv-1',
+          roomId: 'room-1',
+          status: CaseStatus.OPEN,
+        },
         text: 'Test message',
         sender: 'user',
-      };
-      MockMessage.findById.mockReturnValue({
+      } as unknown as IMessage;
+
+      const mockQuery = {
         populate: jest.fn().mockResolvedValue(mockMessage),
-      });
+      };
+      MockMessage.findById.mockReturnValue(
+        mockQuery as unknown as Query<IMessage | null, IMessage>,
+      );
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
         assignedTo: 'different-lawyer-id',
-      });
+      } as IConversation);
 
       // Act & Assert
       await expect(
@@ -495,7 +590,7 @@ describe('MessageService', () => {
         userId: 'admin-123',
         role: 'super_admin',
         permissions: [],
-      };
+      } as any;
       MockConversation.findById.mockResolvedValue(mockConversationInstance);
 
       // Act & Assert
@@ -506,11 +601,15 @@ describe('MessageService', () => {
 
     it('should allow lawyer access to assigned conversation', async () => {
       // Arrange
-      const user = { userId: 'lawyer-123', role: 'lawyer', permissions: [] };
+      const user = {
+        userId: 'lawyer-123',
+        role: 'lawyer',
+        permissions: [],
+      } as any;
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
         assignedTo: 'lawyer-123',
-      });
+      } as IConversation);
 
       // Act & Assert
       await expect(
@@ -520,11 +619,15 @@ describe('MessageService', () => {
 
     it('should deny lawyer access to unassigned conversation', async () => {
       // Arrange
-      const user = { userId: 'lawyer-123', role: 'lawyer', permissions: [] };
+      const user = {
+        userId: 'lawyer-123',
+        role: 'lawyer',
+        permissions: [],
+      } as any;
       MockConversation.findById.mockResolvedValue({
         ...mockConversationInstance,
         assignedTo: 'different-lawyer',
-      });
+      } as IConversation);
 
       // Act & Assert
       await expect(
@@ -538,7 +641,7 @@ describe('MessageService', () => {
         userId: 'mod-123',
         role: 'moderator',
         permissions: ['moderate_conversations'],
-      };
+      } as any;
       MockConversation.findById.mockResolvedValue(mockConversationInstance);
 
       // Act & Assert
@@ -549,7 +652,11 @@ describe('MessageService', () => {
 
     it('should deny moderator access without permissions', async () => {
       // Arrange
-      const user = { userId: 'mod-123', role: 'moderator', permissions: [] };
+      const user = {
+        userId: 'mod-123',
+        role: 'moderator',
+        permissions: [],
+      } as any;
       MockConversation.findById.mockResolvedValue(mockConversationInstance);
 
       // Act & Assert
@@ -560,7 +667,11 @@ describe('MessageService', () => {
 
     it('should deny client access', async () => {
       // Arrange
-      const user = { userId: 'client-123', role: 'client', permissions: [] };
+      const user = {
+        userId: 'client-123',
+        role: 'client',
+        permissions: [],
+      } as any;
       MockConversation.findById.mockResolvedValue(mockConversationInstance);
 
       // Act & Assert
@@ -575,7 +686,7 @@ describe('MessageService', () => {
         userId: 'admin-123',
         role: 'super_admin',
         permissions: [],
-      };
+      } as any;
       MockConversation.findById.mockResolvedValue(null);
 
       // Act & Assert
