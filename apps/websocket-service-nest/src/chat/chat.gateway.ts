@@ -67,8 +67,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  handleDisconnect(client: Socket) {
-  }
+  handleDisconnect(_client: Socket) {}
   async handleJoinRoom(
     @MessageBody() data: { roomId: string },
     @ConnectedSocket() client: Socket,

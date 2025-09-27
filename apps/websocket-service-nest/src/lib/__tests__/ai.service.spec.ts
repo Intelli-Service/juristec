@@ -180,7 +180,9 @@ describe('AIService', () => {
 
     it('should throw an error if database fetch fails', async () => {
       // Silenciar logs apenas neste teste que simula erro de DB
-      const loggerSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+      const loggerSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
 
       MockAIConfig.findOne.mockReturnValue({
         sort: jest.fn().mockReturnValue({
@@ -190,14 +192,18 @@ describe('AIService', () => {
 
       await expect(
         service.generateResponse(conversationHistory, mockConversation),
-      ).rejects.toThrow('System is currently experiencing technical difficulties. Please try again later.');
+      ).rejects.toThrow(
+        'System is currently experiencing technical difficulties. Please try again later.',
+      );
 
       loggerSpy.mockRestore();
     });
 
     it('should throw an error if the API call fails', async () => {
       // Silenciar logs apenas neste teste que simula erro de API
-      const loggerSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+      const loggerSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
 
       MockAIConfig.findOne.mockReturnValue({
         sort: jest.fn().mockReturnValue({

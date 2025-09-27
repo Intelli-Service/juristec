@@ -212,7 +212,7 @@ export class FluidRegistrationService {
   /**
    * Envia código de verificação (simulado - implementar email/SMS real)
    */
-  private sendVerificationCode(contactInfo: ContactInfo, code: string): void {
+  private sendVerificationCode(contactInfo: ContactInfo, _code: string): void {
     if (contactInfo.email) {
       // TODO: Implementar envio real por email
     }
