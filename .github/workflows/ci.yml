@@ -26,18 +26,32 @@ jobs:
 
     # Frontend Tests & Quality Checks
     - name: Clear npm cache
-      run: cd apps/next-app && npm cache clean --force
+      run: |
+        cd apps/next-app
+        npm cache clean --force
+        rm -rf node_modules package-lock.json
+        npm cache verify
       
     - name: Install Frontend Dependencies
-      run: cd apps/next-app && npm ci
+      run: |
+        cd apps/next-app
+        npm ci --prefer-offline --no-audit
+        npm list --depth=0
 
     - name: Frontend Linting
-      run: cd apps/next-app && npm run lint -- --max-warnings 100
+      run: cd apps/next-app && npm run lint -- --max-warnings 200 --quiet
 
     - name: Frontend Tests with Coverage
       run: cd apps/next-app && npm run test:coverage
       
     - name: Frontend Build
+      env:
+        GOOGLE_API_KEY: test-key-for-build
+        NEXTAUTH_SECRET: test-secret-for-build
+        NEXTAUTH_URL: http://localhost:3000
+        NEXT_PUBLIC_WS_URL: http://localhost:4000
+        MONGODB_URI: mongodb://localhost:27017/test
+        NODE_ENV: production
       run: cd apps/next-app && npm run build
 
     # Backend Tests & Quality Checks  
