@@ -35,7 +35,7 @@ run_test_suite() {
     local directory=$3
     
     print_status "Running $suite_name..." "info"
-    cd "$directory" || exit 1
+    cd "/Users/jeanc/idea-app/$directory" || exit 1
     
     if eval "$test_command" > /tmp/test_output.log 2>&1; then
         print_status "$suite_name - PASSED" "success"
@@ -57,6 +57,8 @@ echo ""
 print_status "🏗️ Backend Testing (NestJS)" "info"
 print_status "=============================" "info"
 
+run_test_suite "Linting" "npm run lint" "apps/websocket-service-nest"
+run_test_suite "Build" "npm run build" "apps/websocket-service-nest"
 run_test_suite "Unit Tests" "npm test" "apps/websocket-service-nest"
 run_test_suite "Coverage Analysis" "npm run test:cov" "apps/websocket-service-nest"
 
@@ -64,6 +66,8 @@ run_test_suite "Coverage Analysis" "npm run test:cov" "apps/websocket-service-ne
 print_status "🎨 Frontend Testing (Next.js)" "info" 
 print_status "==============================" "info"
 
+run_test_suite "Linting" "npm run lint" "apps/next-app"
+run_test_suite "Build" "npm run build" "apps/next-app"
 run_test_suite "Unit Tests" "npm test -- --passWithNoTests" "apps/next-app"
 run_test_suite "Coverage Analysis" "npm run test:coverage -- --passWithNoTests" "apps/next-app"
 
@@ -97,6 +101,8 @@ else
 fi
 
 print_status "Available Testing Features:" "info"
+echo "• ✅ Code Linting (ESLint)"
+echo "• ✅ Build Verification (TypeScript compilation)"
 echo "• ✅ Unit Tests (Jest)"
 echo "• ✅ Integration Tests (Jest + Real Services)"
 echo "• ✅ E2E Tests (Playwright)"
