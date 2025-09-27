@@ -2,7 +2,7 @@
 // This ensures mocks are loaded before any test files
 
 // Mock function-calling module to prevent CI resolution issues
-jest.mock('./src/lib/function-calling', () => ({
+jest.mock('../function-calling', () => ({
   registerUserFunction: {
     name: 'register_user',
     description: 'Registra um novo usuário no sistema com os dados coletados',
