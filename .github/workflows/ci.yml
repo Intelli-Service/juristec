@@ -23,14 +23,6 @@ jobs:
         cache-dependency-path: |
           apps/next-app/package-lock.json
           apps/websocket-service-nest/package-lock.json
-
-    # Frontend Tests & Quality Checks
-    - name: Clear npm cache
-      run: |
-        cd apps/next-app
-        npm cache clean --force
-        rm -rf node_modules package-lock.json
-        npm cache verify
       
     - name: Install Frontend Dependencies
       run: |
