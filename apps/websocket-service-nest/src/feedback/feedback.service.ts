@@ -5,12 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import {
-  Feedback,
-  FeedbackDocument,
-  FeedbackType,
-  FeedbackStatus,
-} from '../models/Feedback';
+import { Feedback, FeedbackDocument, FeedbackStatus } from '../models/Feedback';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { UpdateFeedbackDto } from './dto/update-feedback.dto';
 

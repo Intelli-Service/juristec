@@ -9,6 +9,9 @@ import {
   AnalyticsService,
   AnalyticsFilters,
   AnalyticsMetrics,
+  RevenueAnalyticsResponse,
+  ConversationAnalyticsResponse,
+  UserAnalyticsResponse,
 } from '../lib/analytics.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 
@@ -44,7 +47,7 @@ export class AnalyticsController {
       }
 
       return await this.analyticsService.getAnalytics(filters);
-    } catch (error) {
+    } catch (_error) {
       throw new BadRequestException('Erro ao buscar métricas do dashboard');
     }
   }
@@ -54,7 +57,7 @@ export class AnalyticsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('period') period?: 'day' | 'week' | 'month' | 'year',
-  ) {
+  ): Promise<RevenueAnalyticsResponse> {
     try {
       const filters: AnalyticsFilters = {};
 
@@ -71,7 +74,7 @@ export class AnalyticsController {
       }
 
       return await this.analyticsService.getRevenueAnalytics(filters);
-    } catch (error) {
+    } catch (_error) {
       throw new BadRequestException('Erro ao buscar métricas de receita');
     }
   }
@@ -81,7 +84,7 @@ export class AnalyticsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('period') period?: 'day' | 'week' | 'month' | 'year',
-  ) {
+  ): Promise<ConversationAnalyticsResponse> {
     try {
       const filters: AnalyticsFilters = {};
 
@@ -98,7 +101,7 @@ export class AnalyticsController {
       }
 
       return await this.analyticsService.getConversationAnalytics(filters);
-    } catch (error) {
+    } catch (_error) {
       throw new BadRequestException('Erro ao buscar métricas de conversas');
     }
   }
@@ -108,7 +111,7 @@ export class AnalyticsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('period') period?: 'day' | 'week' | 'month' | 'year',
-  ) {
+  ): Promise<UserAnalyticsResponse> {
     try {
       const filters: AnalyticsFilters = {};
 
@@ -125,7 +128,7 @@ export class AnalyticsController {
       }
 
       return await this.analyticsService.getUserAnalytics(filters);
-    } catch (error) {
+    } catch (_error) {
       throw new BadRequestException('Erro ao buscar métricas de usuários');
     }
   }
@@ -153,7 +156,7 @@ export class AnalyticsController {
       }
 
       return await this.analyticsService.exportAnalytics(format, filters);
-    } catch (error) {
+    } catch (_error) {
       throw new BadRequestException('Erro ao exportar dados de analytics');
     }
   }

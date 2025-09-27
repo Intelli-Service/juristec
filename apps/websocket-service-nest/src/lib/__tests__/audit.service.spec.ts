@@ -1,12 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Query } from 'mongoose';
 import { AuditService } from '../audit.service';
 import { IAuditLog, AuditAction, AuditSeverity } from '../../models/AuditLog';
 
+type MockModel<T> = {
+  [K in keyof Model<T>]: jest.Mock;
+};
+
 describe('AuditService', () => {
   let service: AuditService;
-  let auditLogModel: Model<IAuditLog>;
+  let auditLogModel: MockModel<IAuditLog>;
 
   const mockAuditLog = {
     _id: 'audit123',
@@ -32,18 +36,7 @@ describe('AuditService', () => {
           provide: getModelToken('AuditLog'),
           useValue: {
             create: jest.fn().mockResolvedValue(mockAuditLog),
-            constructor: jest.fn().mockImplementation(() => ({
-              save: jest.fn().mockResolvedValue(mockAuditLog),
-            })),
-            find: jest.fn().mockReturnValue({
-              sort: jest.fn().mockReturnValue({
-                limit: jest.fn().mockReturnValue({
-                  skip: jest.fn().mockReturnValue({
-                    exec: jest.fn().mockResolvedValue([]),
-                  }),
-                }),
-              }),
-            }),
+            find: jest.fn(),
             aggregate: jest.fn().mockResolvedValue([]),
             countDocuments: jest.fn().mockResolvedValue(0),
             deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
@@ -53,7 +46,7 @@ describe('AuditService', () => {
     }).compile();
 
     service = module.get<AuditService>(AuditService);
-    auditLogModel = module.get<Model<IAuditLog>>(getModelToken('AuditLog'));
+    auditLogModel = module.get<MockModel<IAuditLog>>(getModelToken('AuditLog'));
   });
 
   it('should be defined', () => {
@@ -63,10 +56,7 @@ describe('AuditService', () => {
   describe('log', () => {
     it('should handle database errors gracefully', async () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-      const mockCreate = jest
-        .fn()
-        .mockRejectedValue(new Error('Database error'));
-      jest.spyOn(auditLogModel, 'create').mockImplementation(mockCreate);
+      auditLogModel.create.mockRejectedValue(new Error('Database error'));
 
       await expect(
         service.log(AuditAction.LOGIN, 'user'),
@@ -95,15 +85,14 @@ describe('AuditService', () => {
       const mockLogs = [mockAuditLog];
 
       const mockQuery = {
-        sort: jest.fn().mockReturnValue({
-          limit: jest.fn().mockReturnValue({
-            skip: jest.fn().mockReturnValue({
-              exec: jest.fn().mockResolvedValue(mockLogs),
-            }),
-          }),
-        }),
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockLogs),
       };
-      jest.spyOn(auditLogModel, 'find').mockReturnValue(mockQuery as any);
+      auditLogModel.find.mockReturnValue(
+        mockQuery as unknown as Query<IAuditLog[], IAuditLog>,
+      );
 
       const result = await service.getAuditLogs(filters);
 
@@ -122,15 +111,14 @@ describe('AuditService', () => {
     it('should handle partial filters', async () => {
       const filters = { severity: AuditSeverity.CRITICAL };
       const mockQuery = {
-        sort: jest.fn().mockReturnValue({
-          limit: jest.fn().mockReturnValue({
-            skip: jest.fn().mockReturnValue({
-              exec: jest.fn().mockResolvedValue([]),
-            }),
-          }),
-        }),
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
       };
-      jest.spyOn(auditLogModel, 'find').mockReturnValue(mockQuery as any);
+      auditLogModel.find.mockReturnValue(
+        mockQuery as unknown as Query<IAuditLog[], IAuditLog>,
+      );
 
       await service.getAuditLogs(filters);
 
@@ -144,13 +132,13 @@ describe('AuditService', () => {
     it('should return user audit logs', async () => {
       const mockLogs = [mockAuditLog];
       const mockQuery = {
-        sort: jest.fn().mockReturnValue({
-          limit: jest.fn().mockReturnValue({
-            exec: jest.fn().mockResolvedValue(mockLogs),
-          }),
-        }),
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockLogs),
       };
-      jest.spyOn(auditLogModel, 'find').mockReturnValue(mockQuery as any);
+      auditLogModel.find.mockReturnValue(
+        mockQuery as unknown as Query<IAuditLog[], IAuditLog>,
+      );
 
       const result = await service.getUserAuditLogs('user123', 50);
 
@@ -168,7 +156,7 @@ describe('AuditService', () => {
         { _id: AuditSeverity.CRITICAL, count: 2 },
       ];
 
-      jest.spyOn(auditLogModel, 'aggregate').mockResolvedValue(mockStats);
+      auditLogModel.aggregate.mockResolvedValue(mockStats);
 
       const result = await service.getSeverityStats();
 
@@ -184,7 +172,7 @@ describe('AuditService', () => {
       const startDate = new Date('2024-01-01');
       const endDate = new Date('2024-12-31');
 
-      jest.spyOn(auditLogModel, 'aggregate').mockResolvedValue([]);
+      auditLogModel.aggregate.mockResolvedValue([]);
 
       await service.getSeverityStats(startDate, endDate);
 
@@ -217,13 +205,13 @@ describe('AuditService', () => {
       ];
 
       const mockQuery = {
-        sort: jest.fn().mockReturnValue({
-          limit: jest.fn().mockReturnValue({
-            exec: jest.fn().mockResolvedValue(mockSuspiciousLogs),
-          }),
-        }),
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockSuspiciousLogs),
       };
-      jest.spyOn(auditLogModel, 'find').mockReturnValue(mockQuery as any);
+      auditLogModel.find.mockReturnValue(
+        mockQuery as unknown as Query<IAuditLog[], IAuditLog>,
+      );
 
       const result = await service.detectSuspiciousActivity(24);
 

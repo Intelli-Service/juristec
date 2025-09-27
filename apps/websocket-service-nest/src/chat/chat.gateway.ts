@@ -67,7 +67,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.data.user = null;
         console.log('Cliente anônimo conectado:', client.id);
       }
-    } catch (error) {
+    } catch (_error) {
       // Se o token for inválido, tratar como anônimo
       client.data.isAuthenticated = false;
       client.data.user = null;
@@ -220,7 +220,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           sender: 'user',
           senderId: client.data.user?.userId, // Pode ser null para usuários anônimos
         });
-      } catch (dbError) {
+      } catch (_dbError) {
         console.warn(
           'Erro ao salvar mensagem do usuário, continuando sem persistência',
         );
@@ -244,7 +244,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
               permissions: client.data.user.permissions || [],
             },
           );
-        } catch (dbError) {
+        } catch (_dbError) {
           console.warn('Não foi possível carregar histórico de mensagens');
           // Usar apenas a mensagem atual como contexto
           messages = [userMessage];
@@ -351,7 +351,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           sender: 'ai',
           metadata: { generatedBy: 'gemini' },
         });
-      } catch (dbError) {
+      } catch (_dbError) {
         console.warn(
           'Erro ao salvar mensagem da IA, continuando sem persistência',
         );
@@ -364,10 +364,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Tentar classificar conversa (opcional)
       try {
-        await this.aiService.classifyConversation(
-          roomId,
-          messages.concat([aiMessage]),
-        );
+        await this.aiService.classifyConversation(roomId);
       } catch (classifyError) {
         console.warn('Erro ao classificar conversa:', classifyError.message);
       }
@@ -427,7 +424,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             },
           });
         }
-      } catch (dbError) {
+      } catch (_dbError) {
         console.warn('Erro ao salvar mensagem de erro no banco de dados');
       }
 

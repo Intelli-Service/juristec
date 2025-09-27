@@ -10,7 +10,7 @@ import { FluidRegistrationService } from '../lib/fluid-registration.service';
 import { VerificationService } from '../lib/verification.service';
 import { BillingModule } from '../billing/billing.module';
 import UserModel from '../models/User';
-import Conversation, { ConversationSchema } from '../models/Conversation';
+import Conversation from '../models/Conversation';
 import { VerificationCodeSchema } from '../models/VerificationCode';
 
 @Module({

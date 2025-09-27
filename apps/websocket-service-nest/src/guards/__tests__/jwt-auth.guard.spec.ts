@@ -60,7 +60,7 @@ describe('JwtAuthGuard', () => {
       switchToHttp: jest.fn().mockReturnValue({
         getRequest: jest.fn().mockReturnValue(mockRequest),
       }),
-      getHandler: jest.fn(),
+      getHandler: jest.fn().mockReturnValue({}),
     } as any;
   });
 
@@ -83,19 +83,19 @@ describe('JwtAuthGuard', () => {
       );
     });
 
-    it('should deny access without authorization header', async () => {
-      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(
+    it('should deny access without authorization header', () => {
+      expect(() => guard.canActivate(mockExecutionContext)).toThrow(
         UnauthorizedException,
       );
     });
 
-    it('should deny access with invalid token', async () => {
+    it('should deny access with invalid token', () => {
       mockRequest.headers.authorization = 'Bearer invalid-token';
       mockedJwt.verify.mockImplementation(() => {
         throw new Error('Invalid token');
       });
 
-      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(
+      expect(() => guard.canActivate(mockExecutionContext)).toThrow(
         UnauthorizedException,
       );
     });
@@ -126,17 +126,17 @@ describe('JwtAuthGuard', () => {
       expect(result).toBe(true);
     });
 
-    it('should deny access with insufficient role', async () => {
+    it('should deny access with insufficient role', () => {
       mockRequest.headers.authorization = `Bearer ${validToken}`;
       mockedJwt.verify.mockReturnValue(mockJwtPayload as any);
       reflector.get.mockReturnValue(['admin']);
 
-      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(
+      expect(() => guard.canActivate(mockExecutionContext)).toThrow(
         ForbiddenException,
       );
     });
 
-    it('should deny access with insufficient permissions', async () => {
+    it('should deny access with insufficient permissions', () => {
       mockRequest.headers.authorization = `Bearer ${validToken}`;
       mockedJwt.verify.mockReturnValue(mockJwtPayload as any);
       reflector.get.mockImplementation((key: string) => {
@@ -144,7 +144,7 @@ describe('JwtAuthGuard', () => {
         return undefined;
       });
 
-      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(
+      expect(() => guard.canActivate(mockExecutionContext)).toThrow(
         ForbiddenException,
       );
     });

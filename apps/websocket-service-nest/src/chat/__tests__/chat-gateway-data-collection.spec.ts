@@ -8,6 +8,7 @@ import { FluidRegistrationService } from '../../lib/fluid-registration.service';
 import { VerificationService } from '../../lib/verification.service';
 import { BillingService } from '../../lib/billing.service';
 import { JwtService } from '@nestjs/jwt';
+import _Conversation from '../../models/Conversation';
 
 // Mock do mongoose - deve ser o primeiro mock
 jest.doMock('mongoose', () => ({
@@ -41,14 +42,16 @@ describe('ChatGateway - User Data Collection Integration', () => {
 
   beforeEach(async () => {
     // Mock do Conversation model
-    const Conversation = require('../../models/Conversation');
-    Conversation.findOne.mockResolvedValue({
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ConversationMock = require('../../models/Conversation');
+    ConversationMock.findOne.mockResolvedValue({
       _id: 'conversation-id',
       roomId: 'test-room',
       userEmail: null,
       userPhone: null,
+      save: jest.fn(),
     });
-    Conversation.create.mockResolvedValue({
+    ConversationMock.create.mockResolvedValue({
       _id: 'conversation-id',
       roomId: 'test-room',
     });
@@ -190,8 +193,9 @@ describe('ChatGateway - User Data Collection Integration', () => {
 
     it('should not request contact info when user already has data', async () => {
       // Mock do Conversation com dados do usuário
-      const Conversation = require('../../models/Conversation');
-      Conversation.findOne.mockResolvedValue({
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const ConversationMock2 = require('../../models/Conversation');
+      ConversationMock2.findOne.mockResolvedValue({
         _id: 'conversation-id',
         roomId: 'test-room',
         userEmail: 'teste@email.com',
@@ -208,7 +212,7 @@ describe('ChatGateway - User Data Collection Integration', () => {
         });
 
       // Mock do GeminiService
-      const generateResponseSpy = jest.spyOn(
+      const _generateResponseSpy = jest.spyOn(
         gateway['geminiService'],
         'generateAIResponse',
       );

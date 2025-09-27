@@ -54,8 +54,8 @@ export class GeminiService {
     this.genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
   }
 
-  getModel() {
-    const config = this.aiService.getCurrentConfig();
+  async getModel() {
+    const config = await this.aiService.getCurrentConfig();
     return this.genAI.getGenerativeModel({
       model: 'gemini-1.5-flash',
       systemInstruction: config?.systemPrompt || 'Você é um assistente útil.',
@@ -177,8 +177,8 @@ export class GeminiService {
   async generateAIResponse(
     messages: { text: string; sender: string }[],
   ): Promise<string> {
-    const model = this.getModel();
-    const config = this.aiService.getCurrentConfig();
+    const model = await this.getModel();
+    const config = await this.aiService.getCurrentConfig();
 
     // Preparar histórico para chat session
     const history = messages.slice(0, -1).map((msg) => ({
@@ -205,8 +205,8 @@ export class GeminiService {
   async generateAIResponseWithFunctions(
     messages: { text: string; sender: string }[],
   ): Promise<{ response: string; functionCalls?: FunctionCall[] }> {
-    const model = this.getModel();
-    const config = this.aiService.getCurrentConfig();
+    const model = await this.getModel();
+    const config = await this.aiService.getCurrentConfig();
 
     // Preparar histórico para chat session
     const history = messages.slice(0, -1).map((msg) => ({
@@ -279,7 +279,7 @@ export class GeminiService {
   }
 
   // Método para atualizar o prompt do sistema (para administração)
-  updateSystemPrompt(newPrompt: string) {
+  updateSystemPrompt() {
     // Este método agora delega para o AIService
     console.log(
       'Use AIService.updateConfig() para atualizar o prompt do sistema',
@@ -287,8 +287,8 @@ export class GeminiService {
   }
 
   // Método para obter o prompt atual
-  getSystemPrompt(): string {
-    const config = this.aiService.getCurrentConfig();
+  async getSystemPrompt(): Promise<string> {
+    const config = await this.aiService.getCurrentConfig();
     return config?.systemPrompt || '';
   }
 }

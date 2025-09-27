@@ -4,18 +4,21 @@ import { LGPDController } from './lgpd.controller';
 import { LGPDService } from '../lib/lgpd.service';
 import { AuditService } from '../lib/audit.service';
 import { EncryptionService } from '../lib/encryption.service';
+import Consent from '../models/Consent';
+import DataSubjectRequest from '../models/DataSubjectRequest';
+import AuditLog from '../models/AuditLog';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: 'Consent', schema: require('../models/Consent').default.schema },
+      { name: 'Consent', schema: Consent.schema },
       {
         name: 'DataSubjectRequest',
-        schema: require('../models/DataSubjectRequest').default.schema,
+        schema: DataSubjectRequest.schema,
       },
       {
         name: 'AuditLog',
-        schema: require('../models/AuditLog').default.schema,
+        schema: AuditLog.schema,
       },
     ]),
   ],

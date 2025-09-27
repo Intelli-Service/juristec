@@ -27,7 +27,7 @@ export class AdminController {
   @Roles('super_admin', 'moderator')
   @Get('ai-config')
   @Permissions('manage_ai_config')
-  async getAIConfig(@Request() req: { user: JwtPayload }) {
+  async getAIConfig() {
     return this.aiService.getCurrentConfig();
   }
 
@@ -39,8 +39,7 @@ export class AdminController {
     @Body() updates: any,
     @Request() req: { user: JwtPayload },
   ) {
-    const updatedBy = req.user.userId;
-    return this.aiService.updateConfig(updates, updatedBy);
+    return this.aiService.updateConfig(updates);
   }
 
   // Gestão de usuários
@@ -48,7 +47,7 @@ export class AdminController {
   @Roles('super_admin')
   @Get('users')
   @Permissions('manage_users')
-  async getUsers(@Request() req: { user: JwtPayload }) {
+  async getUsers() {
     return User.find().select('-password');
   }
 
@@ -58,7 +57,7 @@ export class AdminController {
   @Permissions('manage_users')
   async createUser(
     @Body() userData: any,
-    @Request() req: { user: JwtPayload },
+    @Request() _req: { user: JwtPayload },
   ) {
     const user = new User(userData);
     return user.save();
@@ -71,7 +70,7 @@ export class AdminController {
   async updateUser(
     @Param('id') id: string,
     @Body() updates: any,
-    @Request() req: { user: JwtPayload },
+    @Request() _req: { user: JwtPayload },
   ) {
     return User.findByIdAndUpdate(id, updates, { new: true }).select(
       '-password',
@@ -84,7 +83,7 @@ export class AdminController {
   @Permissions('manage_users')
   async deleteUser(
     @Param('id') id: string,
-    @Request() req: { user: JwtPayload },
+    @Request() _req: { user: JwtPayload },
   ) {
     return User.findByIdAndDelete(id);
   }
@@ -92,13 +91,13 @@ export class AdminController {
   // Gestão de casos
   @Get('cases')
   @Permissions('view_all_cases')
-  async getCases(@Request() req: { user: JwtPayload }) {
+  async getCases() {
     return Conversation.find().sort({ createdAt: -1 });
   }
 
   @Get('cases/:id')
   @Permissions('view_all_cases')
-  async getCase(@Param('id') id: string, @Request() req: { user: JwtPayload }) {
+  async getCase(@Param('id') id: string) {
     return Conversation.findById(id);
   }
 
@@ -107,20 +106,24 @@ export class AdminController {
   async assignCase(
     @Param('id') id: string,
     @Body() { lawyerId }: { lawyerId: string },
-    @Request() req: { user: JwtPayload },
   ) {
-    return this.aiService.assignCase(id, lawyerId);
+    // TODO: Implementar lógica de atribuição de caso
+    return Conversation.findByIdAndUpdate(
+      id,
+      { assignedTo: lawyerId },
+      { new: true },
+    );
   }
 
   @Get('lawyers')
   @Permissions('view_all_cases')
-  async getLawyers(@Request() req: { user: JwtPayload }) {
+  async getLawyers() {
     return User.find({ role: UserRole.LAWYER }).select('-password');
   }
 
   @Get('moderators')
   @Permissions('manage_users')
-  async getModerators(@Request() req: { user: JwtPayload }) {
+  async getModerators() {
     return User.find({ role: UserRole.MODERATOR }).select('-password');
   }
 }

@@ -1,8 +1,96 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { IUser, UserRole, CaseStatus } from '../models/User';
 import { ICharge, ChargeStatus } from '../models/Charge';
-import { IUser, UserRole } from '../models/User';
+import { IConversation } from '../models/Conversation';
+import { IMessage } from '../models/Message';
+
+interface ITopLawyer {
+  lawyerId: string;
+  lawyerName: string;
+  totalCharges: number;
+  totalRevenue: number;
+  conversionRate: number;
+  averageRating: number;
+}
+
+// Interfaces for aggregation results
+interface MonthlyRevenue {
+  _id: {
+    year: number;
+    month: number;
+  };
+  revenue: number;
+}
+
+interface DailyMessages {
+  _id: string;
+  count: number;
+}
+
+interface ServiceStat {
+  _id: string;
+  count: number;
+  totalRevenue: number;
+  totalValue: number;
+}
+
+export interface RevenueAnalyticsData {
+  _id: string;
+  totalRevenue: number;
+  totalCharges: number;
+  paidCharges: number;
+  pendingCharges: number;
+  rejectedCharges: number;
+}
+
+export interface ConversationAnalyticsData {
+  _id: string;
+  totalConversations: number;
+  resolvedConversations: number;
+  averageMessages: number;
+  averageDuration: number;
+}
+
+export interface UserAnalyticsData {
+  _id: string;
+  totalUsers: number;
+  lawyers: number;
+  clients: number;
+  admins: number;
+}
+
+export interface RevenueAnalyticsResponse {
+  revenue: RevenueAnalyticsData[];
+  summary: {
+    totalRevenue: number;
+    totalCharges: number;
+    paidCharges: number;
+    pendingCharges: number;
+    rejectedCharges: number;
+  };
+}
+
+export interface ConversationAnalyticsResponse {
+  conversations: ConversationAnalyticsData[];
+  summary: {
+    totalConversations: number;
+    resolvedConversations: number;
+    averageMessages: number;
+    averageDuration: number;
+  };
+}
+
+export interface UserAnalyticsResponse {
+  users: UserAnalyticsData[];
+  summary: {
+    totalUsers: number;
+    lawyers: number;
+    clients: number;
+    admins: number;
+  };
+}
 
 export interface AnalyticsMetrics {
   // Métricas de Conversão
@@ -83,15 +171,16 @@ export interface AnalyticsFilters {
   segment?: 'client' | 'lawyer' | 'admin';
   lawyerId?: string;
   chargeStatus?: ChargeStatus;
-  conversationStatus?: string;
+  conversationStatus?: CaseStatus;
 }
 
 @Injectable()
 export class AnalyticsService {
   constructor(
     @InjectModel('Charge') private chargeModel: Model<ICharge>,
-    @InjectModel('Conversation') private conversationModel: Model<any>,
-    @InjectModel('Message') private messageModel: Model<any>,
+    @InjectModel('Conversation')
+    private conversationModel: Model<IConversation>,
+    @InjectModel('Message') private messageModel: Model<IMessage>,
     @InjectModel('User') private userModel: Model<IUser>,
   ) {}
 
@@ -160,8 +249,8 @@ export class AnalyticsService {
     startDate: Date,
     endDate: Date,
     filters: AnalyticsFilters,
-  ) {
-    const matchConditions: any = {
+  ): Promise<IConversation[]> {
+    const matchConditions: Record<string, any> = {
       createdAt: { $gte: startDate, $lte: endDate },
     };
 
@@ -169,15 +258,15 @@ export class AnalyticsService {
       matchConditions.status = filters.conversationStatus;
     }
 
-    return await this.conversationModel.find(matchConditions).exec();
+    return this.conversationModel.find(matchConditions).exec();
   }
 
   private async getChargesData(
     startDate: Date,
     endDate: Date,
     filters: AnalyticsFilters,
-  ) {
-    const matchConditions: any = {
+  ): Promise<ICharge[]> {
+    const matchConditions: Record<string, any> = {
       createdAt: { $gte: startDate, $lte: endDate },
     };
 
@@ -189,10 +278,13 @@ export class AnalyticsService {
       matchConditions.status = filters.chargeStatus;
     }
 
-    return await this.chargeModel.find(matchConditions).exec();
+    return this.chargeModel.find(matchConditions).exec();
   }
 
-  private async getMessagesData(startDate: Date, endDate: Date) {
+  private async getMessagesData(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<IMessage[]> {
     return await this.messageModel
       .find({
         createdAt: { $gte: startDate, $lte: endDate },
@@ -227,8 +319,11 @@ export class AnalyticsService {
     };
   }
 
-  private async getMonthlyRevenue(startDate: Date, endDate: Date) {
-    const monthlyData = await this.chargeModel.aggregate([
+  private async getMonthlyRevenue(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{ month: string; revenue: number }[]> {
+    const monthlyData: MonthlyRevenue[] = await this.chargeModel.aggregate([
       {
         $match: {
           status: ChargeStatus.PAID,
@@ -255,8 +350,11 @@ export class AnalyticsService {
     }));
   }
 
-  private async getMessagesPerDay(startDate: Date, endDate: Date) {
-    const dailyData = await this.messageModel.aggregate([
+  private async getMessagesPerDay(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{ date: string; count: number }[]> {
+    const dailyData: DailyMessages[] = await this.messageModel.aggregate([
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
@@ -294,17 +392,17 @@ export class AnalyticsService {
     for (const lawyer of lawyers) {
       const [conversations, charges, revenue] = await Promise.all([
         this.conversationModel.countDocuments({
-          assignedTo: lawyer._id,
+          assignedTo: lawyer._id.toString(),
           createdAt: { $gte: startDate, $lte: endDate },
         }),
         this.chargeModel.countDocuments({
-          lawyerId: lawyer._id,
+          lawyerId: lawyer._id.toString(),
           createdAt: { $gte: startDate, $lte: endDate },
         }),
-        this.chargeModel.aggregate([
+        this.chargeModel.aggregate<{ _id: null; total: number }>([
           {
             $match: {
-              lawyerId: lawyer._id,
+              lawyerId: lawyer._id.toString(),
               status: ChargeStatus.PAID,
               createdAt: { $gte: startDate, $lte: endDate },
             },
@@ -322,7 +420,7 @@ export class AnalyticsService {
       const conversionRate =
         conversations > 0 ? (charges / conversations) * 100 : 0;
 
-      lawyerStats[lawyer._id] = {
+      lawyerStats[lawyer._id.toString()] = {
         conversations,
         charges,
         revenue: totalRevenue,
@@ -330,7 +428,7 @@ export class AnalyticsService {
       };
 
       topLawyers.push({
-        lawyerId: lawyer._id,
+        lawyerId: lawyer._id.toString(),
         lawyerName: lawyer.name,
         totalCharges: charges,
         totalRevenue,
@@ -349,7 +447,7 @@ export class AnalyticsService {
   }
 
   private async getServiceStats(startDate: Date, endDate: Date) {
-    const serviceData = await this.chargeModel.aggregate([
+    const serviceData: ServiceStat[] = await this.chargeModel.aggregate([
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
@@ -374,9 +472,12 @@ export class AnalyticsService {
     const averageValueByType: { [key: string]: number } = {};
 
     serviceData.forEach((item) => {
-      chargesByType[item._id] = item.count;
-      revenueByType[item._id] = item.totalRevenue / 100; // centavos para reais
-      averageValueByType[item._id] = item.totalValue / item.count / 100; // média em reais
+      if (item._id) {
+        chargesByType[item._id] = item.count;
+        revenueByType[item._id] = item.totalRevenue / 100; // centavos para reais
+        averageValueByType[item._id] =
+          item.count > 0 ? item.totalValue / item.count / 100 : 0; // média em reais
+      }
     });
 
     return {
@@ -386,10 +487,13 @@ export class AnalyticsService {
     };
   }
 
-  private calculateConversionMetrics(conversations: any[], charges: any[]) {
+  private calculateConversionMetrics(
+    conversations: IConversation[],
+    charges: ICharge[],
+  ) {
     const totalConversations = conversations.length;
     const conversationsWithCharges = new Set(
-      charges.map((c) => c.conversationId),
+      charges.map((c) => c.conversationId.toString()),
     ).size;
     const conversionRate =
       totalConversations > 0
@@ -408,7 +512,10 @@ export class AnalyticsService {
     };
   }
 
-  private calculateFinancialMetrics(charges: any[], monthlyRevenue: any[]) {
+  private calculateFinancialMetrics(
+    charges: ICharge[],
+    monthlyRevenue: { month: string; revenue: number }[],
+  ) {
     const totalCharges = charges.length;
     const paidCharges = charges.filter(
       (c) => c.status === ChargeStatus.PAID,
@@ -426,7 +533,7 @@ export class AnalyticsService {
         .reduce((sum, c) => sum + c.amount, 0) / 100;
 
     const conversationsWithCharges = new Set(
-      charges.map((c) => c.conversationId),
+      charges.map((c) => c.conversationId.toString()),
     ).size;
     const averageRevenuePerConversation =
       conversationsWithCharges > 0
@@ -444,13 +551,13 @@ export class AnalyticsService {
     };
   }
 
-  private calculatePerformanceMetrics(conversations: any[]) {
+  private calculatePerformanceMetrics(conversations: IConversation[]) {
     // TODO: Implementar cálculos reais de performance
     // Por enquanto, valores mockados
     const averageResponseTime = 15; // minutos
     const averageConversationDuration = 45; // minutos
     const closedConversations = conversations.filter(
-      (c) => c.status === 'closed',
+      (c) => c.status === CaseStatus.CLOSED,
     ).length;
     const resolutionRate =
       conversations.length > 0
@@ -467,13 +574,15 @@ export class AnalyticsService {
   }
 
   private calculateSystemMetrics(
-    messages: any[],
-    messagesPerDay: any[],
-    conversations: any[],
+    messages: IMessage[],
+    messagesPerDay: { date: string; count: number }[],
+    conversations: IConversation[],
   ) {
     const totalMessages = messages.length;
     const activeConversations = conversations.filter(
-      (c) => c.status === 'open' || c.status === 'assigned',
+      (c) =>
+        c.status === CaseStatus.OPEN ||
+        c.status === CaseStatus.ASSIGNED_TO_LAWYER,
     ).length;
     const systemUptime = 99.9; // TODO: implementar monitoramento real
 
@@ -494,31 +603,36 @@ export class AnalyticsService {
   async getRevenueAnalytics(filters: AnalyticsFilters = {}) {
     const matchConditions = this.buildMatchConditions(filters);
 
-    const revenueData = await this.chargeModel.aggregate([
-      { $match: matchConditions },
-      {
-        $group: {
-          _id: {
-            $dateToString: {
-              format: this.getDateFormat(filters.period || 'month'),
-              date: '$createdAt',
+    const revenueData: RevenueAnalyticsData[] =
+      await this.chargeModel.aggregate([
+        { $match: matchConditions },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: this.getDateFormat(filters.period || 'month'),
+                date: '$createdAt',
+              },
+            },
+            totalRevenue: { $sum: '$amount' },
+            totalCharges: { $sum: 1 },
+            paidCharges: {
+              $sum: { $cond: [{ $eq: ['$status', ChargeStatus.PAID] }, 1, 0] },
+            },
+            pendingCharges: {
+              $sum: {
+                $cond: [{ $eq: ['$status', ChargeStatus.PENDING] }, 1, 0],
+              },
+            },
+            rejectedCharges: {
+              $sum: {
+                $cond: [{ $eq: ['$status', ChargeStatus.REJECTED] }, 1, 0],
+              },
             },
           },
-          totalRevenue: { $sum: '$amount' },
-          totalCharges: { $sum: 1 },
-          paidCharges: {
-            $sum: { $cond: [{ $eq: ['$status', 'paid'] }, 1, 0] },
-          },
-          pendingCharges: {
-            $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] },
-          },
-          rejectedCharges: {
-            $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] },
-          },
         },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+        { $sort: { _id: 1 } },
+      ]);
 
     return {
       revenue: revenueData,
@@ -550,45 +664,48 @@ export class AnalyticsService {
   async getConversationAnalytics(filters: AnalyticsFilters = {}) {
     const matchConditions = this.buildMatchConditions(filters);
 
-    const conversationData = await this.conversationModel.aggregate([
-      { $match: matchConditions },
-      {
-        $lookup: {
-          from: 'messages',
-          localField: '_id',
-          foreignField: 'conversationId',
-          as: 'messages',
-        },
-      },
-      {
-        $addFields: {
-          messageCount: { $size: '$messages' },
-          duration: {
-            $divide: [
-              { $subtract: ['$updatedAt', '$createdAt'] },
-              1000 * 60, // em minutos
-            ],
+    const conversationData: ConversationAnalyticsData[] =
+      await this.conversationModel.aggregate([
+        { $match: matchConditions },
+        {
+          $lookup: {
+            from: 'messages',
+            localField: '_id',
+            foreignField: 'conversationId',
+            as: 'messages',
           },
         },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: {
-              format: this.getDateFormat(filters.period || 'month'),
-              date: '$createdAt',
+        {
+          $addFields: {
+            messageCount: { $size: '$messages' },
+            duration: {
+              $divide: [
+                { $subtract: ['$updatedAt', '$createdAt'] },
+                1000 * 60, // em minutos
+              ],
             },
           },
-          totalConversations: { $sum: 1 },
-          resolvedConversations: {
-            $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] },
-          },
-          averageMessages: { $avg: '$messageCount' },
-          averageDuration: { $avg: '$duration' },
         },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: this.getDateFormat(filters.period || 'month'),
+                date: '$createdAt',
+              },
+            },
+            totalConversations: { $sum: 1 },
+            resolvedConversations: {
+              $sum: {
+                $cond: [{ $eq: ['$status', CaseStatus.RESOLVED_BY_AI] }, 1, 0],
+              },
+            },
+            averageMessages: { $avg: '$messageCount' },
+            averageDuration: { $avg: '$duration' },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]);
 
     return {
       conversations: conversationData,
@@ -618,7 +735,7 @@ export class AnalyticsService {
   async getUserAnalytics(filters: AnalyticsFilters = {}) {
     const matchConditions = this.buildMatchConditions(filters);
 
-    const userData = await this.userModel.aggregate([
+    const userData: UserAnalyticsData[] = await this.userModel.aggregate([
       { $match: matchConditions },
       {
         $group: {
@@ -630,13 +747,13 @@ export class AnalyticsService {
           },
           totalUsers: { $sum: 1 },
           lawyers: {
-            $sum: { $cond: [{ $eq: ['$role', 'lawyer'] }, 1, 0] },
+            $sum: { $cond: [{ $eq: ['$role', UserRole.LAWYER] }, 1, 0] },
           },
           clients: {
-            $sum: { $cond: [{ $eq: ['$role', 'client'] }, 1, 0] },
+            $sum: { $cond: [{ $eq: ['$role', UserRole.CLIENT] }, 1, 0] },
           },
           admins: {
-            $sum: { $cond: [{ $eq: ['$role', 'admin'] }, 1, 0] },
+            $sum: { $cond: [{ $eq: ['$role', UserRole.SUPER_ADMIN] }, 1, 0] },
           },
         },
       },
@@ -654,16 +771,18 @@ export class AnalyticsService {
     };
   }
 
-  private buildMatchConditions(filters: AnalyticsFilters): any {
-    const matchConditions: any = {};
+  private buildMatchConditions(filters: AnalyticsFilters): Record<string, any> {
+    const matchConditions: Record<string, any> = {};
 
     if (filters.startDate || filters.endDate) {
       matchConditions.createdAt = {};
       if (filters.startDate) {
-        matchConditions.createdAt.$gte = filters.startDate;
+        (matchConditions.createdAt as Record<string, any>).$gte =
+          filters.startDate;
       }
       if (filters.endDate) {
-        matchConditions.createdAt.$lte = filters.endDate;
+        (matchConditions.createdAt as Record<string, any>).$lte =
+          filters.endDate;
       }
     }
 
@@ -712,5 +831,67 @@ export class AnalyticsService {
     }
 
     return data;
+  }
+
+  async getTopLawyers(): Promise<{
+    topLawyers: ITopLawyer[];
+    lawyerStats: {
+      [key: string]: { totalCharges: number; totalRevenue: number };
+    };
+  }> {
+    const lawyers = await this.userModel.find({ role: UserRole.LAWYER }).exec();
+    const lawyerStats: {
+      [key: string]: { totalCharges: number; totalRevenue: number };
+    } = {};
+    const topLawyers: ITopLawyer[] = [];
+
+    for (const lawyer of lawyers) {
+      const charges = await this.chargeModel.countDocuments({
+        lawyerId: lawyer._id,
+        status: ChargeStatus.PAID,
+      });
+
+      const revenue = await this.chargeModel.aggregate<{
+        _id: null;
+        total: number;
+      }>([
+        {
+          $match: {
+            lawyerId: lawyer._id,
+            status: ChargeStatus.PAID,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: '$amount' },
+          },
+        },
+      ]);
+
+      const totalRevenue = revenue.length > 0 ? revenue[0].total / 100 : 0;
+
+      lawyerStats[lawyer._id.toString()] = {
+        totalCharges: charges,
+        totalRevenue,
+      };
+
+      topLawyers.push({
+        lawyerId: lawyer._id.toString(),
+        lawyerName: lawyer.name,
+        totalCharges: charges,
+        totalRevenue,
+        conversionRate: charges > 0 ? (totalRevenue / charges) * 100 : 0,
+        averageRating: 0, // TODO: implementar sistema de avaliações
+      });
+    }
+
+    // Ordenar top advogados por receita
+    topLawyers.sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    return {
+      topLawyers: topLawyers.slice(0, 10), // Top 10
+      lawyerStats,
+    };
   }
 }

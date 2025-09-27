@@ -1,296 +1,243 @@
-import { Injectable } from '@nestjs/common';
-import AIConfig from '../models/AIConfig';
+import { Injectable, Logger } from '@nestjs/common';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { ConfigService } from '@nestjs/config';
+import AIConfig from '../models/AIConfig'; // Corrigido
+import { IAIConfig } from '../models/AIConfig'; // Corrigido
+import { IConversation } from '../models/Conversation'; // Corrigido
 import Conversation from '../models/Conversation';
 
 @Injectable()
 export class AIService {
-  private currentConfig: any = null;
+  private readonly logger = new Logger(AIService.name);
+  private genAI: GoogleGenerativeAI;
 
-  constructor() {
-    this.loadConfig();
+  constructor(private configService: ConfigService) {
+    const apiKey = this.configService.get<string>('GOOGLE_API_KEY');
+    if (!apiKey) {
+      throw new Error('GOOGLE_API_KEY is not defined in the environment');
+    }
+    this.genAI = new GoogleGenerativeAI(apiKey);
   }
 
-  async loadConfig() {
+  private async getAIConfig(): Promise<IAIConfig> {
     try {
-      this.currentConfig = await AIConfig.findOne().sort({ createdAt: -1 });
-      if (!this.currentConfig) {
-        // Criar configuração padrão se não existir
-        this.currentConfig = await AIConfig.create({
-          systemPrompt: `Você é um assistente jurídico brasileiro altamente qualificado e ético.
-
-FUNÇÕES DISPONÍVEIS (USE SEMPRE QUE POSSÍVEL):
-- register_user: CHAME IMEDIATAMENTE quando tiver nome + contato (email/telefone) + problema do usuário
-- update_conversation_status: CHAME após registrar usuário para classificar o caso
-- detect_conversation_completion: CHAME quando detectar que a conversa deve mostrar feedback
-
-INSTRUÇÕES DE FUNCTION CALLS:
-1. QUANDO CHAMAR register_user:
-   - Nome completo + email OU telefone + descrição do problema = CHAME register_user
-   - Exemplo: "João Silva, joao@email.com, contrato de trabalho" = CHAME register_user
-   - NÃO espere mais informações, use o que tem disponível
-
-3. QUANDO CHAMAR detect_conversation_completion:
-   - Quando resolver um problema jurídico simples apenas com orientação
-   - Quando o usuário indicar satisfação ou que o problema foi resolvido
-   - Quando encaminhar para advogado após análise completa
-   - Quando o usuário agradecer ou indicar que não precisa de mais ajuda
-   - completion_reason: 'resolved_by_ai' (resolvido por IA), 'assigned_to_lawyer' (encaminhado), 'user_satisfied' (usuário satisfeito), 'user_abandoned' (usuário desistiu)
-
-IMPORTANTE: Use as function calls sempre que as condições forem atendidas. Não mencione as funções na resposta de texto.
-
-INSTRUÇÕES PRINCIPAIS:
-- Você é um assistente jurídico brasileiro especializado em direito brasileiro
-- Sempre responda em português brasileiro
-- Seja profissional, ético e confidencial
-- Nunca dê conselhos jurídicos definitivos - sempre oriente a consultar um advogado
-- Colete informações necessárias de forma natural durante a conversa
-- Para casos complexos, sugira consultar um advogado especializado
-
-COMPORTAMENTO:
-- Seja empático e compreensivo com as situações dos usuários
-- Use linguagem clara e acessível, evitando jargões excessivos
-- Sempre priorize a ética profissional e o sigilo
-
-TRIAGEM DE CASOS:
-- Classifique a complexidade: simples, médio, complexo
-- Identifique a área do direito envolvida
-- Avalie se é caso para orientação geral ou consulta profissional
-
-EXEMPLOS DE USO DAS FUNCTIONS:
-- Usuário menciona: "Meu nome é João Silva, tenho um problema trabalhista"
-  → Chame register_user com nome, problema e urgência adequada
-- Após analisar caso complexo: "Este caso precisa de advogado trabalhista"
-  → Chame update_conversation_status com lawyer_needed=true e specialization_required
-- Caso simples resolvido: "Posso te ajudar com isso"
-  → Chame update_conversation_status com status=resolved_by_ai + detect_conversation_completion
-- Usuário satisfeito: "Obrigado, isso resolveu meu problema"
-  → Chame detect_conversation_completion com should_show_feedback=true`,
-          behaviorSettings: {
-            maxTokens: 1000,
-            temperature: 0.7,
-            ethicalGuidelines: [
-              'Manter confidencialidade absoluta',
-              'Nunca substituir aconselhamento profissional',
-              'Orientar para consulta com advogado quando necessário',
-            ],
-            specializationAreas: [
-              'Direito Civil',
-              'Direito Trabalhista',
-              'Direito Penal',
-              'Direito Previdenciário',
-              'Direito do Consumidor',
-            ],
-          },
-          classificationSettings: {
-            enabled: true,
-            categories: [
-              'Consulta Geral',
-              'Ação Judicial',
-              'Assessoria Preventiva',
-              'Resolução de Conflitos',
-              'Orientação Legal',
-            ],
-            summaryTemplate:
-              'Caso [categoria] - [complexidade] - Área: [legalArea]',
-          },
-          updatedBy: 'system',
-        });
+      const config = await AIConfig.findOne().sort({ createdAt: -1 }).exec();
+      if (!config) {
+        this.logger.warn('AI configuration not found, using default values.');
+        return this.getDefaultConfig();
       }
+      return config;
     } catch (error) {
-      console.error('Erro ao carregar configuração da IA:', error);
-      // Fallback para configuração padrão em caso de erro de conexão
-      this.currentConfig = {
-        systemPrompt: `Você é um assistente jurídico brasileiro altamente qualificado e ético.
+      this.logger.error('Error fetching AI configuration:', error);
+      return this.getDefaultConfig();
+    }
+  }
 
-INSTRUÇÕES PRINCIPAIS:
-- Você é um assistente jurídico brasileiro especializado em direito brasileiro
-- Sempre responda em português brasileiro
-- Seja profissional, ético e confidencial
-- Nunca dê conselhos jurídicos definitivos - sempre oriente a consultar um advogado
-- Colete informações necessárias de forma natural durante a conversa
-- Para casos complexos, sugira consultar um advogado especializado
+  private getDefaultConfig(): IAIConfig {
+    return {
+      systemPrompt:
+        'Você é um assistente jurídico brasileiro. Sua principal função é realizar uma triagem inicial de casos, coletando informações essenciais do usuário de forma natural e conversacional. Com base nos dados, você deve classificar o caso, avaliar sua complexidade e, se necessário, encaminhá-lo para um advogado especialista. Use as funções disponíveis para registrar novos usuários e atualizar o status da conversa quando a coleta de dados for concluída.',
+      behaviorSettings: {
+        maxTokens: 2048,
+        temperature: 0.7,
+        ethicalGuidelines: [
+          'Sempre manter confidencialidade',
+          'Não dar aconselhamento jurídico definitivo',
+        ],
+        specializationAreas: [
+          'Direito Civil',
+          'Direito Trabalhista',
+          'Direito Empresarial',
+        ],
+      },
+      classificationSettings: {
+        enabled: true,
+        categories: [
+          'Direito Civil',
+          'Direito Trabalhista',
+          'Direito Penal',
+          'Direito Empresarial',
+        ],
+        summaryTemplate: 'Resumo do caso: [categoria] - [complexidade]',
+      },
+      updatedBy: 'system',
+      updatedAt: new Date(),
+      createdAt: new Date(),
+    } as IAIConfig;
+  }
 
-COMPORTAMENTO:
-- Seja empático e compreensivo com as situações dos usuários
-- Use linguagem clara e acessível, evitando jargões excessivos
-- Sempre priorize a ética profissional e o sigilo
-
-TRIAGEM DE CASOS:
-- Classifique a complexidade: simples, médio, complexo
-- Identifique a área do direito envolvida
-- Avalie se é caso para orientação geral ou consulta profissional`,
-        behaviorSettings: {
-          maxTokens: 1000,
-          temperature: 0.7,
-          ethicalGuidelines: [
-            'Manter confidencialidade absoluta',
-            'Nunca substituir aconselhamento profissional',
-            'Orientar para consulta com advogado quando necessário',
-          ],
-          specializationAreas: [
-            'Direito Civil',
-            'Direito Trabalhista',
-            'Direito Penal',
-            'Direito Previdenciário',
-          ],
+  async generateResponse(
+    conversationHistory: any[],
+    _conversation?: IConversation,
+  ): Promise<any> {
+    try {
+      const aiConfig = await this.getAIConfig();
+      const model = this.genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: {
+          temperature: aiConfig.behaviorSettings.temperature,
+          topK: 50,
+          topP: 0.9,
+          maxOutputTokens: aiConfig.behaviorSettings.maxTokens,
         },
-        isActive: true,
-        updatedBy: 'system',
-      };
-    }
-  }
-
-  getCurrentConfig() {
-    return this.currentConfig;
-  }
-
-  async updateConfig(updates: any, updatedBy: string) {
-    try {
-      const updated = await AIConfig.findByIdAndUpdate(
-        this.currentConfig._id,
-        { ...updates, updatedBy, updatedAt: new Date() },
-        { new: true },
-      );
-      this.currentConfig = updated;
-      return updated;
-    } catch (error) {
-      console.error('Erro ao atualizar configuração:', error);
-      throw error;
-    }
-  }
-
-  async classifyConversation(roomId: string, messages: any[]) {
-    if (!this.currentConfig?.classificationSettings?.enabled) {
-      return null;
-    }
-
-    try {
-      const conversation = await Conversation.findOne({ roomId });
-      if (!conversation) return null;
-
-      // Lógica simplificada de classificação baseada no conteúdo
-      const fullText = messages
-        .map((m) => m.text)
-        .join(' ')
-        .toLowerCase();
-
-      let category = 'Consulta Geral';
-      let legalArea = 'Direito Civil';
-      let complexity = 'medio';
-
-      // Classificação baseada em palavras-chave
-      if (
-        fullText.includes('processo') ||
-        fullText.includes('ação') ||
-        fullText.includes('juiz')
-      ) {
-        category = 'Ação Judicial';
-        complexity = 'complexo';
-      } else if (fullText.includes('contrato') || fullText.includes('acordo')) {
-        category = 'Assessoria Preventiva';
-        legalArea = 'Direito Civil';
-      } else if (
-        fullText.includes('trabalh') ||
-        fullText.includes('empreg') ||
-        fullText.includes('demiss')
-      ) {
-        legalArea = 'Direito Trabalhista';
-      } else if (
-        fullText.includes('crime') ||
-        fullText.includes('polícia') ||
-        fullText.includes('prisão')
-      ) {
-        legalArea = 'Direito Penal';
-        complexity = 'complexo';
-      }
-
-      // Gerar resumo
-      const summary = `Caso ${category} - ${complexity} - Área: ${legalArea}. Conversa iniciada em ${conversation.createdAt.toLocaleDateString('pt-BR')}`;
-
-      // Atualizar conversa
-      await Conversation.findByIdAndUpdate(conversation._id, {
-        'classification.category': category,
-        'classification.complexity': complexity,
-        'classification.legalArea': legalArea,
-        'classification.confidence': 0.8,
-        'summary.text': summary,
-        'summary.lastUpdated': new Date(),
-        'summary.generatedBy': 'ai',
-        updatedAt: new Date(),
+        systemInstruction: aiConfig.systemPrompt,
+        // tools: [
+        //   {
+        //     functionDeclarations: [
+        //       registerUserFunction,
+        //       updateConversationStatusFunction,
+        //     ],
+        //   },
+        // ],
       });
 
+      const chat = model.startChat({
+        history: conversationHistory,
+      });
+
+      const lastMessage =
+        conversationHistory[conversationHistory.length - 1].parts[0].text;
+      const result = await chat.sendMessage(lastMessage);
+      const response = result.response;
+
+      const functionCalls = response.functionCalls();
+      if (functionCalls && functionCalls.length > 0) {
+        this.logger.log('Function call detected:', functionCalls);
+        return {
+          type: 'function_call',
+          calls: functionCalls.map((call) => ({
+            name: call.name,
+            args: call.args,
+          })),
+        };
+      }
+
+      const text = response.text();
+      this.logger.log('AI Response:', text);
+      return { type: 'text', content: text };
+    } catch (error) {
+      this.logger.error('Error generating AI response:', error);
+      throw new Error('Failed to generate AI response');
+    }
+  }
+
+  // Método para obter configuração atual (usado pelo admin.controller)
+  async getCurrentConfig(): Promise<IAIConfig> {
+    return this.getAIConfig();
+  }
+
+  // Método para atualizar configuração (usado pelo admin.controller)
+  async updateConfig(updates: Partial<IAIConfig>): Promise<IAIConfig> {
+    try {
+      const existingConfig = await AIConfig.findOne()
+        .sort({ createdAt: -1 })
+        .exec();
+
+      if (existingConfig) {
+        // Atualizar configuração existente
+        Object.assign(existingConfig, updates, { updatedAt: new Date() });
+        return await existingConfig.save();
+      } else {
+        // Criar nova configuração
+        const newConfig = new AIConfig({
+          ...this.getDefaultConfig(),
+          ...updates,
+        });
+        return await newConfig.save();
+      }
+    } catch (error) {
+      this.logger.error('Error updating AI configuration:', error);
+      throw new Error('Failed to update AI configuration');
+    }
+  }
+
+  // Método para classificar conversa (usado pelo chat.gateway)
+  async classifyConversation(conversationId: string): Promise<any> {
+    try {
+      // Implementação básica de classificação
+      this.logger.log(`Classifying conversation: ${conversationId}`);
+
+      // Por enquanto, retorna uma classificação simples
+      // Pode ser expandido para usar IA para classificação real
       return {
-        category,
-        complexity,
-        legalArea,
-        summary,
+        category: 'legal_consultation',
+        complexity: 'medium',
+        priority: 'normal',
+        estimatedTime: '30 minutes',
       };
     } catch (error) {
-      console.error('Erro ao classificar conversa:', error);
-      return null;
+      this.logger.error('Error classifying conversation:', error);
+      throw new Error('Failed to classify conversation');
     }
   }
 
-  async assignCase(roomId: string, lawyerId: string) {
+  // Método para atualizar dados do usuário (usado pelo user-data-collection.service)
+  async updateUserData(conversationId: string, updateData: any): Promise<void> {
     try {
+      this.logger.log(
+        `Updating user data for conversation: ${conversationId}`,
+        updateData,
+      );
+
+      // Implementação básica - pode ser expandida para persistir dados
+      // Por enquanto, apenas loga os dados
+    } catch (error) {
+      this.logger.error('Error updating user data:', error);
+      throw new Error('Failed to update user data');
+    }
+  }
+
+  async getCasesForLawyer(lawyerId: string): Promise<any[]> {
+    try {
+      this.logger.log(`Getting cases for lawyer: ${lawyerId}`);
+
+      // Buscar conversas atribuídas ao advogado ou disponíveis
+      const conversations = await Conversation.find({
+        $or: [
+          { assignedTo: lawyerId },
+          { status: 'open' }, // Casos disponíveis
+        ],
+      })
+        .select('roomId status assignedTo createdAt')
+        .exec();
+
+      return conversations.map((conv) => ({
+        roomId: conv.roomId,
+        status: conv.status,
+        assignedTo: conv.assignedTo,
+        createdAt: conv.createdAt,
+      }));
+    } catch (error) {
+      this.logger.error('Error getting cases for lawyer:', error);
+      throw new Error('Failed to get cases for lawyer');
+    }
+  }
+
+  async assignCase(
+    roomId: string,
+    lawyerId: string,
+  ): Promise<{ success: boolean }> {
+    try {
+      this.logger.log(`Assigning case ${roomId} to lawyer ${lawyerId}`);
+
       const result = await Conversation.findOneAndUpdate(
-        { roomId },
+        { roomId, status: 'open' }, // Só pode atribuir casos abertos
         {
           assignedTo: lawyerId,
-          assignedAt: new Date(),
           status: 'assigned',
-          updatedAt: new Date(),
+          assignedAt: new Date(),
         },
         { new: true },
-      );
-      return result;
-    } catch (error) {
-      console.error('Erro ao atribuir caso:', error);
-      throw error;
-    }
-  }
+      ).exec();
 
-  async getCasesForLawyer(lawyerId: string) {
-    try {
-      return await Conversation.find({
-        $or: [{ assignedTo: lawyerId }, { status: 'open' }],
-      }).sort({ createdAt: -1 });
-    } catch (error) {
-      console.error('Erro ao buscar casos:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Atualiza dados do usuário em uma conversa
-   */
-  async updateUserData(
-    conversationId: string,
-    userData: { email?: string | null; phone?: string | null; name?: string },
-  ) {
-    try {
-      const updateData: Partial<{
-        userEmail: string | null;
-        userPhone: string | null;
-        userName: string;
-      }> = {};
-
-      if (userData.email !== undefined) {
-        updateData.userEmail = userData.email;
+      if (!result) {
+        throw new Error('Case not found or already assigned');
       }
 
-      if (userData.phone !== undefined) {
-        updateData.userPhone = userData.phone;
-      }
-
-      if (userData.name !== undefined) {
-        updateData.userName = userData.name;
-      }
-
-      await Conversation.findByIdAndUpdate(conversationId, updateData);
+      return { success: true };
     } catch (error) {
-      console.error('Erro ao atualizar dados do usuário:', error);
-      throw error;
+      this.logger.error('Error assigning case:', error);
+      throw new Error('Failed to assign case');
     }
   }
 }

@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Put,
-  Delete,
   Body,
   Param,
   Query,
@@ -13,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { LGPDService } from '../lib/lgpd.service';
-import { ConsentType, ConsentStatus } from '../models/Consent';
+import { ConsentType } from '../models/Consent';
 import { DataSubjectRight, RequestStatus } from '../models/DataSubjectRequest';
 
 @Controller('lgpd')

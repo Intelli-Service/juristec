@@ -33,7 +33,7 @@ export class MessageService {
     }
 
     // Validar permissões baseadas no tipo de sender
-    await this.validateMessagePermissions(data, conversation);
+    this.validateMessagePermissions(data, conversation);
 
     // Criar a mensagem
     const message = new Message({

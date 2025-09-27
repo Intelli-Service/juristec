@@ -11,7 +11,6 @@ import {
 import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
 import Conversation from '../models/Conversation';
-import Message from '../models/Message';
 import {
   NextAuthGuard,
   Roles,
@@ -32,8 +31,7 @@ export class LawyerController {
   @Get('cases')
   @Permissions('view_available_cases', 'view_all_cases')
   async getMyCases(@Request() req: { user: JwtPayload }) {
-    const lawyerId = req.user.userId;
-    return this.aiService.getCasesForLawyer(lawyerId);
+    return this.aiService.getCasesForLawyer(req.user.userId);
   }
 
   // Pegar um caso
@@ -43,8 +41,7 @@ export class LawyerController {
     @Param('roomId') roomId: string,
     @Request() req: { user: JwtPayload },
   ) {
-    const lawyerId = req.user.userId;
-    return this.aiService.assignCase(roomId, lawyerId);
+    return this.aiService.assignCase(roomId, req.user.userId);
   }
 
   // Ver mensagens de um caso específico
@@ -224,7 +221,7 @@ export class LawyerController {
   // Lista de advogados disponíveis para transferência
   @Get('available-lawyers')
   @Permissions('view_lawyer_list')
-  async getAvailableLawyers(@Request() req: { user: JwtPayload }) {
+  getAvailableLawyers(@Request() _req: { user: JwtPayload }) {
     // Buscar usuários com role 'lawyer' ou 'super_admin'
     // Nota: Esta implementação assume que existe um modelo User
     // Por enquanto, retorna lista vazia - será implementado quando o modelo User estiver disponível

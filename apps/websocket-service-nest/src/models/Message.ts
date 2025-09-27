@@ -1,9 +1,19 @@
-import mongoose from 'mongoose';
+import mongoose, { Document, Schema } from 'mongoose';
 
 // Tipos de agentes que podem enviar mensagens
 export type MessageSender = 'user' | 'ai' | 'lawyer' | 'moderator' | 'system';
 
-const MessageSchema = new mongoose.Schema({
+export interface IMessage extends Document {
+  conversationId: Schema.Types.ObjectId;
+  text: string;
+  sender: MessageSender;
+  senderId?: string;
+  metadata?: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const MessageSchema = new Schema<IMessage>({
   conversationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Conversation',
@@ -17,7 +27,7 @@ const MessageSchema = new mongoose.Schema({
   },
   senderId: { type: String }, // ID do usuário/agente que enviou (opcional para system)
   metadata: {
-    type: mongoose.Schema.Types.Mixed, // Dados adicionais específicos do tipo de mensagem
+    type: Schema.Types.Mixed, // Dados adicionais específicos do tipo de mensagem
     default: {},
   },
   createdAt: { type: Date, default: Date.now },
@@ -28,5 +38,6 @@ const MessageSchema = new mongoose.Schema({
 MessageSchema.index({ conversationId: 1, createdAt: 1 });
 MessageSchema.index({ sender: 1, createdAt: -1 });
 
+export { MessageSchema };
 export default mongoose.models.Message ||
-  mongoose.model('Message', MessageSchema);
+  mongoose.model<IMessage>('Message', MessageSchema);

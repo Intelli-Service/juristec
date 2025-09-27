@@ -1,10 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import {
-  VerificationService,
-  IVerificationCode,
-} from '../verification.service';
+import { VerificationService } from '../verification.service';
+import { IVerificationCode } from '../../models/VerificationCode';
 
 // Mock do Model with support for direct calls and query chaining
 const mockVerificationModel = {
@@ -59,12 +57,12 @@ describe('VerificationService', () => {
         maxAttempts: 3,
       };
 
-      mockVerificationModel.create.mockResolvedValue(mockCreated);
+      (verificationModel.create as jest.Mock).mockResolvedValue(mockCreated);
 
       const result = await service.generateCode(contact);
 
       expect(result).toMatch(/^\d{6}$/);
-      expect(mockVerificationModel.create).toHaveBeenCalledWith({
+      expect(verificationModel.create).toHaveBeenCalledWith({
         email: 'test@example.com',
         code: expect.stringMatching(/^\d{6}$/),
         expiresAt: expect.any(Date),
@@ -85,12 +83,12 @@ describe('VerificationService', () => {
         maxAttempts: 3,
       };
 
-      mockVerificationModel.create.mockResolvedValue(mockCreated);
+      (verificationModel.create as jest.Mock).mockResolvedValue(mockCreated);
 
       const result = await service.generateCode(contact);
 
       expect(result).toMatch(/^\d{6}$/);
-      expect(mockVerificationModel.create).toHaveBeenCalledWith({
+      expect(verificationModel.create).toHaveBeenCalledWith({
         phone: '+5511999999999',
         code: expect.stringMatching(/^\d{6}$/),
         expiresAt: expect.any(Date),
@@ -100,7 +98,7 @@ describe('VerificationService', () => {
 
     it('should generate different codes for multiple calls', async () => {
       const contact = { email: 'test@example.com' };
-      mockVerificationModel.create.mockResolvedValue({});
+      (verificationModel.create as jest.Mock).mockResolvedValue({});
 
       const code1 = await service.generateCode(contact);
       const code2 = await service.generateCode(contact);
@@ -113,7 +111,7 @@ describe('VerificationService', () => {
 
     it('should handle database errors', async () => {
       const contact = { email: 'test@example.com' };
-      mockVerificationModel.create.mockRejectedValue(
+      (verificationModel.create as jest.Mock).mockRejectedValue(
         new Error('Database error'),
       );
 
@@ -142,7 +140,7 @@ describe('VerificationService', () => {
       const mockQuery = {
         sort: jest.fn().mockResolvedValue(mockVerification),
       };
-      mockVerificationModel.findOne.mockReturnValue(mockQuery);
+      (verificationModel.findOne as jest.Mock).mockReturnValue(mockQuery);
 
       const result = await service.verifyCode(contact, code);
 
@@ -170,7 +168,7 @@ describe('VerificationService', () => {
       const mockQuery = {
         sort: jest.fn().mockResolvedValue(mockVerification),
       };
-      mockVerificationModel.findOne.mockReturnValue(mockQuery);
+      (verificationModel.findOne as jest.Mock).mockReturnValue(mockQuery);
 
       const result = await service.verifyCode(contact, code);
 
@@ -188,7 +186,7 @@ describe('VerificationService', () => {
       const mockQuery = {
         sort: jest.fn().mockResolvedValue(null),
       };
-      mockVerificationModel.findOne.mockReturnValue(mockQuery);
+      (verificationModel.findOne as jest.Mock).mockReturnValue(mockQuery);
 
       const result = await service.verifyCode(contact, code);
 
@@ -212,7 +210,7 @@ describe('VerificationService', () => {
       const mockQuery = {
         sort: jest.fn().mockResolvedValue(mockVerification),
       };
-      mockVerificationModel.findOne.mockReturnValue(mockQuery);
+      (verificationModel.findOne as jest.Mock).mockReturnValue(mockQuery);
 
       const result = await service.verifyCode(contact, code);
 
@@ -227,7 +225,7 @@ describe('VerificationService', () => {
       const mockQuery = {
         sort: jest.fn().mockRejectedValue(new Error('Database error')),
       };
-      mockVerificationModel.findOne.mockReturnValue(mockQuery);
+      (verificationModel.findOne as jest.Mock).mockReturnValue(mockQuery);
 
       await expect(service.verifyCode(contact, code)).rejects.toThrow(
         'Database error',
@@ -246,12 +244,14 @@ describe('VerificationService', () => {
       };
 
       // Mock direct findOne result (no chaining)
-      mockVerificationModel.findOne.mockResolvedValue(mockVerification);
+      (verificationModel.findOne as jest.Mock).mockResolvedValue(
+        mockVerification,
+      );
 
       const result = await service.isVerified(contact);
 
       expect(result).toBe(true);
-      expect(mockVerificationModel.findOne).toHaveBeenCalledWith({
+      expect(verificationModel.findOne).toHaveBeenCalledWith({
         email: 'verified@example.com',
         verified: true,
         expiresAt: { $gt: expect.any(Date) },
@@ -267,12 +267,14 @@ describe('VerificationService', () => {
         expiresAt: new Date(Date.now() + 10000),
       };
 
-      mockVerificationModel.findOne.mockResolvedValue(mockVerification);
+      (verificationModel.findOne as jest.Mock).mockResolvedValue(
+        mockVerification,
+      );
 
       const result = await service.isVerified(contact);
 
       expect(result).toBe(true);
-      expect(mockVerificationModel.findOne).toHaveBeenCalledWith({
+      expect(verificationModel.findOne).toHaveBeenCalledWith({
         phone: '+5511999999999',
         verified: true,
         expiresAt: { $gt: expect.any(Date) },
@@ -282,7 +284,7 @@ describe('VerificationService', () => {
     it('should return false when contact is not verified', async () => {
       const contact = { email: 'unverified@example.com' };
 
-      mockVerificationModel.findOne.mockResolvedValue(null);
+      (verificationModel.findOne as jest.Mock).mockResolvedValue(null);
 
       const result = await service.isVerified(contact);
 
@@ -292,7 +294,7 @@ describe('VerificationService', () => {
     it('should handle database errors during verification check', async () => {
       const contact = { email: 'test@example.com' };
 
-      mockVerificationModel.findOne.mockRejectedValue(
+      (verificationModel.findOne as jest.Mock).mockRejectedValue(
         new Error('Database error'),
       );
 
@@ -307,7 +309,7 @@ describe('VerificationService', () => {
       const result = await service.isVerified(contact);
 
       expect(result).toBe(false);
-      expect(mockVerificationModel.findOne).toHaveBeenCalledWith({
+      expect(verificationModel.findOne).toHaveBeenCalledWith({
         verified: true,
         expiresAt: { $gt: expect.any(Date) },
       });

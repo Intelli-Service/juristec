@@ -3,15 +3,14 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { BillingController } from './billing.controller';
 import { BillingService } from '../lib/billing.service';
+import Charge from '../models/Charge';
+import Conversation from '../models/Conversation';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: 'Charge', schema: require('../models/Charge').default.schema },
-      {
-        name: 'Conversation',
-        schema: require('../models/Conversation').default.schema,
-      },
+      { name: 'Charge', schema: Charge.schema },
+      { name: 'Conversation', schema: Conversation.schema },
     ]),
     JwtModule.register({
       secret: process.env.NEXTAUTH_SECRET || 'dev-secret',

@@ -1,13 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { AnalyticsService } from '../analytics.service';
+import { Model, Document } from 'mongoose';
+import { AnalyticsService, AnalyticsMetrics } from '../analytics.service';
+import { ICharge } from '../../models/Charge';
+import { IConversation } from '../../models/Conversation';
+import { IMessage } from '../../models/Message';
+import { IUser } from '../../models/User';
+
+type MockModel<T extends Document> = Partial<Model<T>> & {
+  aggregate: jest.Mock;
+  countDocuments: jest.Mock;
+  find: jest.Mock;
+};
 
 describe('AnalyticsService', () => {
   let service: AnalyticsService;
-  let mockChargeModel: any;
-  let mockConversationModel: any;
-  let mockMessageModel: any;
-  let mockUserModel: any;
+  let mockChargeModel: MockModel<ICharge>;
+  let mockConversationModel: MockModel<IConversation>;
+  let mockMessageModel: MockModel<IMessage>;
+  let mockUserModel: MockModel<IUser>;
 
   beforeEach(async () => {
     // Reset dos mocks
@@ -20,7 +31,7 @@ describe('AnalyticsService', () => {
       find: jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue([]),
       }),
-    };
+    } as MockModel<ICharge>;
 
     mockConversationModel = {
       aggregate: jest.fn(),
@@ -28,7 +39,7 @@ describe('AnalyticsService', () => {
       find: jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue([]),
       }),
-    };
+    } as MockModel<IConversation>;
 
     mockMessageModel = {
       aggregate: jest.fn(),
@@ -36,7 +47,7 @@ describe('AnalyticsService', () => {
       find: jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue([]),
       }),
-    };
+    } as MockModel<IMessage>;
 
     mockUserModel = {
       aggregate: jest.fn(),
@@ -44,7 +55,7 @@ describe('AnalyticsService', () => {
       find: jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue([]),
       }),
-    };
+    } as MockModel<IUser>;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -371,7 +382,7 @@ describe('AnalyticsService', () => {
     });
 
     it('should export analytics in JSON format', async () => {
-      const mockAnalytics: any = {
+      const mockAnalytics: AnalyticsMetrics = {
         conversion: {
           totalConversations: 50,
           conversationsWithCharges: 10,
@@ -399,7 +410,7 @@ describe('AnalyticsService', () => {
           resolutionRate: 0.85,
           satisfactionScore: 4.2,
         },
-        lawyers: { topLawyers: [] },
+        lawyers: { topLawyers: [], lawyerStats: {} },
         services: {
           chargesByType: {},
           revenueByType: {},

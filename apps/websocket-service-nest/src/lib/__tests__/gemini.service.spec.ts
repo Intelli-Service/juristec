@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { GeminiService, FunctionCall } from '../gemini.service';
+import { GeminiService } from '../gemini.service';
 import { AIService } from '../ai.service';
 
 // Mock do AIService
@@ -7,7 +7,6 @@ jest.mock('../ai.service');
 const MockAIService = AIService as jest.MockedClass<typeof AIService>;
 
 // Mock do GoogleGenerativeAI com configuração dinâmica
-let mockSendMessage: jest.Mock;
 let mockResponse: any;
 let mockSendMessageImpl: () => Promise<any> = () =>
   Promise.resolve({ response: mockResponse });
@@ -79,7 +78,7 @@ describe('GeminiService', () => {
     });
 
     it('should use default system prompt when config is not available', () => {
-      mockAIService.getCurrentConfig.mockReturnValue(null);
+      mockAIService.getCurrentConfig.mockResolvedValue(null as any);
 
       const model = service.getModel();
 
@@ -300,7 +299,7 @@ describe('GeminiService', () => {
     it('should log deprecation message', () => {
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
 
-      service.updateSystemPrompt('Novo prompt');
+      service.updateSystemPrompt();
 
       expect(consoleSpy).toHaveBeenCalledWith(
         'Use AIService.updateConfig() para atualizar o prompt do sistema',
@@ -311,22 +310,22 @@ describe('GeminiService', () => {
   });
 
   describe('getSystemPrompt', () => {
-    it('should return current system prompt from AIService', () => {
+    it('should return current system prompt from AIService', async () => {
       const expectedPrompt = 'Você é um assistente jurídico brasileiro.';
-      mockAIService.getCurrentConfig.mockReturnValue({
+      mockAIService.getCurrentConfig.mockResolvedValue({
         systemPrompt: expectedPrompt,
       } as any);
 
-      const result = service.getSystemPrompt();
+      const result = await service.getSystemPrompt();
 
       expect(result).toBe(expectedPrompt);
       expect(mockAIService.getCurrentConfig).toHaveBeenCalled();
     });
 
-    it('should return empty string when config is not available', () => {
-      mockAIService.getCurrentConfig.mockReturnValue(null);
+    it('should return empty string when config is not available', async () => {
+      mockAIService.getCurrentConfig.mockResolvedValue({} as any);
 
-      const result = service.getSystemPrompt();
+      const result = await service.getSystemPrompt();
 
       expect(result).toBe('');
     });

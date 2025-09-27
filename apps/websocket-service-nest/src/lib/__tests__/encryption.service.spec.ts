@@ -5,11 +5,19 @@ describe('EncryptionService', () => {
   let service: EncryptionService;
 
   beforeEach(async () => {
+    // Mock console.warn to avoid test output pollution
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [EncryptionService],
     }).compile();
 
     service = module.get<EncryptionService>(EncryptionService);
+  });
+
+  afterEach(() => {
+    // Restore console.warn after each test
+    jest.restoreAllMocks();
   });
 
   it('should be defined', () => {

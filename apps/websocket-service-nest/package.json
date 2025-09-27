@@ -25,6 +25,7 @@
     "@google-cloud/storage": "^7.17.1",
     "@google/generative-ai": "^0.24.1",
     "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/mongoose": "^11.0.3",
@@ -105,6 +106,11 @@
         "statements": 45
       }
     },
-    "coverageReporters": ["text", "lcov", "html", "json-summary"]
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html",
+      "json-summary"
+    ]
   }
 }

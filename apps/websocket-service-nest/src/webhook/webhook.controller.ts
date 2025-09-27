@@ -36,7 +36,8 @@ export class WebhookController {
   @Post('pagarme')
   async handlePagarmeWebhook(
     @Body() payload: PagarmeWebhookPayload,
-    @Headers('x-signature') _signature?: string,
+    // TODO: Add signature verification
+    // @Headers('x-signature') signature?: string,
   ) {
     try {
       this.logger.log(`Webhook recebido: ${payload.event} - ID: ${payload.id}`);
@@ -62,7 +63,7 @@ export class WebhookController {
           break;
 
         case 'charge.failed':
-          await this.handleChargeFailed(payload.data);
+          this.handleChargeFailed(payload.data);
           break;
 
         default:

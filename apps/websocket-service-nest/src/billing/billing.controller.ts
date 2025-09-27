@@ -8,13 +8,8 @@ import {
   Body,
   UseGuards,
   Request,
-  Query,
 } from '@nestjs/common';
-import {
-  BillingService,
-  CreateChargeDto,
-  UpdateChargeStatusDto,
-} from '../lib/billing.service';
+import { BillingService, BillingStats } from '../lib/billing.service';
 import { NextAuthGuard, Roles, JwtPayload } from '../guards/nextauth.guard';
 import { ChargeType, ChargeStatus } from '../models/Charge';
 
@@ -101,7 +96,7 @@ export class BillingController {
     @Body() body: UpdateChargeStatusRequest,
     @Request() req: any,
   ) {
-    const user = req.user as JwtPayload;
+    const _user = req.user as JwtPayload; // Reserved for future permission checks
 
     return this.billingService.updateChargeStatus({
       chargeId,
@@ -181,7 +176,7 @@ export class BillingController {
    */
   @Get('stats')
   @Roles('lawyer', 'super_admin')
-  async getBillingStats(@Request() req: any) {
+  async getBillingStats(@Request() req: any): Promise<BillingStats> {
     const user = req.user as JwtPayload;
     return this.billingService.getBillingStats(
       user.role === 'lawyer' ? user.userId : undefined,

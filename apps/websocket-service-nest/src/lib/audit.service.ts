@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { FilterQuery, Model } from 'mongoose';
 import { IAuditLog, AuditAction, AuditSeverity } from '../models/AuditLog';
 
 @Injectable()
@@ -76,7 +76,7 @@ export class AuditService {
       offset?: number;
     } = {},
   ): Promise<IAuditLog[]> {
-    const query: any = {};
+    const query: FilterQuery<IAuditLog> = {};
 
     if (filters.userId) query.userId = filters.userId;
     if (filters.action) query.action = filters.action;
@@ -86,8 +86,10 @@ export class AuditService {
 
     if (filters.startDate || filters.endDate) {
       query.timestamp = {};
-      if (filters.startDate) query.timestamp.$gte = filters.startDate;
-      if (filters.endDate) query.timestamp.$lte = filters.endDate;
+      if (filters.startDate)
+        (query.timestamp as Record<string, unknown>).$gte = filters.startDate;
+      if (filters.endDate)
+        (query.timestamp as Record<string, unknown>).$lte = filters.endDate;
     }
 
     return this.auditLogModel
@@ -119,22 +121,25 @@ export class AuditService {
     startDate?: Date,
     endDate?: Date,
   ): Promise<Record<AuditSeverity, number>> {
-    const matchStage: any = {};
+    const matchStage: FilterQuery<IAuditLog> = {};
     if (startDate || endDate) {
       matchStage.timestamp = {};
-      if (startDate) matchStage.timestamp.$gte = startDate;
-      if (endDate) matchStage.timestamp.$lte = endDate;
+      if (startDate)
+        (matchStage.timestamp as Record<string, unknown>).$gte = startDate;
+      if (endDate)
+        (matchStage.timestamp as Record<string, unknown>).$lte = endDate;
     }
 
-    const stats = await this.auditLogModel.aggregate([
-      { $match: matchStage },
-      {
-        $group: {
-          _id: '$severity',
-          count: { $sum: 1 },
+    const stats: { _id: AuditSeverity; count: number }[] =
+      await this.auditLogModel.aggregate([
+        { $match: matchStage },
+        {
+          $group: {
+            _id: '$severity',
+            count: { $sum: 1 },
+          },
         },
-      },
-    ]);
+      ]);
 
     const result: Record<AuditSeverity, number> = {
       [AuditSeverity.LOW]: 0,

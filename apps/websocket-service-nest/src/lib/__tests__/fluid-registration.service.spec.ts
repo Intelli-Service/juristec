@@ -3,13 +3,14 @@ import { getModelToken } from '@nestjs/mongoose';
 import { FluidRegistrationService } from '../fluid-registration.service';
 import { VerificationService } from '../verification.service';
 import { IUser } from '../../models/User';
-import mongoose from 'mongoose';
+import mongoose, { Model } from 'mongoose';
+import { IConversation } from '../../models/Conversation';
 
 describe('FluidRegistrationService', () => {
   let service: FluidRegistrationService;
   let verificationService: VerificationService;
-  let userModel: any;
-  let conversationModel: any;
+  let userModel: Model<IUser>;
+  let conversationModel: Model<IConversation>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -26,23 +27,20 @@ describe('FluidRegistrationService', () => {
         {
           provide: getModelToken('User'),
           useValue: Object.assign(
-            function () {
-              return {
-                _id: new mongoose.Types.ObjectId(),
-                name: 'João Silva',
-                email: 'joao@email.com',
-                phone: '(11) 99999-9999',
-                save: jest.fn().mockResolvedValue({
-                  _id: new mongoose.Types.ObjectId(),
-                  name: 'João Silva',
-                  email: 'joao@email.com',
-                  phone: '(11) 99999-9999',
-                }),
+            jest.fn().mockImplementation((userData) => {
+              const userInstance = {
+                _id: 'mock-user-id',
+                email: userData.email || 'test@example.com',
+                name: userData.name || 'Test User',
+                ...userData,
               };
-            },
+              userInstance.save = jest.fn().mockResolvedValue(userInstance);
+              return userInstance;
+            }),
             {
               findOne: jest.fn(),
               create: jest.fn(),
+              findByIdAndUpdate: jest.fn(),
             },
           ),
         },
@@ -57,8 +55,10 @@ describe('FluidRegistrationService', () => {
 
     service = module.get<FluidRegistrationService>(FluidRegistrationService);
     verificationService = module.get<VerificationService>(VerificationService);
-    userModel = module.get(getModelToken('User'));
-    conversationModel = module.get(getModelToken('Conversation'));
+    userModel = module.get<Model<IUser>>(getModelToken('User'));
+    conversationModel = module.get<Model<IConversation>>(
+      getModelToken('Conversation'),
+    );
   });
 
   it('should be defined', () => {
@@ -67,13 +67,19 @@ describe('FluidRegistrationService', () => {
 
   describe('processFluidRegistration', () => {
     it('should create temporary user and send verification for new contact', async () => {
-      // Mock usuário não encontrado
-      userModel.findOne.mockResolvedValue(null);
-
+      jest.spyOn(userModel, 'findOne').mockResolvedValue(null);
+      jest.spyOn(userModel, 'create').mockResolvedValue({
+        _id: new mongoose.Types.ObjectId(),
+        name: 'Test User',
+        email: 'test@example.com',
+        role: 'client',
+      } as any);
       jest
         .spyOn(verificationService, 'generateCode')
         .mockResolvedValue('123456');
-      conversationModel.findByIdAndUpdate.mockResolvedValue({});
+      jest
+        .spyOn(conversationModel, 'findByIdAndUpdate')
+        .mockResolvedValue({} as IConversation);
 
       const result = await service.processFluidRegistration(
         {
@@ -82,7 +88,6 @@ describe('FluidRegistrationService', () => {
           phone: '+5511999999999',
         },
         new mongoose.Types.ObjectId().toString(),
-        'room-123',
       );
 
       expect(result.success).toBe(true);
@@ -92,24 +97,24 @@ describe('FluidRegistrationService', () => {
     });
 
     it('should connect existing verified user automatically', async () => {
-      // Mock usuário encontrado e verificado
       const existingUser = {
         _id: new mongoose.Types.ObjectId(),
         name: 'João Silva',
         email: 'joao@email.com',
         isActive: true,
-      };
+      } as any;
 
-      userModel.findOne.mockResolvedValue(existingUser);
+      jest.spyOn(userModel, 'findOne').mockResolvedValue(existingUser);
       jest.spyOn(verificationService, 'isVerified').mockResolvedValue(true);
-      conversationModel.findByIdAndUpdate.mockResolvedValue({});
+      jest
+        .spyOn(conversationModel, 'findByIdAndUpdate')
+        .mockResolvedValue({} as IConversation);
 
       const result = await service.processFluidRegistration(
         {
           email: 'joao@email.com',
         },
         new mongoose.Types.ObjectId().toString(),
-        'room-123',
       );
 
       expect(result.success).toBe(true);
@@ -117,15 +122,14 @@ describe('FluidRegistrationService', () => {
     }, 10000);
 
     it('should send verification for existing unverified user', async () => {
-      // Mock usuário encontrado mas não verificado
       const existingUser = {
         _id: new mongoose.Types.ObjectId(),
         name: 'João Silva',
         email: 'joao@email.com',
         isActive: true,
-      };
+      } as any;
 
-      userModel.findOne.mockResolvedValue(existingUser);
+      jest.spyOn(userModel, 'findOne').mockResolvedValue(existingUser);
       jest.spyOn(verificationService, 'isVerified').mockResolvedValue(false);
       jest
         .spyOn(verificationService, 'generateCode')
@@ -136,7 +140,6 @@ describe('FluidRegistrationService', () => {
           email: 'joao@email.com',
         },
         new mongoose.Types.ObjectId().toString(),
-        'room-123',
       );
 
       expect(result.success).toBe(true);
@@ -153,11 +156,13 @@ describe('FluidRegistrationService', () => {
         email: 'joao@email.com',
         isActive: false,
         save: jest.fn().mockResolvedValue(true),
-      };
+      } as unknown as IUser;
 
-      userModel.findOne.mockResolvedValue(user);
+      jest.spyOn(userModel, 'findOne').mockResolvedValue(user);
       jest.spyOn(verificationService, 'verifyCode').mockResolvedValue(true);
-      conversationModel.findByIdAndUpdate.mockResolvedValue({});
+      jest
+        .spyOn(conversationModel, 'findByIdAndUpdate')
+        .mockResolvedValue({} as IConversation);
 
       const result = await service.verifyAndCompleteRegistration(
         { email: 'joao@email.com' },
