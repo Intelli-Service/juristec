@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { IUser, UserRole, CaseStatus } from '../models/User';
 import { ICharge, ChargeStatus } from '../models/Charge';
 import { IConversation } from '../models/Conversation';
+import Conversation from '../models/Conversation';
 import { IMessage } from '../models/Message';
 
 interface ITopLawyer {

@@ -139,7 +139,7 @@ export class AIService {
   }
 
   // Método para atualizar configuração (usado pelo admin.controller)
-  async updateConfig(updates: Partial<IAIConfig>): Promise<IAIConfig> {
+  async updateConfig(updates: Partial<IAIConfig>, updatedBy: string): Promise<IAIConfig> {
     try {
       const existingConfig = await AIConfig.findOne()
         .sort({ createdAt: -1 })

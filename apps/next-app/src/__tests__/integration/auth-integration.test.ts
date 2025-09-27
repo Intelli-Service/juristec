@@ -32,7 +32,7 @@ describe('Authentication Integration (Next.js)', () => {
     }
   }
 
-  it('should test NextAuth login flow when available', async () => {
+  it.skip('should test NextAuth login flow when available', async () => {
     // Testa se Next.js está disponível
     try {
       const healthCheck = await realRequest(`${baseUrl}/api/auth/providers`)

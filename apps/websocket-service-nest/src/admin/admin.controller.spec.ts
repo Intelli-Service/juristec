@@ -120,7 +120,7 @@ describe('AdminController', () => {
 
         const result = await controller.updateAIConfig(updates, mockRequest);
 
-        expect(aiService.updateConfig).toHaveBeenCalledWith(updates);
+        expect(aiService.updateConfig).toHaveBeenCalledWith(updates, mockUser.userId);
         expect(result).toEqual(updatedConfig);
       });
     });

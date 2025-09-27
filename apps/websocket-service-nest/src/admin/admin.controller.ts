@@ -37,9 +37,9 @@ export class AdminController {
   @Permissions('manage_ai_config')
   async updateAIConfig(
     @Body() updates: any,
-    @Request() _req: { user: JwtPayload },
+    @Request() req: { user: JwtPayload },
   ) {
-    return this.aiService.updateConfig(updates);
+    return this.aiService.updateConfig(updates, req.user.userId);
   }
 
   // Gestão de usuários

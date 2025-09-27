@@ -21,8 +21,6 @@ services:
     working_dir: /app
     volumes:
       - ./apps/next-app:/app
-      - /app/node_modules
-      - /app/.next
     ports:
       - "3000:3000"
     environment:
@@ -39,7 +37,6 @@ services:
     working_dir: /app
     volumes:
       - ./apps/websocket-service-nest:/app
-      - /app/node_modules
     ports:
       - "4000:4000"
     environment:

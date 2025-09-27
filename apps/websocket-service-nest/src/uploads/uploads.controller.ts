@@ -82,4 +82,15 @@ export class UploadsController {
       throw new BadRequestException(error.message);
     }
   }
+
+  @Get('info')
+  getUploadInfo() {
+    return {
+      service: 'file-upload',
+      status: 'available',
+      maxFileSize: '10MB',
+      allowedTypes: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
+      timestamp: new Date().toISOString(),
+    };
+  }
 }

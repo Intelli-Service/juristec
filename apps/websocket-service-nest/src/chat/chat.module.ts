@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { ChatGateway } from './chat.gateway';
+import { ChatController } from './chat.controller';
 import { GeminiService } from '../lib/gemini.service';
 import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
@@ -23,6 +24,7 @@ import { VerificationCodeSchema } from '../models/VerificationCode';
     ]),
     BillingModule,
   ],
+  controllers: [ChatController],
   providers: [
     ChatGateway,
     GeminiService,

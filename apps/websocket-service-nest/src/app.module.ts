@@ -1,6 +1,7 @@
 import { Module, OnModuleInit, MiddlewareConsumer } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule } from '@nestjs/config';
 import { ChatModule } from './chat/chat.module';
 import { AdminModule } from './admin/admin.module';
 import { LawyerModule } from './lawyer/lawyer.module';
@@ -13,9 +14,14 @@ import { LGPDModule } from './lgpd/lgpd.module';
 import { AuditMiddleware } from './middleware/audit.middleware';
 import { MongodbService } from './lib/mongodb.service';
 import { AIService } from './lib/ai.service';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     // Only connect to MongoDB if URI is provided
     ...(process.env.MONGODB_URI
       ? [MongooseModule.forRoot(process.env.MONGODB_URI)]
@@ -34,7 +40,8 @@ import { AIService } from './lib/ai.service';
     FeedbackModule,
     LGPDModule,
   ],
-  providers: [MongodbService, AIService],
+  controllers: [AppController],
+  providers: [AppService, MongodbService, AIService],
 })
 export class AppModule implements OnModuleInit {
   constructor(private readonly mongodbService: MongodbService) {}

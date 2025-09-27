@@ -35,7 +35,7 @@ run_test_suite() {
     local directory=$3
     
     print_status "Running $suite_name..." "info"
-    cd "$directory" || exit 1
+    cd "/Users/jeanc/idea-app/$directory" || exit 1
     
     if eval "$test_command" > /tmp/test_output.log 2>&1; then
         print_status "$suite_name - PASSED" "success"
