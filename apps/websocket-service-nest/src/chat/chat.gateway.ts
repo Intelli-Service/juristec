@@ -213,13 +213,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           `Histórico carregado para userId ${client.data.userId}: ${messages.length} mensagens`,
         );
       } else {
-        // Criar nova conversa associada ao userId
+        // Criar nova conversa associada ao userId com suporte a múltiplas conversas
         console.log(`Criando nova conversa para userId ${client.data.userId}`);
+        
+        // Gerar número sequencial da conversa para este usuário
+        const existingConversations = await Conversation.countDocuments({
+          userId: client.data.userId,
+          isActive: true
+        });
+        const conversationNumber = existingConversations + 1;
+        
+        // Gerar roomId único para múltiplas conversas
+        const newRoomId = `user_${client.data.userId}_conv_${Date.now()}`;
+        
         conversation = await Conversation.create({
-          roomId,
+          roomId: newRoomId,
           userId: client.data.userId,
           isAuthenticated: client.data.isAuthenticated,
           user: client.data.user,
+          
+          // 🚀 NOVOS CAMPOS: Múltiplas conversas
+          title: `Conversa #${conversationNumber}`,
+          isActive: true,
+          lastMessageAt: new Date(),
+          unreadCount: 0,
+          conversationNumber,
         });
 
         client.emit('load-history', []);
@@ -229,7 +247,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           conversationId: conversation._id.toString(),
           roomId: conversation.roomId,
           status: conversation.status,
-          title: `Nova Conversa #${conversation._id.toString().slice(-6)}`,
+          title: conversation.title,
         });
         console.log(
           `Nova conversa criada para userId ${client.data.userId} na sala ${roomId}`,
@@ -239,6 +257,111 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       console.error('Erro ao carregar histórico:', error);
       // Mesmo com erro de DB, permitir que o usuário continue
       client.emit('load-history', []);
+    }
+  }
+
+  // 🚀 NOVO: Handler para conectar a todas as conversas ativas do usuário
+  @SubscribeMessage('join-all-conversations')
+  async handleJoinAllConversations(@ConnectedSocket() client: Socket) {
+    const userId = client.data.userId;
+    
+    if (!userId) {
+      client.emit('error', { message: 'UserId não encontrado' });
+      return;
+    }
+
+    try {
+      // Buscar TODAS as conversas ativas do usuário
+      const conversations = await Conversation.find({
+        userId,
+        isActive: true
+      }).sort({ lastMessageAt: -1 });
+
+      console.log(`🔗 Conectando usuário ${userId} a ${conversations.length} conversas`);
+
+      // Conectar a TODAS as salas simultaneamente
+      const roomsJoined = [];
+      for (const conv of conversations) {
+        await client.join(conv.roomId);
+        roomsJoined.push(conv.roomId);
+      }
+
+      console.log(`✅ Cliente ${client.id} conectado a salas: ${roomsJoined.join(', ')}`);
+
+      // Retornar lista de conversas para o frontend
+      client.emit('conversations-loaded', {
+        conversations: conversations.map(conv => ({
+          id: conv._id.toString(),
+          roomId: conv.roomId,
+          title: conv.title,
+          status: conv.status,
+          unreadCount: conv.unreadCount,
+          lastMessageAt: conv.lastMessageAt,
+          conversationNumber: conv.conversationNumber,
+          classification: conv.classification
+        })),
+        activeRooms: roomsJoined
+      });
+
+    } catch (error) {
+      console.error('❌ Erro ao conectar a múltiplas conversas:', error);
+      client.emit('error', { message: 'Erro ao carregar conversas' });
+    }
+  }
+
+  // 🚀 NOVO: Handler para criar nova conversa
+  @SubscribeMessage('create-new-conversation')
+  async handleCreateNewConversation(@ConnectedSocket() client: Socket) {
+    const userId = client.data.userId;
+    
+    if (!userId) {
+      client.emit('error', { message: 'UserId não encontrado' });
+      return;
+    }
+
+    try {
+      // Contar conversas ativas existentes para numeração
+      const existingCount = await Conversation.countDocuments({ 
+        userId, 
+        isActive: true 
+      });
+      const conversationNumber = existingCount + 1;
+
+      // Gerar roomId único
+      const roomId = `user_${userId}_conv_${Date.now()}`;
+
+      // Criar nova conversa
+      const newConversation = await Conversation.create({
+        roomId,
+        userId,
+        title: `Nova Conversa #${conversationNumber}`,
+        isActive: true,
+        lastMessageAt: new Date(),
+        unreadCount: 0,
+        conversationNumber,
+        isAuthenticated: client.data.isAuthenticated,
+        user: client.data.user
+      });
+
+      // Conectar cliente à nova sala
+      await client.join(newConversation.roomId);
+
+      console.log(`🆕 Nova conversa criada: ${newConversation.title} (${newConversation.roomId})`);
+
+      // Emitir nova conversa para o cliente
+      client.emit('new-conversation-created', {
+        id: newConversation._id.toString(),
+        roomId: newConversation.roomId,
+        title: newConversation.title,
+        status: newConversation.status,
+        unreadCount: 0,
+        lastMessageAt: newConversation.lastMessageAt,
+        conversationNumber: newConversation.conversationNumber
+      });
+
+    } catch (error) {
+      console.error('❌ Erro ao criar nova conversa:', error);
+      client.emit('error', { message: 'Erro ao criar nova conversa' });
     }
   }
 

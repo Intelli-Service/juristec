@@ -7,6 +7,14 @@ export interface IConversation extends Document {
   isAuthenticated: boolean; // Se o usuário estava autenticado na criação
   user?: any; // Dados do usuário autenticado (se aplicável)
   status: CaseStatus;
+  
+  // 🚀 NOVOS CAMPOS: Múltiplas conversas por usuário
+  title: string; // "Questão Trabalhista #1", "Divórcio Consensual #2", etc.
+  isActive: boolean; // Conversa ativa (true) ou arquivada (false)
+  lastMessageAt: Date; // Timestamp da última mensagem (para ordenação)
+  unreadCount: number; // Contador de mensagens não lidas pelo cliente
+  conversationNumber: number; // Número sequencial por usuário (#1, #2, #3...)
+  
   classification: {
     category: string;
     complexity: 'simples' | 'medio' | 'complexo';
@@ -51,6 +59,18 @@ const ConversationSchema = new Schema<IConversation>({
     enum: Object.values(CaseStatus),
     default: CaseStatus.OPEN,
   },
+  
+  // 🚀 NOVOS CAMPOS: Múltiplas conversas por usuário
+  title: { 
+    type: String, 
+    default: function() {
+      return `Conversa #${Date.now().toString().slice(-6)}`;
+    }
+  },
+  isActive: { type: Boolean, default: true },
+  lastMessageAt: { type: Date, default: Date.now },
+  unreadCount: { type: Number, default: 0, min: 0 },
+  conversationNumber: { type: Number, required: true, min: 1 },
   classification: {
     category: { type: String, default: 'Não classificado' },
     complexity: {
@@ -95,9 +115,15 @@ const ConversationSchema = new Schema<IConversation>({
   updatedAt: { type: Date, default: Date.now },
 });
 
-// Índices para performance
+// Índices para performance - otimizados para múltiplas conversas
 ConversationSchema.index({ status: 1, assignedTo: 1 });
-ConversationSchema.index({ userId: 1, createdAt: -1 }); // Busca por userId + ordenação por data
+ConversationSchema.index({ userId: 1, createdAt: -1 }); // Busca por userId + ordenação por data (legado)
+
+// 🚀 NOVOS ÍNDICES: Múltiplas conversas por usuário
+ConversationSchema.index({ userId: 1, isActive: 1, lastMessageAt: -1 }); // Lista conversas ativas ordenadas
+ConversationSchema.index({ roomId: 1 }, { unique: true }); // roomId único no sistema
+ConversationSchema.index({ userId: 1, conversationNumber: 1 }, { unique: true }); // Número único per usuário
+
 ConversationSchema.index({ 'classification.category': 1 });
 ConversationSchema.index({ 'classification.complexity': 1 });
 ConversationSchema.index({ priority: 1 });
