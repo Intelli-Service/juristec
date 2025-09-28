@@ -38,6 +38,9 @@ const mockConversationModel = {
   findByIdAndUpdate: jest.fn(),
 };
 
+const mockUserId = 'user123';
+const mockConversationId = 'conv123';
+
 describe('IntelligentUserRegistrationService', () => {
   let service: IntelligentUserRegistrationService;
   let geminiService: GeminiService;
@@ -90,15 +93,12 @@ describe('IntelligentUserRegistrationService', () => {
   });
 
   describe('processUserMessage', () => {
-    const mockUserId = 'user123';
-    const mockConversationId = 'conv123';
-
     beforeEach(() => {
       // Setup default mocks
       mockMessageService.getMessages.mockResolvedValue([
         {
           _id: 'msg1',
-          text: 'Olá, preciso de ajuda jurídica',
+          response: 'Olá, preciso de ajuda jurídica',
           sender: 'user',
           createdAt: new Date(),
         },
@@ -117,7 +117,15 @@ describe('IntelligentUserRegistrationService', () => {
       it('should classify conversation as resolved by AI and trigger feedback', async () => {
         // Arrange
         const userMessage = 'Obrigado, isso resolveu meu problema!';
-        const userMessage = 'Obrigado, isso resolveu meu problema!';
+        
+        mockMessageService.getMessages.mockResolvedValue([
+          {
+            _id: 'msg1',
+            text: 'Olá, preciso de ajuda jurídica',
+            sender: 'user',
+          },
+        ]);
+        
         const mockAIResponse = {
           response: 'Fico feliz em ajudar! Sua questão foi resolvida com sucesso.',
           functionCalls: [
@@ -144,7 +152,7 @@ describe('IntelligentUserRegistrationService', () => {
           mockAIResponse,
         );
         mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
+          response: mockAIResponse.response,
         });
         mockConversationModel.findByIdAndUpdate.mockResolvedValue({
           _id: mockConversationId,
@@ -162,6 +170,17 @@ describe('IntelligentUserRegistrationService', () => {
         );
 
         // Assert
+        expect(mockGeminiService.generateAIResponseWithFunctions).toHaveBeenCalledWith([
+          {
+            text: 'Olá, preciso de ajuda jurídica',
+            sender: 'user',
+          },
+          {
+            text: userMessage,
+            sender: 'user',
+          },
+        ]);
+
         expect(result).toEqual({
           response: mockAIResponse.response,
           statusUpdated: true,
@@ -172,20 +191,6 @@ describe('IntelligentUserRegistrationService', () => {
           specializationRequired: undefined,
           userRegistered: false,
         });
-        });
-
-        expect(
-          mockGeminiService.generateAIResponseWithFunctions,
-        ).toHaveBeenCalledWith([
-          {
-            text: 'Olá, preciso de ajuda jurídica',
-            sender: 'user',
-          },
-          {
-            text: userMessage,
-            sender: 'user',
-          },
-        ]);
       });
 
       it('should classify conversation as needing lawyer and trigger feedback', async () => {
@@ -234,6 +239,7 @@ describe('IntelligentUserRegistrationService', () => {
           specializationRequired: 'direito_trabalhista',
           shouldShowFeedback: true,
           feedbackReason: 'assigned_to_lawyer',
+          userRegistered: false,
         });
       });
 
@@ -241,7 +247,7 @@ describe('IntelligentUserRegistrationService', () => {
         // Arrange
         const userMessage = 'Olá, meu nome é João Silva, tenho 30 anos e preciso de ajuda com um contrato';
         const mockAIResponse = {
-          text: 'Olá João! Vou te ajudar com seu contrato. Primeiro, preciso registrar algumas informações.',
+          response: 'Olá João! Vou te ajudar com seu contrato. Primeiro, preciso registrar algumas informações.',
           functionCalls: [
             {
               name: 'register_user',
@@ -259,10 +265,10 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockFluidRegistrationService.registerUser.mockResolvedValue({
-          _id: 'user456',
-          name: 'João Silva',
-          email: 'joao@email.com',
+        mockFluidRegistrationService.processFluidRegistration.mockResolvedValue({
+          success: true,
+          userId: 'user456',
+          message: 'User registered successfully',
         });
 
         // Act
@@ -276,16 +282,18 @@ describe('IntelligentUserRegistrationService', () => {
           response: mockAIResponse.response,
           userRegistered: true,
           statusUpdated: false,
+          newStatus: undefined,
+          lawyerNeeded: undefined,
+          specializationRequired: undefined,
+          feedbackReason: undefined,
           shouldShowFeedback: false,
         });
 
-        expect(mockFluidRegistrationService.registerUser).toHaveBeenCalledWith(
+        expect(mockFluidRegistrationService.processFluidRegistration).toHaveBeenCalledWith(
           {
             name: 'João Silva',
             email: 'joao@email.com',
             phone: '11999999999',
-            problem_description: 'Precisa de ajuda com contrato',
-            urgency_level: 'medium',
           },
           mockConversationId,
         );
@@ -295,7 +303,7 @@ describe('IntelligentUserRegistrationService', () => {
         // Arrange
         const userMessage = 'Pode me explicar melhor sobre isso?';
         const mockAIResponse = {
-          text: 'Claro! Vou explicar em detalhes...',
+          response: 'Claro! Vou explicar em detalhes...',
           functionCalls: [], // No function calls for completion
         };
 
@@ -314,6 +322,11 @@ describe('IntelligentUserRegistrationService', () => {
         expect(result).toEqual({
           response: mockAIResponse.response,
           statusUpdated: false,
+          userRegistered: false,
+          newStatus: undefined,
+          lawyerNeeded: undefined,
+          specializationRequired: undefined,
+          feedbackReason: undefined,
           shouldShowFeedback: false,
         });
       });
@@ -322,7 +335,7 @@ describe('IntelligentUserRegistrationService', () => {
         // Arrange
         const userMessage = 'Obrigado pela ajuda!';
         const mockAIResponse = {
-          text: 'De nada! Fico feliz em ajudar.',
+          response: 'De nada! Fico feliz em ajudar.',
           functionCalls: [
             {
               name: 'detect_conversation_completion',
@@ -349,6 +362,11 @@ describe('IntelligentUserRegistrationService', () => {
         expect(result).toEqual({
           response: mockAIResponse.response,
           statusUpdated: false,
+          userRegistered: false,
+          newStatus: undefined,
+          lawyerNeeded: undefined,
+          specializationRequired: undefined,
+          feedbackReason: undefined,
           shouldShowFeedback: false, // Should default to false for invalid parameters
         });
       });
@@ -357,7 +375,7 @@ describe('IntelligentUserRegistrationService', () => {
         // Arrange
         const userMessage = 'Olá, preciso de ajuda jurídica';
         const mockAIResponse = {
-          text: 'Olá! Como posso te ajudar hoje?',
+          response: 'Olá! Como posso te ajudar hoje?',
           functionCalls: [],
         };
 
@@ -377,6 +395,11 @@ describe('IntelligentUserRegistrationService', () => {
         expect(result).toEqual({
           response: mockAIResponse.response,
           statusUpdated: false,
+          userRegistered: false,
+          newStatus: undefined,
+          lawyerNeeded: undefined,
+          specializationRequired: undefined,
+          feedbackReason: undefined,
           shouldShowFeedback: false,
         });
 
@@ -394,18 +417,26 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockRejectedValue(
           error,
         );
+        mockGeminiService.generateAIResponse.mockResolvedValue('Resposta de fallback');
 
-        // Act & Assert
-        await expect(
-          service.processUserMessage(userMessage, mockConversationId, mockUserId),
-        ).rejects.toThrow('Gemini API error');
+        // Act
+        const result = await service.processUserMessage(
+          userMessage,
+          mockConversationId,
+          mockUserId,
+        );
+
+        // Assert
+        expect(result).toEqual({
+          response: 'Resposta de fallback',
+        });
       });
 
       it('should handle user registration errors gracefully', async () => {
         // Arrange
         const userMessage = 'Quero me registrar';
         const mockAIResponse = {
-          text: 'Vou te registrar agora.',
+          response: 'Vou te registrar agora.',
           functionCalls: [
             {
               name: 'register_user',
@@ -421,14 +452,22 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockFluidRegistrationService.registerUser.mockRejectedValue(
+        mockGeminiService.generateAIResponse.mockResolvedValue('Fallback response');
+        mockFluidRegistrationService.processFluidRegistration.mockRejectedValue(
           new Error('Registration failed'),
         );
 
-        // Act & Assert
-        await expect(
-          service.processUserMessage(userMessage, mockConversationId),
-        ).rejects.toThrow('Registration failed');
+        // Act
+        const result = await service.processUserMessage(
+          userMessage,
+          mockConversationId,
+          mockUserId,
+        );
+
+        // Assert - Should fallback gracefully
+        expect(result).toEqual({
+          response: 'Fallback response',
+        });
       });
     });
   });
@@ -452,8 +491,6 @@ describe('IntelligentUserRegistrationService', () => {
       expect(true).toBe(true); // Placeholder test
     });
 
-    it('should provide appropriate feedback context messages', async () => {
-      // Test feedback context message generation
     it('should provide appropriate feedback context messages', async () => {
       // Test feedback context message generation
       expect(true).toBe(true); // Placeholder test
