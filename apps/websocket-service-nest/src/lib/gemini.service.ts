@@ -57,7 +57,6 @@ export class GeminiService {
   async getModel() {
     const config = await this.aiService.getCurrentConfig();
     const modelName = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
-    console.log(`Using Gemini model: ${modelName}`);
 
     return this.genAI.getGenerativeModel({
       model: modelName,
@@ -211,11 +210,32 @@ export class GeminiService {
     const model = await this.getModel();
     const config = await this.aiService.getCurrentConfig();
 
+    console.log('🤖 GEMINI SERVICE - Iniciando processamento');
+    console.log(`📨 Total de mensagens recebidas: ${messages.length}`);
+    console.log('📝 Mensagens recebidas:', messages.map((msg, idx) => ({
+      index: idx,
+      sender: msg.sender,
+      text: msg.text.substring(0, 100) + (msg.text.length > 100 ? '...' : '')
+    })));
+
     // Preparar histórico para chat session
     const history = messages.slice(0, -1).map((msg) => ({
       role: msg.sender === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }],
     }));
+
+    console.log('📚 Histórico preparado para Gemini:');
+    console.log(`   - Total de mensagens no histórico: ${history.length}`);
+    history.forEach((item, idx) => {
+      console.log(`   [${idx}] Role: ${item.role}, Parts:`, item.parts);
+    });
+
+    // Última mensagem do usuário
+    const lastMessage = messages[messages.length - 1];
+    console.log('🎯 Última mensagem a ser enviada:', {
+      sender: lastMessage.sender,
+      text: lastMessage.text.substring(0, 200) + (lastMessage.text.length > 200 ? '...' : '')
+    });
 
     // Iniciar chat com histórico
     const chat = model.startChat({
@@ -226,12 +246,12 @@ export class GeminiService {
       },
     });
 
-    // Última mensagem do usuário
-    const lastMessage = messages[messages.length - 1];
-
+    console.log('🚀 Enviando mensagem para Gemini...');
     const result = await chat.sendMessage(lastMessage.text);
 
+    console.log('✅ Resposta recebida do Gemini');
     const response = result.response;
+    console.log('📄 Texto da resposta:', response.text().substring(0, 300) + (response.text().length > 300 ? '...' : ''));
     const functionCalls: FunctionCall[] = [];
 
     // Verificar function calls na resposta

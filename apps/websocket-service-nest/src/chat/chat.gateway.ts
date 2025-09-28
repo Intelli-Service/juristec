@@ -24,6 +24,7 @@ import Conversation from '../models/Conversation';
   cors: {
     origin: ['http://localhost:3000', 'http://localhost:8080'], // Allow Next.js and nginx proxy
     methods: ['GET', 'POST'],
+    credentials: true, // Permitir envio de cookies
   },
 })
 @Injectable()
@@ -56,12 +57,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Se não encontrou, tentar extrair do cookie next-auth.session-token
       if (!token && client.handshake.headers?.cookie) {
         const cookies = client.handshake.headers.cookie;
+        console.log('🍪 Cookies recebidos:', cookies);
 
         // Extrair cookie next-auth.session-token
         const sessionCookie = this.parseCookie(
           cookies,
           'next-auth.session-token',
         );
+        console.log('🎫 Cookie next-auth.session-token encontrado:', sessionCookie ? 'SIM' : 'NÃO');
         if (sessionCookie) {
           token = sessionCookie;
         }
@@ -81,6 +84,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             secret:
               process.env.NEXTAUTH_SECRET || 'juristec_auth_key_2025_32bytes_',
           });
+          console.log('payload', JSON.stringify(payload, null, 2));
 
           client.data.user = payload;
           client.data.isAuthenticated = !payload.isAnonymous; // Usuários anônimos têm isAnonymous: true
@@ -411,8 +415,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           await this.intelligentRegistrationService.processUserMessage(
             message,
             conversation._id.toString(),
-            client.data.user?.id,
-            client.data.isAuthenticated, // Passar se deve incluir histórico baseado na autenticação
+            client.data.userId, // Usar userId consistente (sempre existe, mesmo para usuários anônimos)
+            true, // Sempre incluir histórico quando há conversationId (todas as mensagens são salvas no banco)
+            client.data.isAuthenticated, // Passar se o usuário está autenticado para determinar o role correto
           );
         aiResponseText = registrationResult.response;
       } catch (aiError) {
