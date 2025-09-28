@@ -4,10 +4,16 @@ import '@testing-library/jest-dom';
 import Chat from '../components/Chat';
 import { useNotifications } from '../hooks/useNotifications';
 import { useFeedback } from '../hooks/useFeedback';
+import { useSession } from 'next-auth/react';
 
 // Mock dos hooks
 jest.mock('../hooks/useNotifications');
 jest.mock('../hooks/useFeedback');
+
+// Mock do NextAuth
+jest.mock('next-auth/react', () => ({
+  useSession: jest.fn(),
+}));
 
 // Mock do socket.io-client no topo do arquivo
 const mockSocket = {
@@ -22,7 +28,7 @@ const mockSocket = {
 jest.mock('socket.io-client', () => ({
   __esModule: true,
   default: jest.fn(() => {
-    // Simular conexão imediata
+    // Simular conexão imediata chamando o callback de 'connect'
     setTimeout(() => {
       mockSocket.on.mock.calls
         .filter(([event]) => event === 'connect')
@@ -87,6 +93,21 @@ beforeEach(() => {
   (useNotifications as jest.Mock).mockReturnValue(mockNotifications);
   (useFeedback as jest.Mock).mockReturnValue(mockFeedback);
 
+  // Mock do useSession - sessão não autenticada por padrão
+  (useSession as jest.MockedFunction<typeof useSession>).mockReturnValue({
+    data: null,
+    status: 'unauthenticated',
+  } as ReturnType<typeof useSession>);
+
+  // Mock do localStorage para usuários anônimos
+  const mockLocalStorage = {
+    getItem: jest.fn((key: string) => key === 'anonymous-user-id' ? 'test-anon-id' : null),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+    clear: jest.fn(),
+  };
+  Object.defineProperty(window, 'localStorage', { value: mockLocalStorage });
+
   // Mock do fetch
   (global.fetch as jest.Mock).mockResolvedValue({
     ok: true,
@@ -96,6 +117,14 @@ beforeEach(() => {
 
 describe('Chat Component', () => {
   it('renders basic chat interface', () => {
+    // Setup authenticated session for socket creation
+    (useSession as jest.MockedFunction<typeof useSession>).mockReturnValue({
+      data: {
+        user: { id: 'test-user-id' },
+      },
+      status: 'authenticated',
+    } as ReturnType<typeof useSession>);
+
     render(<Chat />);
 
     expect(screen.getByPlaceholderText('Digite sua mensagem jurídica...')).toBeInTheDocument();
@@ -104,6 +133,14 @@ describe('Chat Component', () => {
   });
 
   it('sends message when form is submitted', async () => {
+    // Setup authenticated session for socket creation
+    (useSession as jest.MockedFunction<typeof useSession>).mockReturnValue({
+      data: {
+        user: { id: 'test-user-id' },
+      },
+      status: 'authenticated',
+    } as ReturnType<typeof useSession>);
+
     render(<Chat />);
 
     // Wait for connection to be established
@@ -122,8 +159,6 @@ describe('Chat Component', () => {
       expect(mockSocket.emit).toHaveBeenCalledWith('send-message', {
         text: 'Olá, preciso de ajuda',
         attachments: [],
-        roomId: expect.any(String),
-        userId: expect.stringMatching(/^user-/),
       });
     });
   });
@@ -143,6 +178,14 @@ describe('Chat Component', () => {
   });
 
   it('shows loading state while sending message', async () => {
+    // Setup authenticated session for socket creation
+    (useSession as jest.MockedFunction<typeof useSession>).mockReturnValue({
+      data: {
+        user: { id: 'test-user-id' },
+      },
+      status: 'authenticated',
+    } as ReturnType<typeof useSession>);
+
     render(<Chat />);
 
     // Wait for connection to be established
@@ -175,8 +218,21 @@ describe('Chat Component', () => {
     consoleSpy.mockRestore();
   });
 
-  it('cleans up socket connection on unmount', () => {
+  it('cleans up socket connection on unmount', async () => {
+    // Setup authenticated session for socket creation
+    (useSession as jest.MockedFunction<typeof useSession>).mockReturnValue({
+      data: {
+        user: { id: 'test-user-id' },
+      },
+      status: 'authenticated',
+    } as ReturnType<typeof useSession>);
+
     const { unmount } = render(<Chat />);
+
+    // Wait for socket to be created
+    await waitFor(() => {
+      expect(mockSocket.disconnect).not.toHaveBeenCalled();
+    });
 
     unmount();
 

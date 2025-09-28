@@ -24,6 +24,7 @@ import Conversation from '../models/Conversation';
   cors: {
     origin: ['http://localhost:3000', 'http://localhost:8080'], // Allow Next.js and nginx proxy
     methods: ['GET', 'POST'],
+    credentials: true, // Permitir envio de cookies
   },
 })
 @Injectable()
@@ -45,22 +46,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket) {
     try {
-      console.log(`=== NOVA CONEXÃO WEBSOCKET ===`);
-      console.log(`Cliente ID: ${client.id}`);
-
       // Extrair token JWT do NextAuth (cookies ou auth token)
       let token: string | null = null;
 
       // Primeiro tentar do handshake auth (caso seja passado diretamente)
       if (client.handshake.auth?.token) {
         token = client.handshake.auth.token;
-        console.log('Token encontrado no handshake auth');
       }
 
       // Se não encontrou, tentar extrair do cookie next-auth.session-token
       if (!token && client.handshake.headers?.cookie) {
         const cookies = client.handshake.headers.cookie;
-        console.log('Cookies recebidos:', cookies);
 
         // Extrair cookie next-auth.session-token
         const sessionCookie = this.parseCookie(
@@ -69,7 +65,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         );
         if (sessionCookie) {
           token = sessionCookie;
-          console.log('Token extraído do cookie next-auth.session-token');
         }
       }
 
@@ -78,17 +73,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const authHeader = client.handshake.headers.authorization;
         if (authHeader.startsWith('Bearer ')) {
           token = authHeader.substring(7);
-          console.log('Token extraído do header Authorization');
         }
       }
 
       if (token) {
         try {
-          console.log('Tentando validar token JWT...');
           const payload = this.jwtService.verify(token, {
             secret:
               process.env.NEXTAUTH_SECRET || 'juristec_auth_key_2025_32bytes_',
           });
+          console.log('payload', JSON.stringify(payload, null, 2));
 
           client.data.user = payload;
           client.data.isAuthenticated = !payload.isAnonymous; // Usuários anônimos têm isAnonymous: true
@@ -154,7 +148,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('join-room')
   async handleJoinRoom(
-    @MessageBody() data: { roomId?: string },
+    @MessageBody() _data: object = {},
     @ConnectedSocket() client: Socket,
   ) {
     console.log(`=== CLIENTE ENTRANDO NA SALA ===`);
@@ -171,12 +165,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    // Usar userId como roomId se não especificado
-    const roomId = data.roomId || `user-${client.data.userId}`;
+    // Usar userId como roomId
+    const roomId = client.data.userId;
     console.log(`Cliente ${client.id} entrando na sala: ${roomId}`);
 
     // Adicionar cliente à sala
-    client.join(roomId);
+    void client.join(roomId);
     console.log(`Cliente ${client.id} adicionado à sala ${roomId}`);
 
     // Tentar carregar histórico da conversa baseado no userId
@@ -190,7 +184,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         console.log(`Conversa encontrada para userId ${client.data.userId}`);
         const messages = await this.messageService.getMessages(
           { conversationId: conversation._id },
-          { userId: 'system', role: 'system', permissions: ['read'] },
+          {
+            userId: client.data.userId,
+            role: client.data.isAuthenticated ? 'client' : 'anonymous',
+            permissions: ['read'],
+          },
         );
 
         client.emit(
@@ -265,8 +263,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Entrar na sala do cliente (para comunicação direta) e na sala específica do advogado
-      client.join(roomId); // Sala principal do cliente
-      client.join(`lawyer-${roomId}`); // Sala específica dos advogados
+      void client.join(roomId); // Sala principal do cliente
+      void client.join(`lawyer-${roomId}`); // Sala específica dos advogados
 
       // Carregar histórico completo da conversa
       const messages = await this.messageService.getMessages(
@@ -294,10 +292,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('send-message')
   async handleSendMessage(
-    @MessageBody() data: { roomId: string; text: string },
+    @MessageBody() data: { text: string; attachments?: any[] },
     @ConnectedSocket() client: Socket,
   ) {
-    const { roomId, text: message } = data;
+    const { text: message, attachments: _attachments = [] } = data;
+
+    // Usar userId do cliente como roomId
+    const roomId = client.data.userId;
 
     let conversation: any;
 
@@ -412,8 +413,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           await this.intelligentRegistrationService.processUserMessage(
             message,
             conversation._id.toString(),
-            client.data.user?.id,
-            client.data.isAuthenticated, // Passar se deve incluir histórico
+            client.data.userId, // Usar userId consistente (sempre existe, mesmo para usuários anônimos)
+            true, // Sempre incluir histórico quando há conversationId (todas as mensagens são salvas no banco)
+            client.data.isAuthenticated, // Passar se o usuário está autenticado para determinar o role correto
           );
         aiResponseText = registrationResult.response;
       } catch (aiError) {

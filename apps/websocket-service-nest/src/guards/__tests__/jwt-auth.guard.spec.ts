@@ -74,7 +74,7 @@ describe('JwtAuthGuard', () => {
       mockRequest.headers.authorization = `Bearer ${validToken}`;
       mockedJwt.verify.mockReturnValue(mockJwtPayload as any);
 
-      const result = await guard.canActivate(mockExecutionContext);
+      const result = guard.canActivate(mockExecutionContext);
 
       expect(result).toBe(true);
       expect(mockedJwt.verify).toHaveBeenCalledWith(
@@ -108,7 +108,7 @@ describe('JwtAuthGuard', () => {
         return undefined;
       });
 
-      const result = await guard.canActivate(mockExecutionContext);
+      const result = guard.canActivate(mockExecutionContext);
 
       expect(result).toBe(true);
     });
@@ -121,7 +121,7 @@ describe('JwtAuthGuard', () => {
         return undefined;
       });
 
-      const result = await guard.canActivate(mockExecutionContext);
+      const result = guard.canActivate(mockExecutionContext);
 
       expect(result).toBe(true);
     });
@@ -220,7 +220,8 @@ describe('JwtAuthGuard', () => {
     it('should extract token from __Secure-next-auth.session-token cookie', () => {
       const request = {
         headers: {
-          cookie: '__Secure-next-auth.session-token=secure-cookie-token; other=value',
+          cookie:
+            '__Secure-next-auth.session-token=secure-cookie-token; other=value',
         },
       };
 
@@ -249,7 +250,8 @@ describe('JwtAuthGuard', () => {
     it('should handle URL-encoded cookies correctly', () => {
       const request = {
         headers: {
-          cookie: 'next-auth.session-token=encoded%2Btoken%3Dvalue; other=value',
+          cookie:
+            'next-auth.session-token=encoded%2Btoken%3Dvalue; other=value',
         },
       };
 

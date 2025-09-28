@@ -160,7 +160,11 @@ describe('ChatGateway - User Data Collection Integration', () => {
       // Simular socket e server
       const mockSocket = {
         id: 'socket-id',
-        data: { isAuthenticated: false, user: null },
+        data: {
+          isAuthenticated: false,
+          user: null,
+          userId: 'test-user-id',
+        },
         emit: jest.fn(),
       };
 
@@ -173,7 +177,7 @@ describe('ChatGateway - User Data Collection Integration', () => {
 
       // Chamar o método handleSendMessage
       await gateway.handleSendMessage(
-        { roomId: 'test-room', text: 'Olá, preciso de ajuda' },
+        { text: 'Olá, preciso de ajuda' },
         mockSocket as any,
       );
 
@@ -183,12 +187,13 @@ describe('ChatGateway - User Data Collection Integration', () => {
       ).toHaveBeenCalledWith(
         'Olá, preciso de ajuda',
         'conversation-id',
-        undefined,
-        false,
+        'test-user-id', // userId do socket
+        true, // includeHistory = true (hardcoded no gateway)
+        false, // isAuthenticated = false
       );
 
       // Verificar se a mensagem de contato foi enviada
-      expect(mockServer.to).toHaveBeenCalledWith('test-room');
+      expect(mockServer.to).toHaveBeenCalledWith('test-user-id');
       expect(mockServer.emit).toHaveBeenCalledWith('receive-message', {
         text: 'Olá! Para te ajudar melhor, preciso de algumas informações. Qual é o seu nome?',
         sender: 'ai',
@@ -225,7 +230,11 @@ describe('ChatGateway - User Data Collection Integration', () => {
       // Simular socket e server
       const mockSocket = {
         id: 'socket-id',
-        data: { isAuthenticated: false, user: null },
+        data: {
+          isAuthenticated: false,
+          user: null,
+          userId: 'test-user-id',
+        },
         emit: jest.fn(),
       };
 
@@ -238,7 +247,7 @@ describe('ChatGateway - User Data Collection Integration', () => {
 
       // Chamar o método handleSendMessage
       await gateway.handleSendMessage(
-        { roomId: 'test-room', text: 'Olá, preciso de ajuda' },
+        { text: 'Olá, preciso de ajuda' },
         mockSocket as any,
       );
 
@@ -248,8 +257,9 @@ describe('ChatGateway - User Data Collection Integration', () => {
       ).toHaveBeenCalledWith(
         'Olá, preciso de ajuda',
         'conversation-id',
-        undefined,
-        false,
+        'test-user-id', // userId do socket
+        true, // includeHistory = true (hardcoded no gateway)
+        false, // isAuthenticated = false
       );
     }, 10000);
   });

@@ -141,7 +141,6 @@ export default function LawyerChatPage() {
     newSocket.emit('join-lawyer-room', roomId);
 
     newSocket.on('lawyer-history-loaded', (history: Message[]) => {
-      console.log('Histórico carregado via WebSocket:', history);
       setMessages(history);
     });
 

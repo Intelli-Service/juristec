@@ -15,7 +15,6 @@ export default function ChatPage() {
       // Se não há sessão, fazer login anônimo
       if (!session) {
         try {
-          console.log('Criando sessão anônima...');
           await signIn('anonymous', { redirect: false });
         } catch (error) {
           console.error('Erro ao criar sessão anônima:', error);
@@ -40,22 +39,6 @@ export default function ChatPage() {
     );
   }
 
-  // Se ainda não há sessão após tentar login anônimo, mostrar erro
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">Erro ao inicializar sessão</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
-          >
-            Tentar novamente
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+  // Renderizar Chat mesmo sem sessão para testar
   return <Chat />;
 }

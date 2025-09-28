@@ -200,6 +200,13 @@ export class MessageService {
         // Super admin tem acesso total
         return;
 
+      case 'anonymous':
+        // Usuários anônimos só acessam suas próprias conversas
+        if (conversation.userId !== requestingUser.userId) {
+          throw new ForbiddenException('Acesso negado a esta conversa');
+        }
+        break;
+
       case 'lawyer':
         // Advogados só acessam casos atribuídos a eles
         if (conversation.assignedTo !== requestingUser.userId) {

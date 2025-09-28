@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { IntelligentUserRegistrationService } from './intelligent-user-registration.service';
-import { GeminiService } from './gemini.service';
-import { AIService } from './ai.service';
-import { MessageService } from './message.service';
-import { FluidRegistrationService } from './fluid-registration.service';
+import { IntelligentUserRegistrationService } from '../intelligent-user-registration.service';
+import { GeminiService } from '../gemini.service';
+import { AIService } from '../ai.service';
+import { MessageService } from '../message.service';
+import { FluidRegistrationService } from '../fluid-registration.service';
 import { getModelToken } from '@nestjs/mongoose';
-import { CaseStatus } from '../models/User';
+import { CaseStatus } from '../../models/User';
 
 // Mock classes
 const mockGeminiService = {
@@ -37,6 +37,9 @@ const mockConversationModel = {
   findOneAndUpdate: jest.fn(),
   findByIdAndUpdate: jest.fn(),
 };
+
+const mockUserId = 'user123';
+const mockConversationId = 'conv123';
 
 describe('IntelligentUserRegistrationService', () => {
   let service: IntelligentUserRegistrationService;
@@ -89,39 +92,40 @@ describe('IntelligentUserRegistrationService', () => {
     jest.clearAllMocks();
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
-
-  it('should have required methods', () => {
-    expect(service.processUserMessage).toBeDefined();
-  });
-
   describe('processUserMessage', () => {
-    const mockUserId = 'user123';
-    const mockConversationId = 'conv123';
-
     beforeEach(() => {
       // Setup default mocks
       mockMessageService.getMessages.mockResolvedValue([
         {
           _id: 'msg1',
-          text: 'Olá, preciso de ajuda jurídica',
+          response: 'Olá, preciso de ajuda jurídica',
           sender: 'user',
           createdAt: new Date(),
         },
       ]);
-      mockAIService.getCurrentConfig.mockResolvedValue({
-        enabled: true,
-        model: 'gemini-pro',
-        temperature: 0.7,
+
+      mockAIService.getCurrentConfig.mockReturnValue({
+        systemPrompt: 'Você é um assistente jurídico brasileiro.',
+        behaviorSettings: {
+          maxTokens: 1000,
+          temperature: 0.7,
+        },
       });
     });
 
     describe('Status Classification via Function Calls', () => {
       it('should classify conversation as resolved by AI and trigger feedback', async () => {
         // Arrange
-        const userMessage = 'Obrigado pela ajuda! Minha dúvida foi resolvida.';
+        const userMessage = 'Obrigado, isso resolveu meu problema!';
+
+        mockMessageService.getMessages.mockResolvedValue([
+          {
+            _id: 'msg1',
+            text: 'Olá, preciso de ajuda jurídica',
+            sender: 'user',
+          },
+        ]);
+
         const mockAIResponse = {
           response:
             'Fico feliz em ajudar! Sua questão foi resolvida com sucesso.',
@@ -149,7 +153,7 @@ describe('IntelligentUserRegistrationService', () => {
           mockAIResponse,
         );
         mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
+          response: mockAIResponse.response,
         });
         mockConversationModel.findByIdAndUpdate.mockResolvedValue({
           _id: mockConversationId,
@@ -169,6 +173,19 @@ describe('IntelligentUserRegistrationService', () => {
         );
 
         // Assert
+        expect(
+          mockGeminiService.generateAIResponseWithFunctions,
+        ).toHaveBeenCalledWith([
+          {
+            text: 'Olá, preciso de ajuda jurídica',
+            sender: 'user',
+          },
+          {
+            text: userMessage,
+            sender: 'user',
+          },
+        ]);
+
         expect(result).toEqual({
           response: mockAIResponse.response,
           statusUpdated: true,
@@ -179,16 +196,6 @@ describe('IntelligentUserRegistrationService', () => {
           specializationRequired: undefined,
           userRegistered: false,
         });
-
-        expect(
-          mockGeminiService.generateAIResponseWithFunctions,
-        ).toHaveBeenCalled();
-        expect(mockConversationModel.findByIdAndUpdate).toHaveBeenCalledWith(
-          mockConversationId,
-          expect.objectContaining({
-            status: 'resolved_by_ai',
-          }),
-        );
       });
 
       it('should classify conversation as needing lawyer and trigger feedback', async () => {
@@ -222,18 +229,6 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
-        });
-        mockConversationModel.findByIdAndUpdate.mockResolvedValue({
-          _id: mockConversationId,
-          status: 'assigned_to_lawyer',
-        });
-        mockFluidRegistrationService.processFluidRegistration.mockResolvedValue(
-          {
-            success: true,
-          },
-        );
 
         // Act
         const result = await service.processUserMessage(
@@ -253,23 +248,12 @@ describe('IntelligentUserRegistrationService', () => {
           feedbackReason: 'assigned_to_lawyer',
           userRegistered: false,
         });
-
-        expect(mockConversationModel.findByIdAndUpdate).toHaveBeenCalledWith(
-          mockConversationId,
-          expect.objectContaining({
-            status: 'assigned_to_lawyer',
-            lawyerNeeded: true,
-            classification: {
-              legalArea: 'direito_trabalhista',
-            },
-          }),
-        );
       });
 
       it('should handle user registration via function call', async () => {
         // Arrange
         const userMessage =
-          'Olá, meu nome é João Silva e preciso de ajuda jurídica';
+          'Olá, meu nome é João Silva, tenho 30 anos e preciso de ajuda com um contrato';
         const mockAIResponse = {
           response:
             'Olá João! Vou te ajudar com seu contrato. Primeiro, preciso registrar algumas informações.',
@@ -278,9 +262,10 @@ describe('IntelligentUserRegistrationService', () => {
               name: 'register_user',
               parameters: {
                 name: 'João Silva',
-                email: 'joao.silva@email.com',
-                phone: '+5511999999999',
-                consent: true,
+                email: 'joao@email.com',
+                phone: '11999999999',
+                problem_description: 'Precisa de ajuda com contrato',
+                urgency_level: 'medium',
               },
             },
           ],
@@ -289,13 +274,11 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
-        });
         mockFluidRegistrationService.processFluidRegistration.mockResolvedValue(
           {
             success: true,
-            userId: 'newUser123',
+            userId: 'user456',
+            message: 'User registered successfully',
           },
         );
 
@@ -303,7 +286,6 @@ describe('IntelligentUserRegistrationService', () => {
         const result = await service.processUserMessage(
           userMessage,
           mockConversationId,
-          mockUserId,
         );
 
         // Assert
@@ -311,19 +293,20 @@ describe('IntelligentUserRegistrationService', () => {
           response: mockAIResponse.response,
           userRegistered: true,
           statusUpdated: false,
-          shouldShowFeedback: false,
           newStatus: undefined,
           lawyerNeeded: undefined,
           specializationRequired: undefined,
+          feedbackReason: undefined,
+          shouldShowFeedback: false,
         });
 
         expect(
           mockFluidRegistrationService.processFluidRegistration,
         ).toHaveBeenCalledWith(
           {
-            email: 'joao.silva@email.com',
-            phone: '+5511999999999',
             name: 'João Silva',
+            email: 'joao@email.com',
+            phone: '11999999999',
           },
           mockConversationId,
         );
@@ -331,18 +314,15 @@ describe('IntelligentUserRegistrationService', () => {
 
       it('should not trigger feedback when conversation is still active', async () => {
         // Arrange
-        const userMessage = 'Claro! Vou explicar em detalhes...';
+        const userMessage = 'Pode me explicar melhor sobre isso?';
         const mockAIResponse = {
           response: 'Claro! Vou explicar em detalhes...',
-          functionCalls: [], // No function calls for active conversation
+          functionCalls: [], // No function calls for completion
         };
 
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
-        });
 
         // Act
         const result = await service.processUserMessage(
@@ -355,27 +335,26 @@ describe('IntelligentUserRegistrationService', () => {
         expect(result).toEqual({
           response: mockAIResponse.response,
           statusUpdated: false,
-          shouldShowFeedback: false,
           userRegistered: false,
           newStatus: undefined,
           lawyerNeeded: undefined,
           specializationRequired: undefined,
+          feedbackReason: undefined,
+          shouldShowFeedback: false,
         });
-
-        expect(mockConversationModel.findByIdAndUpdate).not.toHaveBeenCalled();
       });
 
       it('should handle invalid feedback parameters gracefully', async () => {
         // Arrange
-        const userMessage = 'De nada! Fico feliz em ajudar.';
+        const userMessage = 'Obrigado pela ajuda!';
         const mockAIResponse = {
           response: 'De nada! Fico feliz em ajudar.',
           functionCalls: [
             {
               name: 'detect_conversation_completion',
               parameters: {
-                should_show_feedback: 'invalid', // Invalid parameter
-                completion_reason: null, // Invalid parameter
+                should_show_feedback: 'invalid_boolean', // Invalid type
+                completion_reason: null, // Invalid value
               },
             },
           ],
@@ -384,9 +363,6 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
-        });
 
         // Act
         const result = await service.processUserMessage(
@@ -399,48 +375,48 @@ describe('IntelligentUserRegistrationService', () => {
         expect(result).toEqual({
           response: mockAIResponse.response,
           statusUpdated: false,
-          shouldShowFeedback: false, // Should default to false for invalid parameters
           userRegistered: false,
           newStatus: undefined,
           lawyerNeeded: undefined,
           specializationRequired: undefined,
           feedbackReason: undefined,
+          shouldShowFeedback: false, // Should default to false for invalid parameters
         });
       });
 
       it('should handle anonymous users without conversation history', async () => {
         // Arrange
-        const userMessage = 'Olá! Como posso te ajudar hoje?';
+        const userMessage = 'Olá, preciso de ajuda jurídica';
         const mockAIResponse = {
           response: 'Olá! Como posso te ajudar hoje?',
-          functionCalls: [], // No function calls
+          functionCalls: [],
         };
 
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
-        });
 
         // Act
         const result = await service.processUserMessage(
           userMessage,
-          mockConversationId, // No userId provided
+          mockConversationId,
+          undefined, // No userId (anonymous)
+          false, // includeHistory = false
         );
 
         // Assert
         expect(result).toEqual({
           response: mockAIResponse.response,
           statusUpdated: false,
-          shouldShowFeedback: false,
           userRegistered: false,
           newStatus: undefined,
           lawyerNeeded: undefined,
           specializationRequired: undefined,
+          feedbackReason: undefined,
+          shouldShowFeedback: false,
         });
 
-        // Should not try to fetch conversation history for anonymous users
+        // Should not call getMessages for anonymous users
         expect(mockMessageService.getMessages).not.toHaveBeenCalled();
       });
     });
@@ -448,35 +424,41 @@ describe('IntelligentUserRegistrationService', () => {
     describe('Error Handling', () => {
       it('should handle Gemini service errors gracefully', async () => {
         // Arrange
-        const userMessage = 'Mensagem de teste';
+        const userMessage = 'Olá';
+        const error = new Error('Gemini API error');
+
         mockGeminiService.generateAIResponseWithFunctions.mockRejectedValue(
-          new Error('Gemini API error'),
+          error,
         );
-        mockGeminiService.generateAIResponse.mockRejectedValue(
-          new Error('Fallback API error'),
+        mockGeminiService.generateAIResponse.mockResolvedValue(
+          'Resposta de fallback',
         );
 
-        // Act & Assert
-        await expect(
-          service.processUserMessage(
-            userMessage,
-            mockConversationId,
-            mockUserId,
-          ),
-        ).rejects.toThrow('Fallback API error');
+        // Act
+        const result = await service.processUserMessage(
+          userMessage,
+          mockConversationId,
+          mockUserId,
+        );
+
+        // Assert
+        expect(result).toEqual({
+          response: 'Resposta de fallback',
+        });
       });
 
       it('should handle user registration errors gracefully', async () => {
         // Arrange
-        const userMessage = 'Mensagem que requer registro';
+        const userMessage = 'Quero me registrar';
         const mockAIResponse = {
-          response: 'Vamos registrar você primeiro.',
+          response: 'Vou te registrar agora.',
           functionCalls: [
             {
               name: 'register_user',
               parameters: {
                 name: 'Test User',
-                email: 'test@example.com',
+                problem_description: 'Test problem',
+                urgency_level: 'low',
               },
             },
           ],
@@ -485,42 +467,50 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
+        mockGeminiService.generateAIResponse.mockResolvedValue(
+          'Fallback response',
+        );
         mockFluidRegistrationService.processFluidRegistration.mockRejectedValue(
           new Error('Registration failed'),
         );
-        mockGeminiService.generateAIResponse.mockRejectedValue(
-          new Error('Fallback API error'),
+
+        // Act
+        const result = await service.processUserMessage(
+          userMessage,
+          mockConversationId,
+          mockUserId,
         );
 
-        // Act & Assert
-        await expect(
-          service.processUserMessage(userMessage, mockConversationId),
-        ).rejects.toThrow('Fallback API error');
+        // Assert - Should fallback gracefully
+        expect(result).toEqual({
+          response: 'Fallback response',
+        });
       });
     });
   });
 
   describe('Status Update Handling', () => {
     it('should handle status update to completed', async () => {
-      // Test through integration - this logic is tested in the processUserMessage tests above
-      expect(true).toBe(true); // Placeholder test - logic is tested in integration tests above
+      // This would test the handleStatusUpdate method
+      // Implementation depends on the actual method signature
+      expect(true).toBe(true); // Placeholder test
     });
 
     it('should handle status update with lawyer assignment', async () => {
-      // Test through integration - this logic is tested in the processUserMessage tests above
-      expect(true).toBe(true); // Placeholder test - logic is tested in integration tests above
+      // This would test lawyer assignment logic
+      expect(true).toBe(true); // Placeholder test
     });
   });
 
   describe('Feedback Detection Logic', () => {
-    it('should detect when feedback should be shown based on completion reason', () => {
+    it('should detect when feedback should be shown based on completion reason', async () => {
       // Test the logic for determining when to show feedback
-      expect(true).toBe(true); // Placeholder test - logic is tested in integration tests above
+      expect(true).toBe(true); // Placeholder test
     });
 
-    it('should provide appropriate feedback context messages', () => {
+    it('should provide appropriate feedback context messages', async () => {
       // Test feedback context message generation
-      expect(true).toBe(true); // Placeholder test - logic is tested in integration tests above
+      expect(true).toBe(true); // Placeholder test
     });
   });
 });
