@@ -230,6 +230,43 @@ npm run test:cov     # Tests with coverage
 npm run lint         # ESLint check
 ```
 
+## ⚡ CI/CD Pipeline
+
+### Pipeline Otimizada (Paralelo)
+
+A pipeline CI foi otimizada para máxima velocidade com execução paralela:
+
+```yaml
+# ✅ Execução Paralela (2-3min vs 8-10min sequencial)
+Jobs Simultâneos:
+├── frontend-lint     # ESLint frontend
+├── frontend-build    # Next.js build
+├── frontend-test     # Jest tests
+├── backend-lint      # ESLint backend  
+├── backend-build     # TypeScript build
+└── backend-test      # Jest + coverage
+```
+
+### Comandos Locais
+
+```bash
+# Executar pipeline local (paralelo)
+npm run ci:frontend &  # Frontend completo em background
+npm run ci:backend     # Backend completo
+
+# Comandos individuais para debug
+npm run lint          # Lint apenas
+npm run build         # Build apenas
+npm run test          # Test apenas
+```
+
+### Performance
+
+- **Antes**: ~8-10min sequencial
+- **Depois**: ~2-3min paralelo
+- **Cache**: Dependencies e builds otimizados
+- **Falhas**: Fast-fail para feedback rápido
+
 ## 🔐 Autenticação
 
 ### Usuários de Teste
