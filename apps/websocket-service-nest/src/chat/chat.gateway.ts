@@ -45,25 +45,69 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket) {
     try {
-      // Tentar autenticar se houver token, mas permitir conexões anônimas
+      console.log(`=== NOVA CONEXÃO WEBSOCKET ===`);
+      console.log(`Cliente ID: ${client.id}`);
+
+      // Extrair token JWT do NextAuth (pode ser anônimo ou autenticado)
       const token =
         client.handshake.auth.token ||
         client.handshake.headers.authorization?.split(' ')[1];
 
       if (token) {
-        const payload = this.jwtService.verify(token, {
-          secret: process.env.NEXTAUTH_SECRET || 'fallback-secret',
-        });
-        client.data.user = payload;
-        client.data.isAuthenticated = true;
+        try {
+          const payload = this.jwtService.verify(token, {
+            secret: process.env.NEXTAUTH_SECRET || 'juristec_auth_key_2025_32bytes_',
+          });
+
+          client.data.user = payload;
+          client.data.isAuthenticated = !payload.isAnonymous; // Usuários anônimos têm isAnonymous: true
+          client.data.userId = payload.userId;
+          client.data.isAnonymous = payload.isAnonymous || false;
+
+          console.log(`Token válido - UserId: ${payload.userId}, Anônimo: ${payload.isAnonymous}, Autenticado: ${client.data.isAuthenticated}`);
+        } catch (error) {
+          console.log(`Token inválido: ${error.message} - desconectando cliente`);
+          client.data.isAuthenticated = false;
+          client.data.user = null;
+          client.data.userId = '';
+          client.data.isAnonymous = false;
+
+          // Desconectar imediatamente clientes com token inválido
+          setTimeout(() => {
+            client.disconnect(true);
+          }, 100);
+
+          return; // Não continua a execução
+        }
       } else {
+        console.log('Nenhum token fornecido - desconectando cliente');
         client.data.isAuthenticated = false;
         client.data.user = null;
+        client.data.userId = '';
+        client.data.isAnonymous = false;
+
+        // Desconectar imediatamente clientes sem token
+        setTimeout(() => {
+          client.disconnect(true);
+        }, 100); // Pequeno delay para permitir que a mensagem de erro seja enviada
+
+        return; // Não continua a execução
       }
-    } catch (_error) {
-      // Se o token for inválido, tratar como anônimo
+
+      console.log(`Dados do cliente configurados:`, {
+        id: client.id,
+        isAuthenticated: client.data.isAuthenticated,
+        isAnonymous: client.data.isAnonymous,
+        userId: client.data.userId,
+        user: client.data.user ? { email: client.data.user.email, role: client.data.user.role } : null
+      });
+
+    } catch (error) {
+      console.error('Erro na conexão WebSocket:', error);
       client.data.isAuthenticated = false;
       client.data.user = null;
+      client.data.userId = '';
+      client.data.isAnonymous = false;
     }
   }
 
@@ -71,36 +115,59 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('join-room')
   async handleJoinRoom(
-    @MessageBody() data: { roomId: string },
+    @MessageBody() data: { roomId?: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const { roomId } = data;
     console.log(`=== CLIENTE ENTRANDO NA SALA ===`);
+    console.log(`Cliente ${client.id} - UserId: ${client.data.userId}, Anônimo: ${client.data.isAnonymous}, Autenticado: ${client.data.isAuthenticated}`);
+
+    // Verificar se o cliente tem um userId válido
+    if (!client.data.userId) {
+      console.log(`Cliente ${client.id} rejeitado - sem userId válido`);
+      client.emit('error', { message: 'Sessão inválida. Recarregue a página.' });
+      return;
+    }
+
+    // Usar userId como roomId se não especificado
+    const roomId = data.roomId || `user-${client.data.userId}`;
     console.log(`Cliente ${client.id} entrando na sala: ${roomId}`);
 
     // Adicionar cliente à sala
     client.join(roomId);
     console.log(`Cliente ${client.id} adicionado à sala ${roomId}`);
 
-    // Tentar carregar histórico da conversa
+    // Tentar carregar histórico da conversa baseado no userId
     try {
-      const conversation = await Conversation.findOne({ roomId });
+      // Buscar conversa por userId (todos os usuários têm userId consistente)
+      let conversation = await Conversation.findOne({ userId: client.data.userId });
+
       if (conversation) {
+        console.log(`Conversa encontrada para userId ${client.data.userId}`);
         const messages = await this.messageService.getMessages(
           { conversationId: conversation._id },
           { userId: 'system', role: 'system', permissions: ['read'] },
         );
+
         client.emit('load-history', messages.map((msg) => ({
           id: msg._id.toString(),
           text: msg.text,
           sender: msg.sender,
+          timestamp: msg.createdAt,
         })));
-        console.log(`Histórico carregado para sala ${roomId}: ${messages.length} mensagens`);
+
+        console.log(`Histórico carregado para userId ${client.data.userId}: ${messages.length} mensagens`);
       } else {
-        // Criar nova conversa
-        await Conversation.create({ roomId });
+        // Criar nova conversa associada ao userId
+        console.log(`Criando nova conversa para userId ${client.data.userId}`);
+        conversation = await Conversation.create({
+          roomId,
+          userId: client.data.userId,
+          isAuthenticated: client.data.isAuthenticated,
+          user: client.data.user,
+        });
+
         client.emit('load-history', []);
-        console.log(`Nova conversa criada para sala ${roomId}`);
+        console.log(`Nova conversa criada para userId ${client.data.userId} na sala ${roomId}`);
       }
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);
