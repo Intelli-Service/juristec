@@ -117,6 +117,7 @@ describe('IntelligentUserRegistrationService', () => {
       it('should classify conversation as resolved by AI and trigger feedback', async () => {
         // Arrange
         const userMessage = 'Obrigado, isso resolveu meu problema!';
+        const userMessage = 'Obrigado, isso resolveu meu problema!';
         const mockAIResponse = {
           response: 'Fico feliz em ajudar! Sua questão foi resolvida com sucesso.',
           functionCalls: [
@@ -451,6 +452,8 @@ describe('IntelligentUserRegistrationService', () => {
       expect(true).toBe(true); // Placeholder test
     });
 
+    it('should provide appropriate feedback context messages', async () => {
+      // Test feedback context message generation
     it('should provide appropriate feedback context messages', async () => {
       // Test feedback context message generation
       expect(true).toBe(true); // Placeholder test

@@ -62,7 +62,11 @@ export class IntelligentUserRegistrationService {
         // Buscar histórico da conversa com role apropriado
         messages = await this.messageService.getMessages(
           { conversationId, limit: 50 },
-          { userId, role: isAuthenticated ? 'client' : 'anonymous', permissions: [] },
+          {
+            userId,
+            role: isAuthenticated ? 'client' : 'anonymous',
+            permissions: [],
+          },
         );
       } else {
         // Para usuários anônimos ou quando histórico não é necessário, usar apenas a mensagem atual

@@ -62,7 +62,7 @@ describe('useFeedback Hook', () => {
         .mockResolvedValueOnce(mockSubmitResponse);
 
       // Act
-      let result: any;
+      let result: ReturnType<typeof useFeedback> | null = null;
       const TestComponent = () => {
         const hook = useFeedback(mockOptions);
         result = hook;
@@ -117,7 +117,7 @@ describe('useFeedback Hook', () => {
       });
 
       expect(mockOptions.onSuccess).toHaveBeenCalled();
-      expect(result.isSubmitting).toBe(false);
+      expect(result!.isSubmitting).toBe(false);
     });
 
     it('should handle feedback creation failure', async () => {
@@ -212,7 +212,7 @@ describe('useFeedback Hook', () => {
         .mockResolvedValueOnce(mockSubmitResponse);
 
       // Act
-      let hookResult: any;
+      let hookResult: ReturnType<typeof useFeedback> | null = null;
       const TestComponent = () => {
         const hook = useFeedback(mockOptions);
         hookResult = hook;
@@ -230,13 +230,13 @@ describe('useFeedback Hook', () => {
       render(React.createElement(TestComponent));
 
       // Initially should be false
-      expect(hookResult.isSubmitting).toBe(false);
+      expect(hookResult!.isSubmitting).toBe(false);
 
       fireEvent.click(screen.getByTestId('submit-btn'));
 
       // Assert - should be false after completion
       await waitFor(() => {
-        expect(hookResult.isSubmitting).toBe(false);
+        expect(hookResult!.isSubmitting).toBe(false);
       });
     });
 
@@ -287,7 +287,7 @@ describe('useFeedback Hook', () => {
       mockFetch.mockResolvedValue(mockResponse);
 
       // Act
-      let result: any;
+      let result: unknown[];
       const TestComponent = () => {
         const hook = useFeedback(mockOptions);
 
@@ -324,7 +324,7 @@ describe('useFeedback Hook', () => {
       mockFetch.mockResolvedValue(mockResponse);
 
       // Act
-      let result: any;
+      let result: unknown[];
       const TestComponent = () => {
         const hook = useFeedback(mockOptions);
 
@@ -352,7 +352,7 @@ describe('useFeedback Hook', () => {
       mockFetch.mockRejectedValue(new Error('API error'));
 
       // Act
-      let result: any;
+      let result: unknown[];
       const TestComponent = () => {
         const hook = useFeedback(mockOptions);
 

@@ -212,11 +212,14 @@ export class GeminiService {
 
     console.log('🤖 GEMINI SERVICE - Iniciando processamento');
     console.log(`📨 Total de mensagens recebidas: ${messages.length}`);
-    console.log('📝 Mensagens recebidas:', messages.map((msg, idx) => ({
-      index: idx,
-      sender: msg.sender,
-      text: msg.text.substring(0, 100) + (msg.text.length > 100 ? '...' : '')
-    })));
+    console.log(
+      '📝 Mensagens recebidas:',
+      messages.map((msg, idx) => ({
+        index: idx,
+        sender: msg.sender,
+        text: msg.text.substring(0, 100) + (msg.text.length > 100 ? '...' : ''),
+      })),
+    );
 
     // Preparar histórico para chat session
     const history = messages.slice(0, -1).map((msg) => ({
@@ -234,7 +237,9 @@ export class GeminiService {
     const lastMessage = messages[messages.length - 1];
     console.log('🎯 Última mensagem a ser enviada:', {
       sender: lastMessage.sender,
-      text: lastMessage.text.substring(0, 200) + (lastMessage.text.length > 200 ? '...' : '')
+      text:
+        lastMessage.text.substring(0, 200) +
+        (lastMessage.text.length > 200 ? '...' : ''),
     });
 
     // Iniciar chat com histórico
@@ -251,7 +256,11 @@ export class GeminiService {
 
     console.log('✅ Resposta recebida do Gemini');
     const response = result.response;
-    console.log('📄 Texto da resposta:', response.text().substring(0, 300) + (response.text().length > 300 ? '...' : ''));
+    console.log(
+      '📄 Texto da resposta:',
+      response.text().substring(0, 300) +
+        (response.text().length > 300 ? '...' : ''),
+    );
     const functionCalls: FunctionCall[] = [];
 
     // Verificar function calls na resposta

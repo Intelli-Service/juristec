@@ -40,9 +40,9 @@ const mockConversationModel = {
 
 describe('IntelligentUserRegistrationService', () => {
   let service: IntelligentUserRegistrationService;
-  let geminiService: GeminiService;
-  let messageService: MessageService;
-  let fluidRegistrationService: FluidRegistrationService;
+  let _geminiService: GeminiService;
+  let _messageService: MessageService;
+  let _fluidRegistrationService: FluidRegistrationService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -78,9 +78,9 @@ describe('IntelligentUserRegistrationService', () => {
     service = module.get<IntelligentUserRegistrationService>(
       IntelligentUserRegistrationService,
     );
-    geminiService = module.get<GeminiService>(GeminiService);
-    messageService = module.get<MessageService>(MessageService);
-    fluidRegistrationService = module.get<FluidRegistrationService>(
+    _geminiService = module.get<GeminiService>(GeminiService);
+    _messageService = module.get<MessageService>(MessageService);
+    _fluidRegistrationService = module.get<FluidRegistrationService>(
       FluidRegistrationService,
     );
   });
@@ -123,7 +123,8 @@ describe('IntelligentUserRegistrationService', () => {
         // Arrange
         const userMessage = 'Obrigado pela ajuda! Minha dúvida foi resolvida.';
         const mockAIResponse = {
-          response: 'Fico feliz em ajudar! Sua questão foi resolvida com sucesso.',
+          response:
+            'Fico feliz em ajudar! Sua questão foi resolvida com sucesso.',
           functionCalls: [
             {
               name: 'update_conversation_status',
@@ -154,9 +155,11 @@ describe('IntelligentUserRegistrationService', () => {
           _id: mockConversationId,
           status: 'resolved_by_ai',
         });
-        mockFluidRegistrationService.processFluidRegistration.mockResolvedValue({
-          success: true,
-        });
+        mockFluidRegistrationService.processFluidRegistration.mockResolvedValue(
+          {
+            success: true,
+          },
+        );
 
         // Act
         const result = await service.processUserMessage(
@@ -177,7 +180,9 @@ describe('IntelligentUserRegistrationService', () => {
           userRegistered: false,
         });
 
-        expect(mockGeminiService.generateAIResponseWithFunctions).toHaveBeenCalled();
+        expect(
+          mockGeminiService.generateAIResponseWithFunctions,
+        ).toHaveBeenCalled();
         expect(mockConversationModel.findByIdAndUpdate).toHaveBeenCalledWith(
           mockConversationId,
           expect.objectContaining({
@@ -188,9 +193,11 @@ describe('IntelligentUserRegistrationService', () => {
 
       it('should classify conversation as needing lawyer and trigger feedback', async () => {
         // Arrange
-        const userMessage = 'Preciso de um advogado especialista em direito trabalhista para um processo complexo';
+        const userMessage =
+          'Preciso de um advogado especialista em direito trabalhista para um processo complexo';
         const mockAIResponse = {
-          response: 'Entendo que seu caso é complexo e necessita de um advogado especialista. Vou encaminhá-lo para nossa equipe jurídica.',
+          response:
+            'Entendo que seu caso é complexo e necessita de um advogado especialista. Vou encaminhá-lo para nossa equipe jurídica.',
           functionCalls: [
             {
               name: 'update_conversation_status',
@@ -222,9 +229,11 @@ describe('IntelligentUserRegistrationService', () => {
           _id: mockConversationId,
           status: 'assigned_to_lawyer',
         });
-        mockFluidRegistrationService.processFluidRegistration.mockResolvedValue({
-          success: true,
-        });
+        mockFluidRegistrationService.processFluidRegistration.mockResolvedValue(
+          {
+            success: true,
+          },
+        );
 
         // Act
         const result = await service.processUserMessage(
@@ -259,9 +268,11 @@ describe('IntelligentUserRegistrationService', () => {
 
       it('should handle user registration via function call', async () => {
         // Arrange
-        const userMessage = 'Olá, meu nome é João Silva e preciso de ajuda jurídica';
+        const userMessage =
+          'Olá, meu nome é João Silva e preciso de ajuda jurídica';
         const mockAIResponse = {
-          response: 'Olá João! Vou te ajudar com seu contrato. Primeiro, preciso registrar algumas informações.',
+          response:
+            'Olá João! Vou te ajudar com seu contrato. Primeiro, preciso registrar algumas informações.',
           functionCalls: [
             {
               name: 'register_user',
@@ -281,10 +292,12 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponse.mockResolvedValue({
           text: mockAIResponse.response,
         });
-        mockFluidRegistrationService.processFluidRegistration.mockResolvedValue({
-          success: true,
-          userId: 'newUser123',
-        });
+        mockFluidRegistrationService.processFluidRegistration.mockResolvedValue(
+          {
+            success: true,
+            userId: 'newUser123',
+          },
+        );
 
         // Act
         const result = await service.processUserMessage(
@@ -304,7 +317,9 @@ describe('IntelligentUserRegistrationService', () => {
           specializationRequired: undefined,
         });
 
-        expect(mockFluidRegistrationService.processFluidRegistration).toHaveBeenCalledWith(
+        expect(
+          mockFluidRegistrationService.processFluidRegistration,
+        ).toHaveBeenCalledWith(
           {
             email: 'joao.silva@email.com',
             phone: '+5511999999999',
@@ -443,7 +458,11 @@ describe('IntelligentUserRegistrationService', () => {
 
         // Act & Assert
         await expect(
-          service.processUserMessage(userMessage, mockConversationId, mockUserId),
+          service.processUserMessage(
+            userMessage,
+            mockConversationId,
+            mockUserId,
+          ),
         ).rejects.toThrow('Fallback API error');
       });
 

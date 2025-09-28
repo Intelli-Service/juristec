@@ -184,10 +184,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         console.log(`Conversa encontrada para userId ${client.data.userId}`);
         const messages = await this.messageService.getMessages(
           { conversationId: conversation._id },
-          { 
-            userId: client.data.userId, 
-            role: client.data.isAuthenticated ? 'client' : 'anonymous', 
-            permissions: ['read'] 
+          {
+            userId: client.data.userId,
+            role: client.data.isAuthenticated ? 'client' : 'anonymous',
+            permissions: ['read'],
           },
         );
 

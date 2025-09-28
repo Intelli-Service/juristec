@@ -221,13 +221,6 @@ export class MessageService {
         }
         break;
 
-      case 'anonymous':
-        // Usuários anônimos só acessam suas próprias conversas
-        if (conversation.userId !== requestingUser.userId) {
-          throw new ForbiddenException('Acesso negado a esta conversa');
-        }
-        break;
-
       case 'client':
         // Clientes só acessam suas próprias conversas (não implementado ainda)
         throw new ForbiddenException(

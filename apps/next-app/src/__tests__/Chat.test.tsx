@@ -97,7 +97,7 @@ beforeEach(() => {
   (useSession as jest.MockedFunction<typeof useSession>).mockReturnValue({
     data: null,
     status: 'unauthenticated',
-  } as any);
+  } as ReturnType<typeof useSession>);
 
   // Mock do localStorage para usuários anônimos
   const mockLocalStorage = {
