@@ -84,13 +84,19 @@ export class JwtAuthGuard implements CanActivate {
     // Try NextAuth cookies (new: cookie extraction)
     const cookies = request.headers.cookie;
     if (cookies) {
-      const sessionCookie = this.parseCookie(cookies, 'next-auth.session-token');
+      const sessionCookie = this.parseCookie(
+        cookies,
+        'next-auth.session-token',
+      );
       if (sessionCookie) {
         return sessionCookie;
       }
-      
+
       // Try secure cookie variant for HTTPS
-      const secureSessionCookie = this.parseCookie(cookies, '__Secure-next-auth.session-token');
+      const secureSessionCookie = this.parseCookie(
+        cookies,
+        '__Secure-next-auth.session-token',
+      );
       if (secureSessionCookie) {
         return secureSessionCookie;
       }

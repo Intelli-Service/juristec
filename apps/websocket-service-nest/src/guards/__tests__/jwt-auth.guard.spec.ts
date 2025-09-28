@@ -220,7 +220,8 @@ describe('JwtAuthGuard', () => {
     it('should extract token from __Secure-next-auth.session-token cookie', () => {
       const request = {
         headers: {
-          cookie: '__Secure-next-auth.session-token=secure-cookie-token; other=value',
+          cookie:
+            '__Secure-next-auth.session-token=secure-cookie-token; other=value',
         },
       };
 
@@ -249,7 +250,8 @@ describe('JwtAuthGuard', () => {
     it('should handle URL-encoded cookies correctly', () => {
       const request = {
         headers: {
-          cookie: 'next-auth.session-token=encoded%2Btoken%3Dvalue; other=value',
+          cookie:
+            'next-auth.session-token=encoded%2Btoken%3Dvalue; other=value',
         },
       };
 
