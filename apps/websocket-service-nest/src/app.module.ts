@@ -16,6 +16,7 @@ import { MongodbService } from './lib/mongodb.service';
 import { AIService } from './lib/ai.service';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { TestController } from './test/test.controller';
 
 @Module({
   imports: [
@@ -40,7 +41,7 @@ import { AppService } from './app.service';
     FeedbackModule,
     LGPDModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, TestController],
   providers: [AppService, MongodbService, AIService],
 })
 export class AppModule implements OnModuleInit {

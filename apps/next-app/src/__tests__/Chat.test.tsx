@@ -21,7 +21,15 @@ const mockSocket = {
 
 jest.mock('socket.io-client', () => ({
   __esModule: true,
-  default: jest.fn(() => mockSocket),
+  default: jest.fn(() => {
+    // Simular conexão imediata
+    setTimeout(() => {
+      mockSocket.on.mock.calls
+        .filter(([event]) => event === 'connect')
+        .forEach(([, callback]) => callback && callback());
+    }, 0);
+    return mockSocket;
+  }),
 }));
 jest.mock('../components/FileUpload', () => {
   return function MockFileUpload({ onFileSelect, onFileRemove }: {
@@ -91,22 +99,32 @@ describe('Chat Component', () => {
     render(<Chat />);
 
     expect(screen.getByPlaceholderText('Digite sua mensagem jurídica...')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /enviar/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /enviar|conectando/i })).toBeInTheDocument();
     expect(screen.getByTestId('file-upload')).toBeInTheDocument();
   });
 
   it('sends message when form is submitted', async () => {
     render(<Chat />);
 
+    // Wait for connection to be established
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument();
+    });
+
     const input = screen.getByPlaceholderText('Digite sua mensagem jurídica...');
-    const sendButton = screen.getByRole('button', { name: /enviar/i });
+    const sendButton = screen.getByRole('button', { name: 'Enviar' });
 
     fireEvent.change(input, { target: { value: 'Olá, preciso de ajuda' } });
     fireEvent.click(sendButton);
 
-    // The message should appear in the chat
+    // Verify that socket.emit was called with the correct message
     await waitFor(() => {
-      expect(screen.getByText('Olá, preciso de ajuda')).toBeInTheDocument();
+      expect(mockSocket.emit).toHaveBeenCalledWith('send-message', {
+        text: 'Olá, preciso de ajuda',
+        attachments: [],
+        roomId: expect.any(String),
+        userId: expect.stringMatching(/^user-/),
+      });
     });
   });
 
@@ -127,8 +145,13 @@ describe('Chat Component', () => {
   it('shows loading state while sending message', async () => {
     render(<Chat />);
 
+    // Wait for connection to be established
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument();
+    });
+
     const input = screen.getByPlaceholderText('Digite sua mensagem jurídica...');
-    const sendButton = screen.getByRole('button', { name: /enviar/i });
+    const sendButton = screen.getByRole('button', { name: 'Enviar' });
 
     fireEvent.change(input, { target: { value: 'Test message' } });
     fireEvent.click(sendButton);

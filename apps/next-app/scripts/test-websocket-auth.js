@@ -5,9 +5,9 @@
  * Testa conexões autenticadas e não autenticadas, envio/recebimento de mensagens
  */
 
-const io = require('socket.io-client');
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
+import io from 'socket.io-client';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 
 // Configurações
 const WS_URL = 'http://localhost:8080';

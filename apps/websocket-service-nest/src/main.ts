@@ -11,16 +11,6 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './app.module';
 import { json, urlencoded } from 'express';
 
-class CustomIoAdapter extends IoAdapter {
-  createIOServer(port: number, options?: any) {
-    options = {
-      ...options,
-      path: '/ws/',
-    };
-    return super.createIOServer(port, options);
-  }
-}
-
 async function bootstrap() {
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(

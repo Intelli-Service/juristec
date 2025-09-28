@@ -58,7 +58,7 @@ export class GeminiService {
     const config = await this.aiService.getCurrentConfig();
     const modelName = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
     console.log(`Using Gemini model: ${modelName}`);
-    
+
     return this.genAI.getGenerativeModel({
       model: modelName,
       systemInstruction: config?.systemPrompt || 'Você é um assistente útil.',

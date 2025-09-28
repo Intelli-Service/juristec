@@ -10,17 +10,26 @@ export class TokenValidationService {
    * Valida um token CSRF do NextAuth
    * Formato esperado: token|hash
    */
-  validateCSRFToken(csrfToken: string): { valid: boolean; token?: string; error?: string } {
+  validateCSRFToken(csrfToken: string): {
+    valid: boolean;
+    token?: string;
+    error?: string;
+  } {
     try {
       const [token, providedHash] = csrfToken.split('|');
 
       if (!token || !providedHash) {
-        return { valid: false, error: 'Formato inválido - esperado token|hash' };
+        return {
+          valid: false,
+          error: 'Formato inválido - esperado token|hash',
+        };
       }
 
       // Recalcula o hash esperado usando a mesma chave secreta do NextAuth
-      const secret = process.env.NEXTAUTH_SECRET || 'juristec_auth_key_2025_32bytes_';
-      const expectedHash = crypto.createHash('sha256')
+      const secret =
+        process.env.NEXTAUTH_SECRET || 'juristec_auth_key_2025_32bytes_';
+      const expectedHash = crypto
+        .createHash('sha256')
         .update(token + secret)
         .digest('hex');
 
@@ -37,9 +46,14 @@ export class TokenValidationService {
   /**
    * Valida um token JWT de sessão do NextAuth
    */
-  validateSessionToken(sessionToken: string): { valid: boolean; payload?: any; error?: string } {
+  validateSessionToken(sessionToken: string): {
+    valid: boolean;
+    payload?: any;
+    error?: string;
+  } {
     try {
-      const secret = process.env.NEXTAUTH_SECRET || 'juristec_auth_key_2025_32bytes_';
+      const secret =
+        process.env.NEXTAUTH_SECRET || 'juristec_auth_key_2025_32bytes_';
       const payload = this.jwtService.verify(sessionToken, { secret });
 
       return { valid: true, payload };
@@ -59,7 +73,8 @@ export class TokenValidationService {
     }
 
     const [token] = csrfToken.split('|');
-    return crypto.createHash('sha256')
+    return crypto
+      .createHash('sha256')
       .update(token)
       .digest('hex')
       .substring(0, 16); // 16 caracteres para userId
@@ -123,12 +138,13 @@ export class TokenValidationService {
     error?: string;
   } {
     // Extrair tokens do handshake
-    const sessionToken = handshake.auth?.token ||
-                        handshake.headers?.authorization?.split(' ')[1];
+    const sessionToken =
+      handshake.auth?.token || handshake.headers?.authorization?.split(' ')[1];
 
-    const csrfToken = handshake.auth?.csrfToken ||
-                     handshake.headers?.['x-csrf-token'] ||
-                     handshake.query?.csrfToken;
+    const csrfToken =
+      handshake.auth?.csrfToken ||
+      handshake.headers?.['x-csrf-token'] ||
+      handshake.query?.csrfToken;
 
     return this.extractUserId({ sessionToken, csrfToken });
   }

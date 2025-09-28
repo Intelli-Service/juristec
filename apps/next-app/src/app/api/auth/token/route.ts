@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import jwt from 'jsonwebtoken';
@@ -15,8 +17,8 @@ export async function GET(request: NextRequest) {
     const token = jwt.sign(
       {
         userId: session.user.id,
-        email: session.user.email,
-        name: session.user.name,
+        email: (session.user as any).email,
+        name: (session.user as any).name,
         role: session.user.role,
         permissions: session.user.permissions,
       },
