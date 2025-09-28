@@ -184,4 +184,58 @@ test.describe('AI Chat Basic Flow Tests', () => {
     console.log('✅ Contexto conversacional mantido');
     console.log('✅ IA respondeu consistentemente');
   });
+
+  test('should include conversation history in AI responses', async ({ page }) => {
+    console.log('📚 Teste de Histórico: Verificar se a IA tem acesso ao histórico da conversa');
+
+    // Navigate to chat page
+    await page.goto('/chat');
+    await page.waitForLoadState('networkidle');
+
+    const messageInput = page.locator('[data-testid="chat-input"]');
+    const sendButton = page.locator('[data-testid="send-button"]');
+    await expect(messageInput).toBeVisible({ timeout: 15000 });
+
+    // First message
+    const firstMessage = 'olá tudo bem?';
+    console.log(`📝 Primeira mensagem: "${firstMessage}"`);
+    await messageInput.fill(firstMessage);
+    await sendButton.click();
+
+    // Wait for first user message
+    await expect(page.locator('[data-testid="message-user"]').first()).toBeVisible();
+    console.log('✅ Primeira mensagem enviada');
+
+    // Wait for first AI response
+    await expect(page.locator('[data-testid="message-ai"]').first()).toBeVisible({ timeout: 30000 });
+    console.log('✅ Primeira resposta da IA recebida');
+
+    // Second message asking AI to reference the first message
+    const secondMessage = 'estou fazendo um teste técnico, para validação do teste, responda com a primeira mensagem que eu enviei';
+    console.log(`📝 Segunda mensagem: "${secondMessage}"`);
+    await messageInput.fill(secondMessage);
+    await sendButton.click();
+
+    // Wait for second user message
+    const userMessages = page.locator('[data-testid="message-user"]');
+    await expect(userMessages).toHaveCount(2);
+    console.log('✅ Segunda mensagem enviada');
+
+    // Wait for second AI response
+    const aiMessages = page.locator('[data-testid="message-ai"]');
+    await expect(aiMessages).toHaveCount(2, { timeout: 30000 });
+    console.log('✅ Segunda resposta da IA recebida');
+
+    // Get the second AI response
+    const secondAiResponse = await aiMessages.nth(1).textContent();
+    console.log(`📄 Segunda resposta da IA: "${secondAiResponse}"`);
+
+    // Verify that the AI response contains the first message
+    expect(secondAiResponse!.toLowerCase()).toContain(firstMessage.toLowerCase());
+    console.log('✅ IA incluiu a primeira mensagem na resposta (histórico funcionando)');
+
+    console.log('🎉 Teste de histórico concluído com sucesso!');
+    console.log('✅ IA tem acesso ao histórico da conversa');
+    console.log('✅ Histórico é usado corretamente nas respostas');
   });
+});

@@ -57,14 +57,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Se não encontrou, tentar extrair do cookie next-auth.session-token
       if (!token && client.handshake.headers?.cookie) {
         const cookies = client.handshake.headers.cookie;
-        console.log('🍪 Cookies recebidos:', cookies);
 
         // Extrair cookie next-auth.session-token
         const sessionCookie = this.parseCookie(
           cookies,
           'next-auth.session-token',
         );
-        console.log('🎫 Cookie next-auth.session-token encontrado:', sessionCookie ? 'SIM' : 'NÃO');
         if (sessionCookie) {
           token = sessionCookie;
         }
