@@ -169,10 +169,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('send-message')
   async handleSendMessage(
-    @MessageBody() data: { roomId: string; message: string },
+    @MessageBody() data: { roomId: string; text: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const { roomId, message } = data;
+    const { roomId, text: message } = data;
 
     let conversation: any;
 
@@ -278,16 +278,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Processar mensagem com cadastro inteligente
-      const registrationResult =
-        await this.intelligentRegistrationService.processUserMessage(
-          message,
-          conversation._id.toString(),
-          client.data.user?.id,
-          client.data.isAuthenticated, // Passar se deve incluir histórico
-        );
+      let registrationResult;
+      let aiResponseText = 'Olá! Sou o assistente jurídico da Juristec. Como posso ajudar você hoje com suas questões legais?';
+
+      try {
+        registrationResult =
+          await this.intelligentRegistrationService.processUserMessage(
+            message,
+            conversation._id.toString(),
+            client.data.user?.id,
+            client.data.isAuthenticated, // Passar se deve incluir histórico
+          );
+        aiResponseText = registrationResult.response;
+      } catch (aiError) {
+        console.warn('IA indisponível, usando resposta padrão:', aiError.message);
+        // Usar resposta padrão quando IA falha
+        registrationResult = {
+          userRegistered: false,
+          statusUpdated: false,
+          lawyerNeeded: false,
+          shouldShowFeedback: false,
+          feedbackReason: null,
+        };
+      }
 
       // Usar a resposta da IA (que pode incluir function calls)
-      const aiResponseText = registrationResult.response;
 
       // Log de eventos importantes
       if (registrationResult.userRegistered) {

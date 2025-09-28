@@ -32,6 +32,7 @@ export default function Chat() {
   const [roomId] = useState(() => `room-${Date.now()}`); // Room única por conversa
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [caseAssigned, setCaseAssigned] = useState<{
     assigned: boolean;
@@ -121,6 +122,14 @@ export default function Chat() {
     setSocket(newSocket);
 
     newSocket.emit('join-room', roomId);
+
+    newSocket.on('connect', () => {
+      setIsConnected(true);
+    });
+
+    newSocket.on('disconnect', () => {
+      setIsConnected(false);
+    });
 
     newSocket.on('load-history', (history: Message[]) => {
       if (history.length > 0) {
@@ -240,7 +249,7 @@ export default function Chat() {
   };
 
   const sendMessage = async () => {
-    if ((!input.trim() && !selectedFile) || !socket) return;
+    if ((!input.trim() && !selectedFile) || !socket || isLoading) return;
 
     let attachments: FileAttachment[] = [];
 
@@ -264,6 +273,8 @@ export default function Chat() {
       localStorage.setItem(`chat-${roomId}`, JSON.stringify(newMsgs));
       return newMsgs;
     });
+
+    const messageToSend = input; // Store input before clearing
     setInput('');
     setSelectedFile(null);
     setIsLoading(true);
@@ -272,6 +283,14 @@ export default function Chat() {
     if (!hasStartedConversation) {
       setHasStartedConversation(true);
     }
+
+    // Send message via WebSocket
+    socket.emit('send-message', {
+      text: messageToSend,
+      attachments,
+      roomId,
+      userId: 'user-' + roomId,
+    });
   };
 
   const handleFeedbackSubmit = async (feedbackData: FeedbackData) => {
@@ -294,8 +313,8 @@ export default function Chat() {
             </div>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2 text-slate-400 text-sm">
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-                <span>Online</span>
+                <div className={`w-2 h-2 rounded-full animate-pulse ${isConnected ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
+                <span>{isConnected ? 'Online' : 'Conectando...'}</span>
               </div>
               <Link
                 href="/"
@@ -428,11 +447,12 @@ export default function Chat() {
             />
             <button
               onClick={sendMessage}
-              disabled={isLoading || (!input.trim() && !selectedFile)}
+              disabled={isLoading || (!input.trim() && !selectedFile) || !isConnected}
               className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
               data-testid="send-button"
+              type="button"
             >
-              {isLoading ? 'Enviando...' : 'Enviar'}
+              {isLoading ? 'Enviando...' : !isConnected ? 'Conectando...' : 'Enviar'}
             </button>
           </div>
         </div>

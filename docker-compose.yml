@@ -13,6 +13,11 @@ services:
       - backend
     networks:
       - juristec-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Frontend Next.js
   frontend:
@@ -21,12 +26,20 @@ services:
     working_dir: /app
     volumes:
       - ./apps/next-app:/app
+      - /app/node_modules
+      - ./apps/next-app/.env.local:/app/.env.local:ro
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=development
       - NEXT_TELEMETRY_DISABLED=1
+      - NEXTAUTH_URL=http://localhost:8080
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - NEXT_PUBLIC_WS_URL=http://localhost:4000
+      - BACKEND_URL=http://backend:4000
     command: sh -c "npm install && npm run dev"
+    depends_on:
+      - backend
     networks:
       - juristec-network
 
@@ -37,31 +50,58 @@ services:
     working_dir: /app
     volumes:
       - ./apps/websocket-service-nest:/app
+      - /app/node_modules
+      - ./apps/websocket-service-nest/.env:/app/.env:ro
     ports:
       - "4000:4000"
     environment:
       - NODE_ENV=development
+      - PORT=4000
     command: sh -c "npm install && npm run start:dev"
     networks:
       - juristec-network
 
-  # MongoDB (opcional - para não depender do MongoDB Atlas)
-  # mongodb:
-  #   image: mongo:7
-  #   container_name: juristec-mongodb
-  #   ports:
-  #     - "27017:27017"
-  #   environment:
-  #     - MONGO_INITDB_ROOT_USERNAME=admin
-  #     - MONGO_INITDB_ROOT_PASSWORD=password
-  #   volumes:
-  #     - mongodb_data:/data/db
-  #   networks:
-  #     - juristec-network
+  # MongoDB local (opcional - para desenvolvimento/testes locais)
+  mongodb:
+    image: mongo:7
+    container_name: juristec-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - juristec-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - with-db
+
+  # Redis para cache/sessões (opcional)
+  redis:
+    image: redis:7-alpine
+    container_name: juristec-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - juristec-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    profiles:
+      - with-redis
 
 networks:
   juristec-network:
     driver: bridge
 
-# volumes:
-#   mongodb_data:
+volumes:
+  mongodb_data:

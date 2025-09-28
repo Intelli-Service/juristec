@@ -57,7 +57,7 @@ export class GeminiService {
   async getModel() {
     const config = await this.aiService.getCurrentConfig();
     return this.genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-pro',
       systemInstruction: config?.systemPrompt || 'Você é um assistente útil.',
       tools: [
         {
