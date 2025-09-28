@@ -75,8 +75,36 @@ export class JwtAuthGuard implements CanActivate {
   }
 
   private extractTokenFromHeader(request: Request): string | undefined {
+    // Try Authorization header first (existing behavior)
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
-    return type === 'Bearer' ? token : undefined;
+    if (type === 'Bearer' && token) {
+      return token;
+    }
+
+    // Try NextAuth cookies (new: cookie extraction)
+    const cookies = request.headers.cookie;
+    if (cookies) {
+      const sessionCookie = this.parseCookie(cookies, 'next-auth.session-token');
+      if (sessionCookie) {
+        return sessionCookie;
+      }
+      
+      // Try secure cookie variant for HTTPS
+      const secureSessionCookie = this.parseCookie(cookies, '__Secure-next-auth.session-token');
+      if (secureSessionCookie) {
+        return secureSessionCookie;
+      }
+    }
+
+    return undefined;
+  }
+
+  private parseCookie(cookieHeader: string, name: string): string | undefined {
+    const cookies = cookieHeader.split(';').map((c) => c.trim());
+    const cookie = cookies.find((c) => c.startsWith(`${name}=`));
+    return cookie
+      ? decodeURIComponent(cookie.substring(name.length + 1))
+      : undefined;
   }
 }
 

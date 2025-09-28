@@ -229,11 +229,12 @@ export default function Chat() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('conversationId', roomId);
-      formData.append('userId', 'user-' + roomId); // Usar um ID de usuário temporário
+      // userId will be extracted from JWT token in backend
 
       const response = await fetch('/api/uploads', {
         method: 'POST',
         body: formData,
+        credentials: 'include', // ✅ Ensure NextAuth cookies are sent
       });
 
       if (!response.ok) {
