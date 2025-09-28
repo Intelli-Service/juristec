@@ -202,6 +202,63 @@ describe('JwtAuthGuard', () => {
 
       expect(token).toBeUndefined();
     });
+
+    it('should extract token from next-auth.session-token cookie', () => {
+      const request = {
+        headers: {
+          cookie: 'next-auth.session-token=cookie-token-123; other=value',
+        },
+      };
+
+      const localReflector = { get: jest.fn() };
+      const guard = new JwtAuthGuard(localReflector as any);
+      const token = (guard as any).extractTokenFromHeader(request);
+
+      expect(token).toBe('cookie-token-123');
+    });
+
+    it('should extract token from __Secure-next-auth.session-token cookie', () => {
+      const request = {
+        headers: {
+          cookie: '__Secure-next-auth.session-token=secure-cookie-token; other=value',
+        },
+      };
+
+      const localReflector = { get: jest.fn() };
+      const guard = new JwtAuthGuard(localReflector as any);
+      const token = (guard as any).extractTokenFromHeader(request);
+
+      expect(token).toBe('secure-cookie-token');
+    });
+
+    it('should prioritize Bearer token over cookies', () => {
+      const request = {
+        headers: {
+          authorization: 'Bearer bearer-token',
+          cookie: 'next-auth.session-token=cookie-token',
+        },
+      };
+
+      const localReflector = { get: jest.fn() };
+      const guard = new JwtAuthGuard(localReflector as any);
+      const token = (guard as any).extractTokenFromHeader(request);
+
+      expect(token).toBe('bearer-token');
+    });
+
+    it('should handle URL-encoded cookies correctly', () => {
+      const request = {
+        headers: {
+          cookie: 'next-auth.session-token=encoded%2Btoken%3Dvalue; other=value',
+        },
+      };
+
+      const localReflector = { get: jest.fn() };
+      const guard = new JwtAuthGuard(localReflector as any);
+      const token = (guard as any).extractTokenFromHeader(request);
+
+      expect(token).toBe('encoded+token=value');
+    });
   });
 });
 

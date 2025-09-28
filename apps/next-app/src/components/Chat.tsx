@@ -233,12 +233,13 @@ export default function Chat() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('conversationId', userId || '');
-      formData.append('userId', userId || ''); // Usar ID de usuário consistente
+      formData.append('conversationId', roomId);
+      // userId will be extracted from JWT token in backend
 
       const response = await fetch('/api/uploads', {
         method: 'POST',
         body: formData,
+        credentials: 'include', // ✅ Ensure NextAuth cookies are sent
       });
 
       if (!response.ok) {
