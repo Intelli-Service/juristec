@@ -281,8 +281,7 @@ export class IntelligentUserRegistrationService {
         };
         await user.save();
       } else {
-        const newUser = new this.userModel(userData);
-        user = await newUser.save();
+        user = await this.userModel.create(userData);
       }
 
       await this.conversationModel.findByIdAndUpdate(conversationId, {
