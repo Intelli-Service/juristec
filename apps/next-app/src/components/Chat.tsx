@@ -233,7 +233,7 @@ export default function Chat() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('conversationId', roomId);
+      formData.append('conversationId', userId || '');
       // userId will be extracted from JWT token in backend
 
       const response = await fetch('/api/uploads', {
