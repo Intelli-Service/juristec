@@ -32,7 +32,7 @@ export class AuditMiddleware implements NestMiddleware {
 
     // Registra quando a resposta termina
     res.on('finish', () => {
-      this.logAuditAsync(
+      void this.logAuditAsync(
         startTime,
         userId,
         ipAddress,

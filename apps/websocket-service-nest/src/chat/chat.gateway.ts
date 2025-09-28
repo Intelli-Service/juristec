@@ -148,7 +148,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('join-room')
   async handleJoinRoom(
-    @MessageBody() data: {} = {},
+    @MessageBody() _data: object = {},
     @ConnectedSocket() client: Socket,
   ) {
     console.log(`=== CLIENTE ENTRANDO NA SALA ===`);
@@ -170,7 +170,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`Cliente ${client.id} entrando na sala: ${roomId}`);
 
     // Adicionar cliente à sala
-    client.join(roomId);
+    void client.join(roomId);
     console.log(`Cliente ${client.id} adicionado à sala ${roomId}`);
 
     // Tentar carregar histórico da conversa baseado no userId
@@ -263,8 +263,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Entrar na sala do cliente (para comunicação direta) e na sala específica do advogado
-      client.join(roomId); // Sala principal do cliente
-      client.join(`lawyer-${roomId}`); // Sala específica dos advogados
+      void client.join(roomId); // Sala principal do cliente
+      void client.join(`lawyer-${roomId}`); // Sala específica dos advogados
 
       // Carregar histórico completo da conversa
       const messages = await this.messageService.getMessages(
@@ -295,7 +295,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { text: string; attachments?: any[] },
     @ConnectedSocket() client: Socket,
   ) {
-    const { text: message, attachments = [] } = data;
+    const { text: message, attachments: _attachments = [] } = data;
 
     // Usar userId do cliente como roomId
     const roomId = client.data.userId;

@@ -160,10 +160,10 @@ describe('ChatGateway - User Data Collection Integration', () => {
       // Simular socket e server
       const mockSocket = {
         id: 'socket-id',
-        data: { 
-          isAuthenticated: false, 
+        data: {
+          isAuthenticated: false,
           user: null,
-          userId: 'test-user-id'
+          userId: 'test-user-id',
         },
         emit: jest.fn(),
       };
@@ -230,10 +230,10 @@ describe('ChatGateway - User Data Collection Integration', () => {
       // Simular socket e server
       const mockSocket = {
         id: 'socket-id',
-        data: { 
-          isAuthenticated: false, 
+        data: {
+          isAuthenticated: false,
           user: null,
-          userId: 'test-user-id'
+          userId: 'test-user-id',
         },
         emit: jest.fn(),
       };

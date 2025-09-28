@@ -74,7 +74,7 @@ describe('JwtAuthGuard', () => {
       mockRequest.headers.authorization = `Bearer ${validToken}`;
       mockedJwt.verify.mockReturnValue(mockJwtPayload as any);
 
-      const result = await guard.canActivate(mockExecutionContext);
+      const result = guard.canActivate(mockExecutionContext);
 
       expect(result).toBe(true);
       expect(mockedJwt.verify).toHaveBeenCalledWith(
@@ -108,7 +108,7 @@ describe('JwtAuthGuard', () => {
         return undefined;
       });
 
-      const result = await guard.canActivate(mockExecutionContext);
+      const result = guard.canActivate(mockExecutionContext);
 
       expect(result).toBe(true);
     });
@@ -121,7 +121,7 @@ describe('JwtAuthGuard', () => {
         return undefined;
       });
 
-      const result = await guard.canActivate(mockExecutionContext);
+      const result = guard.canActivate(mockExecutionContext);
 
       expect(result).toBe(true);
     });
