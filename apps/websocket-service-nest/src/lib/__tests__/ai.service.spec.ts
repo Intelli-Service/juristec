@@ -223,7 +223,7 @@ describe('AIService', () => {
     it('should throw an error if GOOGLE_API_KEY is not configured', async () => {
       // Salvar o NODE_ENV original
       const originalNodeEnv = process.env.NODE_ENV;
-      
+
       // Simular ambiente de produção para forçar o erro
       process.env.NODE_ENV = 'production';
 

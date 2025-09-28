@@ -100,7 +100,8 @@ describe('ChatGateway - User Data Collection Integration', () => {
           provide: IntelligentUserRegistrationService,
           useValue: {
             processUserMessage: jest.fn().mockResolvedValue({
-              response: 'Olá! Para te ajudar melhor, preciso de algumas informações. Qual é o seu nome?',
+              response:
+                'Olá! Para te ajudar melhor, preciso de algumas informações. Qual é o seu nome?',
               userRegistered: false,
               statusUpdated: false,
             }),

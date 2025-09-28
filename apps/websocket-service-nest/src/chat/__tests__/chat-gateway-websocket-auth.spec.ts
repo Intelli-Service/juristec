@@ -36,7 +36,6 @@ jest.mock('../../models/Conversation', () => ({
 
 describe('ChatGateway - WebSocket Authentication', () => {
   let gateway: ChatGateway;
-  let jwtService: JwtService;
   let mockSocket: any;
 
   const mockJwtService = {
@@ -108,7 +107,6 @@ describe('ChatGateway - WebSocket Authentication', () => {
     }).compile();
 
     gateway = module.get<ChatGateway>(ChatGateway);
-    jwtService = module.get<JwtService>(JwtService);
   });
 
   describe('handleConnection - Token Authentication', () => {
