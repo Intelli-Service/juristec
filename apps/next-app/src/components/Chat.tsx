@@ -54,19 +54,13 @@ export default function Chat() {
   const { data: session, status: sessionStatus } = useSession();
   const notifications = useNotifications();
 
-  // Generate consistent userId based on session or localStorage
-  const userId = session?.user?.id || (() => {
-    const stored = localStorage.getItem('anonymous-user-id');
-    if (stored) return stored;
-    const newId = `anon-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem('anonymous-user-id', newId);
-    return newId;
-  })();
+  // UserId vem da sessão NextAuth (consistente para usuários anônimos e autenticados)
+  const userId = session?.user?.id;
 
   // Hook para feedback
   const feedbackHook = useFeedback({
-    userId: userId,
-    conversationId: userId,
+    userId: userId || '',
+    conversationId: userId || '',
     lawyerId: caseAssigned.lawyerId,
     onSuccess: () => {
       setFeedbackSubmitted(true);
@@ -129,28 +123,17 @@ export default function Chat() {
     // Só conectar ao WebSocket quando a sessão estiver carregada
     if (sessionStatus === 'loading') return;
 
-    // Determinar userId consistente para persistência
-    let userId: string;
-    if (session?.user?.id) {
-      userId = session.user.id;
-    } else {
-      // Para usuários anônimos, usar ID consistente do localStorage
-      const storedUserId = localStorage.getItem('anonymous-user-id');
-      if (storedUserId) {
-        userId = storedUserId;
-      } else {
-        // Criar novo ID para usuário anônimo
-        userId = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('anonymous-user-id', userId);
-      }
-    }
+    // Usar userId da sessão (NextAuth garante consistência para usuários anônimos)
+    const userId = session?.user?.id;
+
+    // Só prosseguir se temos um userId válido
+    if (!userId) return;
 
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080';
-
     const newSocket = io(socketUrl);
     setSocket(newSocket);
 
-    newSocket.emit('join-room', { roomId: userId });
+    newSocket.emit('join-room');
 
     newSocket.on('connect', () => {
       setIsConnected(true);
@@ -177,8 +160,6 @@ export default function Chat() {
       };
       setMessages((prev) => {
         const newMsgs = [...prev, newMessage];
-        // Salvar no localStorage apenas como backup
-        localStorage.setItem(`chat-${userId}`, JSON.stringify(newMsgs));
         return newMsgs;
       });
       setIsLoading(false);
@@ -216,14 +197,8 @@ export default function Chat() {
       }
     });
 
-    // Carregar do localStorage apenas como último recurso
-    // (se o servidor não conseguiu carregar o histórico)
-    const cached = localStorage.getItem(`chat-${userId}`);
-    if (cached && !hasStartedConversation) {
-      const parsedMessages = JSON.parse(cached);
-      setMessages(parsedMessages);
-      setHasStartedConversation(true);
-    }
+    // Aguardar o histórico ser carregado do backend via WebSocket
+    // Não há necessidade de fallback para localStorage
 
     return () => {
       newSocket.disconnect();
@@ -258,8 +233,8 @@ export default function Chat() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('conversationId', userId);
-      formData.append('userId', userId); // Usar ID de usuário consistente
+      formData.append('conversationId', userId || '');
+      formData.append('userId', userId || ''); // Usar ID de usuário consistente
 
       const response = await fetch('/api/uploads', {
         method: 'POST',
@@ -300,7 +275,6 @@ export default function Chat() {
 
     setMessages((prev) => {
       const newMsgs = [...prev, userMessage];
-      localStorage.setItem(`chat-${userId}`, JSON.stringify(newMsgs));
       return newMsgs;
     });
 
@@ -318,8 +292,6 @@ export default function Chat() {
     socket.emit('send-message', {
       text: messageToSend,
       attachments,
-      roomId: userId,
-      userId: session?.user?.id || userId,
     });
   };
 

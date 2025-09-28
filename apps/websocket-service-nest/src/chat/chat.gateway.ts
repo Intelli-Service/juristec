@@ -146,7 +146,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('join-room')
   async handleJoinRoom(
-    @MessageBody() data: { roomId?: string },
+    @MessageBody() data: {} = {},
     @ConnectedSocket() client: Socket,
   ) {
     console.log(`=== CLIENTE ENTRANDO NA SALA ===`);
@@ -163,8 +163,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    // Usar userId como roomId se não especificado
-    const roomId = data.roomId || `user-${client.data.userId}`;
+    // Usar userId como roomId
+    const roomId = client.data.userId;
     console.log(`Cliente ${client.id} entrando na sala: ${roomId}`);
 
     // Adicionar cliente à sala
@@ -182,7 +182,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         console.log(`Conversa encontrada para userId ${client.data.userId}`);
         const messages = await this.messageService.getMessages(
           { conversationId: conversation._id },
-          { userId: 'system', role: 'system', permissions: ['read'] },
+          { 
+            userId: client.data.userId, 
+            role: client.data.isAuthenticated ? 'client' : 'anonymous', 
+            permissions: ['read'] 
+          },
         );
 
         client.emit(
@@ -286,10 +290,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('send-message')
   async handleSendMessage(
-    @MessageBody() data: { roomId: string; text: string },
+    @MessageBody() data: { text: string; attachments?: any[] },
     @ConnectedSocket() client: Socket,
   ) {
-    const { roomId, text: message } = data;
+    const { text: message, attachments = [] } = data;
+
+    // Usar userId do cliente como roomId
+    const roomId = client.data.userId;
 
     let conversation: any;
 
@@ -405,7 +412,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             message,
             conversation._id.toString(),
             client.data.user?.id,
-            client.data.isAuthenticated, // Passar se deve incluir histórico
+            client.data.isAuthenticated, // Passar se deve incluir histórico baseado na autenticação
           );
         aiResponseText = registrationResult.response;
       } catch (aiError) {

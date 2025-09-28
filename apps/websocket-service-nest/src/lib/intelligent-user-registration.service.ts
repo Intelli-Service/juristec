@@ -76,16 +76,28 @@ export class IntelligentUserRegistrationService {
       }
 
       // Preparar mensagens para o Gemini
-      const geminiMessages = messages.map((msg) => ({
-        text: msg.text,
-        sender: msg.sender,
-      }));
+      const geminiMessages: Array<{ text: string; sender: string }> = [];
 
-      // Adicionar a nova mensagem do usuário
-      geminiMessages.push({
-        text: message,
-        sender: 'user',
-      });
+      if (includeHistory && userId) {
+        // Usar histórico completo + mensagem atual
+        messages.forEach((msg) => {
+          geminiMessages.push({
+            text: msg.text,
+            sender: msg.sender,
+          });
+        });
+        // Adicionar a nova mensagem do usuário
+        geminiMessages.push({
+          text: message,
+          sender: 'user',
+        });
+      } else {
+        // Para usuários anônimos, usar apenas a mensagem atual
+        geminiMessages.push({
+          text: message,
+          sender: 'user',
+        });
+      }
 
       // Gerar resposta com function calls
       const result =
