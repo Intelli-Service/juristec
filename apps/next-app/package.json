@@ -11,7 +11,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:integration": "jest --config jest.integration.config.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:messages": "npx playwright test tests/e2e/chat-flow.spec.ts -g \"should send and receive messages\" --timeout=30000"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.10.0",
