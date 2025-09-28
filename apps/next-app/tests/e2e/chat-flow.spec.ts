@@ -30,13 +30,17 @@ test.describe('Chat Flow E2E Tests', () => {
     // Check if message appears in chat
     await expect(page.locator(':text("Olá, preciso de ajuda jurídica")')).toBeVisible({ timeout: 5000 });
     
-    // Wait for AI response (if available)
-    await page.waitForTimeout(3000);
-    
-    // Check if there are multiple messages (user + AI response)
+    // Check if there is at least 1 message (the one we sent)
     const messages = page.locator('[data-testid="message"]').count();
+    const messageCount = await messages;
+    
+    console.log(`Found ${messageCount} messages after sending`);
+    
     // We expect at least 1 message (the one we sent)
-    expect(await messages).toBeGreaterThanOrEqual(1);
+    expect(messageCount).toBeGreaterThanOrEqual(1);
+    
+    // Note: WebSocket functionality is tested separately in integration tests
+    // This test focuses on UI functionality without depending on real-time connections
   });
 
   test('should handle empty message submission', async ({ page }) => {

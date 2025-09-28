@@ -68,33 +68,39 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   handleDisconnect(_client: Socket) {}
+
+  @SubscribeMessage('join-room')
   async handleJoinRoom(
     @MessageBody() data: { roomId: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const roomId = data.roomId;
-    client.join(roomId);
+    const { roomId } = data;
+    console.log(`=== CLIENTE ENTRANDO NA SALA ===`);
+    console.log(`Cliente ${client.id} entrando na sala: ${roomId}`);
 
+    // Adicionar cliente à sala
+    client.join(roomId);
+    console.log(`Cliente ${client.id} adicionado à sala ${roomId}`);
+
+    // Tentar carregar histórico da conversa
     try {
-      let conversation = await Conversation.findOne({ roomId });
+      const conversation = await Conversation.findOne({ roomId });
       if (conversation) {
         const messages = await this.messageService.getMessages(
           { conversationId: conversation._id },
           { userId: 'system', role: 'system', permissions: ['read'] },
         );
-        client.emit(
-          'load-history',
-          messages.map((msg) => ({
-            id: msg._id.toString(),
-            text: msg.text,
-            sender: msg.sender,
-          })),
-        );
+        client.emit('load-history', messages.map((msg) => ({
+          id: msg._id.toString(),
+          text: msg.text,
+          sender: msg.sender,
+        })));
+        console.log(`Histórico carregado para sala ${roomId}: ${messages.length} mensagens`);
       } else {
         // Criar nova conversa
-        conversation = await Conversation.create({ roomId });
-        // Não emitir mensagem inicial - deixar o frontend controlar a experiência
+        await Conversation.create({ roomId });
         client.emit('load-history', []);
+        console.log(`Nova conversa criada para sala ${roomId}`);
       }
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);
@@ -291,15 +297,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           );
         aiResponseText = registrationResult.response;
       } catch (aiError) {
-        console.warn('IA indisponível, usando resposta padrão:', aiError.message);
-        // Usar resposta padrão quando IA falha
-        registrationResult = {
-          userRegistered: false,
-          statusUpdated: false,
-          lawyerNeeded: false,
-          shouldShowFeedback: false,
-          feedbackReason: null,
-        };
+        console.warn('Erro na IA Gemini:', aiError?.message || aiError);
+        // Qualquer erro do Gemini deve ser tratado como erro crítico
+        const errorMsg = aiError?.message || String(aiError) || 'Erro desconhecido na IA';
+        throw new Error(`Serviço de IA temporariamente indisponível: ${errorMsg}`);
       }
 
       // Usar a resposta da IA (que pode incluir function calls)
@@ -359,11 +360,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         console.warn('Erro ao classificar conversa:', classifyError.message);
       }
 
+      console.log('Antes de emitir mensagem da IA:', aiResponseText);
       this.server.to(roomId).emit('receive-message', {
         text: aiResponseText,
         sender: 'ai',
         messageId: aiMessage._id.toString(),
       });
+      console.log('Depois de emitir mensagem da IA');
     } catch (error) {
       console.error('Erro ao processar mensagem:', error);
 
@@ -371,30 +374,49 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         'Desculpe, ocorreu um erro interno. Tente novamente em alguns instantes.';
       let shouldRetry = false;
 
+      // Garantir que error é um objeto com message
+      const errorObj = error || {};
+      const errorMsg = errorObj.message || String(errorObj) || 'Erro desconhecido';
+
       // Tratar erros específicos da API do Google Gemini
       if (
-        error.message?.includes('503') ||
-        error.message?.includes('Service Unavailable')
+        errorMsg.includes('Modelo Gemini indisponível') ||
+        errorMsg.includes('Serviço de IA temporariamente indisponível')
+      ) {
+        errorMessage =
+          'Estamos passando por uma instabilidade temporária no nosso assistente de IA. Nossa equipe foi notificada e estamos trabalhando para resolver. Tente novamente em alguns minutos.';
+        shouldRetry = true;
+      } else if (
+        errorMsg.includes('503') ||
+        errorMsg.includes('Service Unavailable')
       ) {
         errorMessage =
           'O assistente está temporariamente indisponível devido à alta demanda. Aguarde alguns minutos e tente novamente.';
         shouldRetry = true;
       } else if (
-        error.message?.includes('429') ||
-        error.message?.includes('Too Many Requests')
+        errorMsg.includes('429') ||
+        errorMsg.includes('Too Many Requests')
       ) {
         errorMessage =
           'Muitas solicitações foram feitas. Aguarde alguns minutos antes de tentar novamente.';
         shouldRetry = true;
       } else if (
-        error.message?.includes('401') ||
-        error.message?.includes('Unauthorized')
+        errorMsg.includes('404') ||
+        errorMsg.includes('Not Found') ||
+        errorMsg.includes('models/gemini-flash-lite-latest is not found')
+      ) {
+        errorMessage =
+          'O modelo de IA está temporariamente indisponível. Nossa equipe foi notificada e estamos trabalhando para resolver. Tente novamente em alguns minutos.';
+        shouldRetry = true;
+      } else if (
+        errorMsg.includes('401') ||
+        errorMsg.includes('Unauthorized')
       ) {
         errorMessage =
           'Erro de autenticação com o serviço de IA. Entre em contato com o suporte.';
       } else if (
-        error.message?.includes('400') ||
-        error.message?.includes('Bad Request')
+        errorMsg.includes('400') ||
+        errorMsg.includes('Bad Request')
       ) {
         errorMessage =
           'A mensagem enviada não pôde ser processada. Tente reformular sua pergunta.';
@@ -409,7 +431,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             sender: 'system',
             metadata: {
               error: true,
-              originalError: error.message,
+              originalError: errorMsg,
               shouldRetry,
             },
           });

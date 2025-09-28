@@ -48,7 +48,7 @@ const aiConfigs = [
     _id: ObjectId(),
     name: 'Assistente Jurídico PT-BR',
     prompt: 'Você é um assistente jurídico brasileiro especializado em direito civil e trabalhista. Colete dados do usuário naturalmente durante a conversa e identifique se o caso é simples (pode ser resolvido com orientações básicas) ou complexo (necessita de advogado). Sempre responda em português brasileiro.',
-    model: 'gemini-pro',
+    model: 'gemini-flash-lite-latest',
     temperature: 0.7,
     maxTokens: 2000,
     isActive: true,

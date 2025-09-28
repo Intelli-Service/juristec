@@ -88,10 +88,16 @@ export class IntelligentUserRegistrationService {
       });
 
       // Gerar resposta com function calls
+      console.log('Antes de chamar generateAIResponseWithFunctions');
       const result =
         await this.geminiService.generateAIResponseWithFunctions(
           geminiMessages,
         );
+      console.log('Resultado do Gemini:', {
+        response: result.response,
+        functionCallsCount: result.functionCalls?.length || 0,
+        functionCalls: result.functionCalls,
+      });
 
       let userRegistered = false;
       let statusUpdated = false;

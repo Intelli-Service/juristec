@@ -77,7 +77,7 @@ export class AIService {
     try {
       const aiConfig = await this.getAIConfig();
       const model = this.genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-flash-lite-latest',
         generationConfig: {
           temperature: aiConfig.behaviorSettings.temperature,
           topK: 50,

@@ -137,7 +137,7 @@ describe('AIService', () => {
       });
       expect(mockGetGenerativeModel).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'gemini-1.5-flash',
+          model: 'gemini-flash-lite-latest',
           systemInstruction: mockAiConfig.systemPrompt,
         }),
       );

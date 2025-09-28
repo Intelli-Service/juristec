@@ -37,7 +37,7 @@ db.users.insertMany([
 db.aiconfigs.insertOne({
   _id: ObjectId(),
   provider: "google",
-  model: "gemini-pro",
+  model: "gemini-flash-lite-latest",
   apiKey: process.env.GOOGLE_API_KEY || "test-api-key",
   prompt: "Você é um assistente jurídico brasileiro...",
   isActive: true,
