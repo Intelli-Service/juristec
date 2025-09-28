@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
+import { useSession } from 'next-auth/react';
 import FileUpload from './FileUpload';
 import { useNotifications } from '../hooks/useNotifications';
 import FeedbackModal, { FeedbackData } from './feedback/FeedbackModal';
@@ -29,7 +30,6 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [roomId] = useState(() => `room-${Date.now()}`); // Room única por conversa
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -51,12 +51,22 @@ export default function Chat() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
+  const { data: session, status: sessionStatus } = useSession();
   const notifications = useNotifications();
+
+  // Generate consistent userId based on session or localStorage
+  const userId = session?.user?.id || (() => {
+    const stored = localStorage.getItem('anonymous-user-id');
+    if (stored) return stored;
+    const newId = `anon-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('anonymous-user-id', newId);
+    return newId;
+  })();
 
   // Hook para feedback
   const feedbackHook = useFeedback({
-    userId: 'user-' + roomId, // Usar ID consistente
-    conversationId: roomId,
+    userId: userId,
+    conversationId: userId,
     lawyerId: caseAssigned.lawyerId,
     onSuccess: () => {
       setFeedbackSubmitted(true);
@@ -83,7 +93,7 @@ export default function Chat() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          conversationId: roomId,
+          conversationId: userId,
           ...chargeForm,
           amount: parseFloat(chargeForm.amount)
         }),
@@ -94,7 +104,6 @@ export default function Chat() {
       }
 
       const result = await response.json();
-      console.log('Cobrança criada:', result);
 
       // Reset form and close modal
       setChargeForm({
@@ -117,11 +126,31 @@ export default function Chat() {
   };
 
   useEffect(() => {
+    // Só conectar ao WebSocket quando a sessão estiver carregada
+    if (sessionStatus === 'loading') return;
+
+    // Determinar userId consistente para persistência
+    let userId: string;
+    if (session?.user?.id) {
+      userId = session.user.id;
+    } else {
+      // Para usuários anônimos, usar ID consistente do localStorage
+      const storedUserId = localStorage.getItem('anonymous-user-id');
+      if (storedUserId) {
+        userId = storedUserId;
+      } else {
+        // Criar novo ID para usuário anônimo
+        userId = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('anonymous-user-id', userId);
+      }
+    }
+
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080';
+
     const newSocket = io(socketUrl);
     setSocket(newSocket);
 
-    newSocket.emit('join-room', { roomId });
+    newSocket.emit('join-room', { roomId: userId });
 
     newSocket.on('connect', () => {
       setIsConnected(true);
@@ -144,11 +173,12 @@ export default function Chat() {
       const newMessage: Message = {
         id: data.messageId || Date.now().toString(),
         text: data.text,
-        sender: data.sender as 'user' | 'ai' | 'system', // Manter sender original para o cliente
+        sender: data.sender as 'user' | 'ai' | 'system',
       };
       setMessages((prev) => {
         const newMsgs = [...prev, newMessage];
-        localStorage.setItem(`chat-${roomId}`, JSON.stringify(newMsgs));
+        // Salvar no localStorage apenas como backup
+        localStorage.setItem(`chat-${userId}`, JSON.stringify(newMsgs));
         return newMsgs;
       });
       setIsLoading(false);
@@ -178,7 +208,6 @@ export default function Chat() {
 
     // Listener para mostrar modal de feedback baseado em decisão da IA
     newSocket.on('show-feedback-modal', (data: { reason: string; context: string }) => {
-      console.log('🎯 IA detectou que deve mostrar feedback:', data);
       if (!feedbackSubmitted && !showFeedbackModal) {
         // Pequeno delay para não interromper a conversa
         setTimeout(() => {
@@ -187,9 +216,10 @@ export default function Chat() {
       }
     });
 
-    // Carregar do localStorage se existir
-    const cached = localStorage.getItem(`chat-${roomId}`);
-    if (cached) {
+    // Carregar do localStorage apenas como último recurso
+    // (se o servidor não conseguiu carregar o histórico)
+    const cached = localStorage.getItem(`chat-${userId}`);
+    if (cached && !hasStartedConversation) {
       const parsedMessages = JSON.parse(cached);
       setMessages(parsedMessages);
       setHasStartedConversation(true);
@@ -198,7 +228,7 @@ export default function Chat() {
     return () => {
       newSocket.disconnect();
     };
-  }, [roomId]);
+  }, [sessionStatus, session, hasStartedConversation, feedbackSubmitted, showFeedbackModal]);
 
   const getRespondentInfo = (sender: string) => {
     if (sender === 'user') {
@@ -228,8 +258,8 @@ export default function Chat() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('conversationId', roomId);
-      formData.append('userId', 'user-' + roomId); // Usar um ID de usuário temporário
+      formData.append('conversationId', userId);
+      formData.append('userId', userId); // Usar ID de usuário consistente
 
       const response = await fetch('/api/uploads', {
         method: 'POST',
@@ -270,7 +300,7 @@ export default function Chat() {
 
     setMessages((prev) => {
       const newMsgs = [...prev, userMessage];
-      localStorage.setItem(`chat-${roomId}`, JSON.stringify(newMsgs));
+      localStorage.setItem(`chat-${userId}`, JSON.stringify(newMsgs));
       return newMsgs;
     });
 
@@ -288,8 +318,8 @@ export default function Chat() {
     socket.emit('send-message', {
       text: messageToSend,
       attachments,
-      roomId,
-      userId: 'user-' + roomId,
+      roomId: userId,
+      userId: session?.user?.id || userId,
     });
   };
 

@@ -76,13 +76,18 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
       ],
     }).compile();
 
-    intelligentRegistrationService = module.get<IntelligentUserRegistrationService>(
-      IntelligentUserRegistrationService,
-    );
+    intelligentRegistrationService =
+      module.get<IntelligentUserRegistrationService>(
+        IntelligentUserRegistrationService,
+      );
     geminiService = module.get<GeminiService>(GeminiService);
-    fluidRegistrationService = module.get<FluidRegistrationService>(FluidRegistrationService);
+    fluidRegistrationService = module.get<FluidRegistrationService>(
+      FluidRegistrationService,
+    );
     userModel = module.get<Model<IUser>>(getModelToken('User'));
-    conversationModel = module.get<Model<IConversation>>(getModelToken('Conversation'));
+    conversationModel = module.get<Model<IConversation>>(
+      getModelToken('Conversation'),
+    );
   });
 
   describe('User Registration Function Call - Database Persistence', () => {
@@ -150,12 +155,16 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
       );
 
       // Verificações
-      expect(result.response).toBe('Vou registrar você no sistema com os dados fornecidos.');
+      expect(result.response).toBe(
+        'Vou registrar você no sistema com os dados fornecidos.',
+      );
       expect(result.userRegistered).toBe(true);
       expect(result.statusUpdated).toBe(false);
 
       // Verificar se o FluidRegistrationService foi chamado com os dados corretos
-      expect(fluidRegistrationService.processFluidRegistration).toHaveBeenCalledWith(
+      expect(
+        fluidRegistrationService.processFluidRegistration,
+      ).toHaveBeenCalledWith(
         {
           name: 'João Silva Santos',
           email: 'joao.silva@email.com',
@@ -213,7 +222,9 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
         .spyOn(fluidRegistrationService, 'processFluidRegistration')
         .mockResolvedValue(mockFluidResult);
 
-      jest.spyOn(conversationModel, 'findByIdAndUpdate').mockResolvedValue({} as any);
+      jest
+        .spyOn(conversationModel, 'findByIdAndUpdate')
+        .mockResolvedValue({} as any);
 
       const result = await intelligentRegistrationService.processUserMessage(
         'Olá, sou Maria Santos, já sou cliente de vocês',
@@ -221,7 +232,9 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
       );
 
       expect(result.userRegistered).toBe(true);
-      expect(fluidRegistrationService.processFluidRegistration).toHaveBeenCalledWith(
+      expect(
+        fluidRegistrationService.processFluidRegistration,
+      ).toHaveBeenCalledWith(
         {
           email: 'maria.santos@email.com',
           name: undefined,
@@ -235,7 +248,8 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
   describe('Status Update Function Call - Database Persistence', () => {
     it('should persist conversation status and classification when update_conversation_status is called', async () => {
       const mockGeminiResponse = {
-        response: 'Seu caso é complexo e precisa de um advogado especialista em direito trabalhista.',
+        response:
+          'Seu caso é complexo e precisa de um advogado especialista em direito trabalhista.',
         functionCalls: [
           {
             name: 'update_conversation_status' as const,
@@ -243,7 +257,8 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
               status: 'assigned_to_lawyer' as const,
               lawyer_needed: true,
               specialization_required: 'Direito Trabalhista',
-              notes: 'Caso de demissão injusta com pedido de reintegração e verbas rescisórias',
+              notes:
+                'Caso de demissão injusta com pedido de reintegração e verbas rescisórias',
             },
           },
         ] as FunctionCall[],
@@ -273,7 +288,9 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
         'conv-status-123',
       );
 
-      expect(result.response).toBe('Seu caso é complexo e precisa de um advogado especialista em direito trabalhista.');
+      expect(result.response).toBe(
+        'Seu caso é complexo e precisa de um advogado especialista em direito trabalhista.',
+      );
       expect(result.statusUpdated).toBe(true);
       expect(result.newStatus).toBe('assigned_to_lawyer');
       expect(result.lawyerNeeded).toBe(true);
@@ -300,14 +317,16 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
 
     it('should handle simple case resolution without lawyer intervention', async () => {
       const mockGeminiResponse = {
-        response: 'Este é um caso simples que posso resolver com orientações básicas.',
+        response:
+          'Este é um caso simples que posso resolver com orientações básicas.',
         functionCalls: [
           {
             name: 'update_conversation_status' as const,
             parameters: {
               status: 'resolved_by_ai' as const,
               lawyer_needed: false,
-              notes: 'Orientação sobre direitos básicos trabalhistas - férias e 13º salário',
+              notes:
+                'Orientação sobre direitos básicos trabalhistas - férias e 13º salário',
             },
           },
         ] as FunctionCall[],
@@ -317,7 +336,9 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
         .spyOn(geminiService, 'generateAIResponseWithFunctions')
         .mockResolvedValue(mockGeminiResponse);
 
-      jest.spyOn(conversationModel, 'findByIdAndUpdate').mockResolvedValue({} as any);
+      jest
+        .spyOn(conversationModel, 'findByIdAndUpdate')
+        .mockResolvedValue({} as any);
 
       const result = await intelligentRegistrationService.processUserMessage(
         'Quanto tempo de férias eu tenho direito por ano trabalhado?',
@@ -356,7 +377,8 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
               name: 'Carlos Oliveira',
               email: 'carlos.oliveira@email.com',
               phone: '+5511988888888',
-              problem_description: 'Problemas com contrato de prestação de serviços',
+              problem_description:
+                'Problemas com contrato de prestação de serviços',
               urgency_level: 'medium' as const,
             },
           },
@@ -373,7 +395,8 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
               status: 'assigned_to_lawyer' as const,
               lawyer_needed: true,
               specialization_required: 'Direito Empresarial',
-              notes: 'Análise de contrato de prestação de serviços com cláusulas abusivas',
+              notes:
+                'Análise de contrato de prestação de serviços com cláusulas abusivas',
             },
           },
         ] as FunctionCall[],
@@ -404,7 +427,9 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
         .spyOn(fluidRegistrationService, 'processFluidRegistration')
         .mockResolvedValue(mockFluidResult);
 
-      jest.spyOn(conversationModel, 'findByIdAndUpdate').mockResolvedValue({} as any);
+      jest
+        .spyOn(conversationModel, 'findByIdAndUpdate')
+        .mockResolvedValue({} as any);
 
       // Primeira mensagem - deve registrar usuário
       const result1 = await intelligentRegistrationService.processUserMessage(
@@ -427,7 +452,9 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
       expect(result2.specializationRequired).toBe('Direito Empresarial');
 
       // Verificar que ambos os métodos foram chamados
-      expect(fluidRegistrationService.processFluidRegistration).toHaveBeenCalledTimes(1);
+      expect(
+        fluidRegistrationService.processFluidRegistration,
+      ).toHaveBeenCalledTimes(1);
       expect(conversationModel.findByIdAndUpdate).toHaveBeenCalledTimes(2);
     });
   });
@@ -471,12 +498,16 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
         role: 'client',
       } as any);
 
-      jest.spyOn(conversationModel, 'findByIdAndUpdate').mockResolvedValue({} as any);
+      jest
+        .spyOn(conversationModel, 'findByIdAndUpdate')
+        .mockResolvedValue({} as any);
 
       // Deve usar fallback para resposta simples
-      jest.spyOn(geminiService, 'generateAIResponse').mockResolvedValue(
-        'Desculpe, houve um problema. Como posso te ajudar?',
-      );
+      jest
+        .spyOn(geminiService, 'generateAIResponse')
+        .mockResolvedValue(
+          'Desculpe, houve um problema. Como posso te ajudar?',
+        );
 
       const result = await intelligentRegistrationService.processUserMessage(
         'Mensagem com dados inválidos',
@@ -484,8 +515,12 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
       );
 
       // Mesmo com dados inválidos, deve tentar processar via fallback
-      expect(result.response).toBe('Houve um problema ao processar seus dados.');
-      expect(fluidRegistrationService.processFluidRegistration).toHaveBeenCalled();
+      expect(result.response).toBe(
+        'Houve um problema ao processar seus dados.',
+      );
+      expect(
+        fluidRegistrationService.processFluidRegistration,
+      ).toHaveBeenCalled();
     });
 
     it('should handle database errors during function call execution', async () => {
@@ -514,9 +549,11 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
         .mockRejectedValue(new Error('Database connection failed'));
 
       // Deve usar fallback para resposta simples
-      jest.spyOn(geminiService, 'generateAIResponse').mockResolvedValue(
-        'Desculpe, houve um problema técnico. Como posso te ajudar?',
-      );
+      jest
+        .spyOn(geminiService, 'generateAIResponse')
+        .mockResolvedValue(
+          'Desculpe, houve um problema técnico. Como posso te ajudar?',
+        );
 
       const result = await intelligentRegistrationService.processUserMessage(
         'Mensagem que causa erro de banco',
@@ -524,7 +561,9 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
       );
 
       // Deve usar fallback quando há erro de banco
-      expect(result.response).toBe('Desculpe, houve um problema técnico. Como posso te ajudar?');
+      expect(result.response).toBe(
+        'Desculpe, houve um problema técnico. Como posso te ajudar?',
+      );
       expect(geminiService.generateAIResponse).toHaveBeenCalled();
     });
   });

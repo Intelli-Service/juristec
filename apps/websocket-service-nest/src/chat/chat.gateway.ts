@@ -45,22 +45,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket) {
     try {
-      console.log(`=== NOVA CONEXÃO WEBSOCKET ===`);
-      console.log(`Cliente ID: ${client.id}`);
-
       // Extrair token JWT do NextAuth (cookies ou auth token)
       let token: string | null = null;
 
       // Primeiro tentar do handshake auth (caso seja passado diretamente)
       if (client.handshake.auth?.token) {
         token = client.handshake.auth.token;
-        console.log('Token encontrado no handshake auth');
       }
 
       // Se não encontrou, tentar extrair do cookie next-auth.session-token
       if (!token && client.handshake.headers?.cookie) {
         const cookies = client.handshake.headers.cookie;
-        console.log('Cookies recebidos:', cookies);
 
         // Extrair cookie next-auth.session-token
         const sessionCookie = this.parseCookie(
@@ -69,7 +64,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         );
         if (sessionCookie) {
           token = sessionCookie;
-          console.log('Token extraído do cookie next-auth.session-token');
         }
       }
 
@@ -78,13 +72,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const authHeader = client.handshake.headers.authorization;
         if (authHeader.startsWith('Bearer ')) {
           token = authHeader.substring(7);
-          console.log('Token extraído do header Authorization');
         }
       }
 
       if (token) {
         try {
-          console.log('Tentando validar token JWT...');
           const payload = this.jwtService.verify(token, {
             secret:
               process.env.NEXTAUTH_SECRET || 'juristec_auth_key_2025_32bytes_',

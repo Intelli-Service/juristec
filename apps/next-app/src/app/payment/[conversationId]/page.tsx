@@ -16,7 +16,6 @@ export default function PaymentPage() {
   };
 
   const handlePaymentSuccess = (payment: { id: string; status: string; paymentUrl?: string }) => {
-    console.log('Pagamento realizado com sucesso:', payment);
     // Redirecionar para página de sucesso ou chat
     window.location.href = `/chat?conversation=${conversationId}`;
   };

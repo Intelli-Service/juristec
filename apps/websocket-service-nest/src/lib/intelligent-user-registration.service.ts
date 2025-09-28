@@ -88,16 +88,10 @@ export class IntelligentUserRegistrationService {
       });
 
       // Gerar resposta com function calls
-      console.log('Antes de chamar generateAIResponseWithFunctions');
       const result =
         await this.geminiService.generateAIResponseWithFunctions(
           geminiMessages,
         );
-      console.log('Resultado do Gemini:', {
-        response: result.response,
-        functionCallsCount: result.functionCalls?.length || 0,
-        functionCalls: result.functionCalls,
-      });
 
       let userRegistered = false;
       let statusUpdated = false;
@@ -109,21 +103,13 @@ export class IntelligentUserRegistrationService {
 
       // Processar function calls se existirem
       if (result.functionCalls) {
-        console.log(
-          `🔧 Executando ${result.functionCalls.length} function calls`,
-        );
         for (const functionCall of result.functionCalls) {
-          console.log(
-            `🔧 Function call: ${functionCall.name}`,
-            functionCall.parameters,
-          );
           if (functionCall.name === 'register_user') {
             await this.handleUserRegistration(
               functionCall.parameters,
               conversationId,
             );
             userRegistered = true;
-            console.log('✅ Usuário registrado via function call');
           } else if (functionCall.name === 'update_conversation_status') {
             const statusResult = await this.handleStatusUpdate(
               functionCall.parameters,
@@ -133,7 +119,6 @@ export class IntelligentUserRegistrationService {
             newStatus = statusResult.newStatus;
             lawyerNeeded = statusResult.lawyerNeeded;
             specializationRequired = statusResult.specializationRequired;
-            console.log('✅ Status da conversa atualizado via function call');
           } else if (functionCall.name === 'detect_conversation_completion') {
             // Validação de parâmetros para evitar erros de runtime
             if (
@@ -166,17 +151,9 @@ export class IntelligentUserRegistrationService {
             } else {
               shouldShowFeedback = false;
               feedbackReason = undefined;
-              console.warn(
-                '⚠️ Parâmetros ausentes ou inválidos em detect_conversation_completion',
-              );
             }
-            console.log(
-              `✅ Detecção de conclusão de conversa: feedback=${shouldShowFeedback}, reason=${feedbackReason}`,
-            );
           }
         }
-      } else {
-        console.log('ℹ️ Nenhuma function call executada');
       }
 
       return {
@@ -224,8 +201,6 @@ export class IntelligentUserRegistrationService {
         );
 
       if (fluidResult.success) {
-        console.log(`✅ Cadastro fluido processado: ${fluidResult.message}`);
-
         // Se foi criado/verificado automaticamente, atualizar conversa
         if (fluidResult.userId) {
           await this.conversationModel.findByIdAndUpdate(conversationId, {
@@ -294,8 +269,6 @@ export class IntelligentUserRegistrationService {
         },
         priority: this.urgencyToPriorityMap[params.urgency_level] || 'low',
       });
-
-      console.log(`Usuário registrado via fallback: ${user.name}`);
     } catch (error) {
       console.error('Erro no fallback de registro:', error);
       throw error;
@@ -337,10 +310,6 @@ export class IntelligentUserRegistrationService {
       await this.conversationModel.findByIdAndUpdate(
         conversationId,
         updateData,
-      );
-
-      console.log(
-        `Status da conversa ${conversationId} atualizado para: ${params.status}`,
       );
 
       return {

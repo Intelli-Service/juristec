@@ -88,10 +88,10 @@ describe('Chat Component - WebSocket Authentication', () => {
         expect(jest.mocked(io)).toHaveBeenCalledWith('http://localhost:8080');
       });
 
-      // Verificar se join-room foi emitido com roomId dinâmico
+      // Verificar se join-room foi emitido com userId consistente
       await waitFor(() => {
         const mockSocket = jest.mocked(io).mock.results[0].value;
-        expect(mockSocket.emit).toHaveBeenCalledWith('join-room', expect.objectContaining({ roomId: expect.stringContaining('room-') }));
+        expect(mockSocket.emit).toHaveBeenCalledWith('join-room', expect.objectContaining({ roomId: 'user123' }));
       });
 
       // Verificar se os event listeners foram configurados
@@ -115,16 +115,25 @@ describe('Chat Component - WebSocket Authentication', () => {
         value: 'next-auth.session-token=anon-jwt-token; next-auth.csrf-token=anon-csrf-token',
       });
 
+      // Mock localStorage para usuário anônimo
+      const mockLocalStorage = {
+        getItem: jest.fn((key: string) => key === 'anonymous-user-id' ? 'anon-test-id' : null),
+        setItem: jest.fn(),
+        removeItem: jest.fn(),
+        clear: jest.fn(),
+      };
+      Object.defineProperty(window, 'localStorage', { value: mockLocalStorage });
+
       render(<Chat />);
 
       await waitFor(() => {
         expect(jest.mocked(io)).toHaveBeenCalledWith('http://localhost:8080');
       });
 
-      // Verificar se join-room foi emitido com roomId dinâmico
+      // Verificar se join-room foi emitido com userId anônimo consistente
       await waitFor(() => {
         const mockSocket = jest.mocked(io).mock.results[0].value;
-        expect(mockSocket.emit).toHaveBeenCalledWith('join-room', expect.objectContaining({ roomId: expect.stringContaining('room-') }));
+        expect(mockSocket.emit).toHaveBeenCalledWith('join-room', expect.objectContaining({ roomId: 'anon-test-id' }));
       });
 
       // Verificar se os event listeners foram configurados
@@ -158,9 +167,9 @@ describe('Chat Component - WebSocket Authentication', () => {
         connectCallback();
       });
 
-      // Verificar se join-room foi emitido com roomId dinâmico
+      // Verificar se join-room foi emitido com userId consistente
       await waitFor(() => {
-        expect(mockSocket.emit).toHaveBeenCalledWith('join-room', expect.objectContaining({ roomId: expect.stringContaining('room-') }));
+        expect(mockSocket.emit).toHaveBeenCalledWith('join-room', expect.objectContaining({ roomId: 'user123' }));
       });
     });
 
@@ -189,7 +198,7 @@ describe('Chat Component - WebSocket Authentication', () => {
 
       // Aguardar join-room
       await waitFor(() => {
-        expect(mockSocket.emit).toHaveBeenCalledWith('join-room', expect.objectContaining({ roomId: expect.stringContaining('room-') }));
+        expect(mockSocket.emit).toHaveBeenCalledWith('join-room', expect.objectContaining({ roomId: 'user123' }));
       });
 
       // Digitar e enviar mensagem
@@ -205,8 +214,8 @@ describe('Chat Component - WebSocket Authentication', () => {
         expect(mockSocket.emit).toHaveBeenCalledWith('send-message', {
           text: 'Olá, preciso de ajuda jurídica',
           attachments: [],
-          roomId: expect.stringContaining('room-'),
-          userId: expect.stringContaining('user-room-'),
+          roomId: 'user123',
+          userId: 'user123',
         });
       });
 

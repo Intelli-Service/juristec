@@ -4,10 +4,16 @@ import '@testing-library/jest-dom';
 import Chat from '../components/Chat';
 import { useNotifications } from '../hooks/useNotifications';
 import { useFeedback } from '../hooks/useFeedback';
+import { useSession } from 'next-auth/react';
 
 // Mock dos hooks
 jest.mock('../hooks/useNotifications');
 jest.mock('../hooks/useFeedback');
+
+// Mock do NextAuth
+jest.mock('next-auth/react', () => ({
+  useSession: jest.fn(),
+}));
 
 // Mock do socket.io-client no topo do arquivo
 const mockSocket = {
@@ -87,6 +93,21 @@ beforeEach(() => {
   (useNotifications as jest.Mock).mockReturnValue(mockNotifications);
   (useFeedback as jest.Mock).mockReturnValue(mockFeedback);
 
+  // Mock do useSession - sessão não autenticada por padrão
+  (useSession as jest.MockedFunction<typeof useSession>).mockReturnValue({
+    data: null,
+    status: 'unauthenticated',
+  } as any);
+
+  // Mock do localStorage para usuários anônimos
+  const mockLocalStorage = {
+    getItem: jest.fn((key: string) => key === 'anonymous-user-id' ? 'test-anon-id' : null),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+    clear: jest.fn(),
+  };
+  Object.defineProperty(window, 'localStorage', { value: mockLocalStorage });
+
   // Mock do fetch
   (global.fetch as jest.Mock).mockResolvedValue({
     ok: true,
@@ -123,7 +144,7 @@ describe('Chat Component', () => {
         text: 'Olá, preciso de ajuda',
         attachments: [],
         roomId: expect.any(String),
-        userId: expect.stringMatching(/^user-/),
+        userId: expect.any(String),
       });
     });
   });

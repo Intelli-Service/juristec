@@ -15,7 +15,6 @@ export default function ChatPage() {
       // Se não há sessão, fazer login anônimo
       if (!session) {
         try {
-          console.log('Criando sessão anônima...');
           await signIn('anonymous', { redirect: false });
         } catch (error) {
           console.error('Erro ao criar sessão anônima:', error);
