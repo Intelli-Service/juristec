@@ -201,6 +201,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           })),
         );
 
+        // 🚀 NOVO: Enviar informações da conversa para o frontend
+        client.emit('set-conversation', {
+          conversationId: conversation._id.toString(),
+          roomId: conversation.roomId,
+          status: conversation.status,
+          title: conversation.title || `Conversa #${conversation._id.toString().slice(-6)}`,
+        });
+
         console.log(
           `Histórico carregado para userId ${client.data.userId}: ${messages.length} mensagens`,
         );
@@ -215,6 +223,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
 
         client.emit('load-history', []);
+        
+        // 🚀 NOVO: Enviar informações da conversa recém-criada para o frontend
+        client.emit('set-conversation', {
+          conversationId: conversation._id.toString(),
+          roomId: conversation.roomId,
+          status: conversation.status,
+          title: `Nova Conversa #${conversation._id.toString().slice(-6)}`,
+        });
         console.log(
           `Nova conversa criada para userId ${client.data.userId} na sala ${roomId}`,
         );

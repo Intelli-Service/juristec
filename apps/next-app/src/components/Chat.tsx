@@ -50,6 +50,14 @@ export default function Chat() {
   });
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  
+  // 🚀 NOVO: Armazenar informações da conversa atual
+  const [currentConversation, setCurrentConversation] = useState<{
+    conversationId: string;
+    roomId: string;
+    title: string;
+    status: string;
+  } | null>(null);
 
   // Refs para evitar dependências desnecessárias no useEffect
   const feedbackSubmittedRef = useRef(feedbackSubmitted);
@@ -67,10 +75,10 @@ export default function Chat() {
   // UserId vem da sessão NextAuth (consistente para usuários anônimos e autenticados)
   const userId = session?.user?.id;
 
-  // Hook para feedback
+  // Hook para feedback - atualizado com conversationId correto
   const feedbackHook = useFeedback({
     userId: userId || '',
-    conversationId: userId || '',
+    conversationId: currentConversation?.conversationId || userId || '',
     lawyerId: caseAssigned.lawyerId,
     onSuccess: () => {
       setFeedbackSubmitted(true);
@@ -162,6 +170,17 @@ export default function Chat() {
       setIsInitialized(true);
     });
 
+    // 🚀 NOVO: Listener para informações da conversa
+    newSocket.on('set-conversation', (conversationData: {
+      conversationId: string;
+      roomId: string;
+      title: string;
+      status: string;
+    }) => {
+      console.log('🔗 Conversa configurada:', conversationData);
+      setCurrentConversation(conversationData);
+    });
+
     newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string; isError?: boolean; shouldRetry?: boolean; createdAt?: string }) => {
       const newMessage: Message = {
         id: data.messageId || Date.now().toString(),
@@ -243,8 +262,16 @@ export default function Chat() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('conversationId', userId || '');
-      // userId will be extracted from JWT token in backend
+      
+      // 🚀 CORREÇÃO CRÍTICA: Usar conversationId real em vez de userId
+      const conversationId = currentConversation?.conversationId || userId || '';
+      formData.append('conversationId', conversationId);
+      
+      console.log('📎 Upload de arquivo:', {
+        filename: file.name,
+        conversationId,
+        hasCurrentConversation: !!currentConversation,
+      });
 
       const response = await fetch('/api/uploads', {
         method: 'POST',
