@@ -3,7 +3,7 @@ import { GoogleGenerativeAI, ChatSession } from '@google/generative-ai';
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
 export const getGeminiModel = () => {
-  return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  return genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
 };
 
 export const generateAIResponse = async (messages: { text: string; sender: string }[]): Promise<string> => {

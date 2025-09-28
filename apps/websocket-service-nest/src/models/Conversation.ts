@@ -3,6 +3,9 @@ import { CaseStatus } from './User';
 
 export interface IConversation extends Document {
   roomId: string;
+  userId: string; // UserId consistente gerado do token CSRF ou JWT
+  isAuthenticated: boolean; // Se o usuário estava autenticado na criação
+  user?: any; // Dados do usuário autenticado (se aplicável)
   status: CaseStatus;
   classification: {
     category: string;
@@ -39,7 +42,10 @@ export interface IConversation extends Document {
 }
 
 const ConversationSchema = new Schema<IConversation>({
-  roomId: { type: String, required: true, unique: true },
+  roomId: { type: String, required: true },
+  userId: { type: String, required: true, index: true }, // Índice para busca rápida
+  isAuthenticated: { type: Boolean, default: false },
+  user: { type: Schema.Types.Mixed }, // Dados flexíveis do usuário autenticado
   status: {
     type: String,
     enum: Object.values(CaseStatus),
@@ -91,6 +97,7 @@ const ConversationSchema = new Schema<IConversation>({
 
 // Índices para performance
 ConversationSchema.index({ status: 1, assignedTo: 1 });
+ConversationSchema.index({ userId: 1, createdAt: -1 }); // Busca por userId + ordenação por data
 ConversationSchema.index({ 'classification.category': 1 });
 ConversationSchema.index({ 'classification.complexity': 1 });
 ConversationSchema.index({ priority: 1 });

@@ -15,9 +15,11 @@ Esta configuração simula o ambiente de produção usando Docker Compose com ng
 ## Roteamento
 
 - `http://localhost:8080/*` → Next.js Frontend
-- `http://localhost:8080/api/auth/*` → NextAuth (Frontend Next.js) 
+- `http://localhost:8080/api/auth/*` → NextAuth (Frontend Next.js)
 - `http://localhost:8080/api/(admin|lawyer|chat)/*` → NestJS Backend (remove `/api` prefix)
-- `http://localhost:8080/socket.io/*` → WebSocket Backend## Como Usar
+- `http://localhost:8080/socket.io/*` → WebSocket Backend
+
+## Como Usar
 
 ### 1. Preparação
 
@@ -28,18 +30,37 @@ pkill -f "next dev"
 pkill -f "nest start"
 ```
 
-### 2. Iniciar todos os serviços
+### 2. Iniciar serviços
 
+#### Desenvolvimento padrão (MongoDB Atlas + arquivos .env locais)
 ```bash
 # Na raiz do projeto
 docker-compose up --build
 ```
 
+#### Com MongoDB local (para desenvolvimento offline)
+```bash
+# Na raiz do projeto
+docker-compose --profile with-db up --build
+```
+
+#### Com Redis (para cache e sessões)
+```bash
+# Na raiz do projeto
+docker-compose --profile with-redis up --build
+```
+
+#### Todos os serviços opcionais
+```bash
+# Na raiz do projeto
+docker-compose --profile with-db --profile with-redis up --build
+```
+
 ### 3. Acessar a aplicação
 
-- **Frontend**: http://localhost:8080
-- **Admin**: http://localhost:8080/admin  
-- **Login**: http://localhost:8080/auth/signin
+- **Frontend**: `http://localhost:8080`
+- **Admin**: `http://localhost:8080/admin`
+- **Login**: `http://localhost:8080/auth/signin`
 
 ### 4. Logs em tempo real
 

@@ -5,6 +5,28 @@ import { MongoDBAdapter } from '@auth/mongodb-adapter'
 import { MongoClient } from 'mongodb'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
+
+// Extender tipos do NextAuth
+declare module 'next-auth' {
+  interface User {
+    isAnonymous?: boolean
+  }
+  interface Session {
+    user: {
+      id: string
+      role: string
+      permissions: string[]
+      isAnonymous?: boolean
+    }
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    isAnonymous?: boolean
+  }
+}
 
 // MongoDB client for NextAuth adapter
 const client = new MongoClient(process.env.MONGODB_URI!)
@@ -16,11 +38,31 @@ interface AuthUser {
   name: string
   role: 'super_admin' | 'lawyer' | 'moderator' | 'client'
   permissions: string[]
+  isAnonymous?: boolean
 }
 
 export const authOptions: NextAuthOptions = {
   // adapter: MongoDBAdapter(client), // Temporariamente removido para testar JWT puro
   providers: [
+    // Provider anônimo - sempre permite login
+    {
+      id: 'anonymous',
+      name: 'Anonymous',
+      type: 'credentials',
+      credentials: {},
+      async authorize() {
+        // Sempre cria um usuário anônimo
+        const anonymousId = `anon_${crypto.randomBytes(16).toString('hex')}`;
+        return {
+          id: anonymousId,
+          email: `${anonymousId}@anonymous.juristec`,
+          name: 'Usuário Anônimo',
+          role: 'client',
+          permissions: ['access_own_chat'],
+          isAnonymous: true,
+        };
+      },
+    },
     CredentialsProvider({
       name: 'credentials',
       credentials: {
@@ -128,6 +170,7 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role
         token.permissions = user.permissions
         token.userId = user.id
+        token.isAnonymous = user.isAnonymous || false
       }
       return token
     },
@@ -137,6 +180,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.userId as string
         session.user.role = token.role as string
         session.user.permissions = token.permissions as string[]
+        session.user.isAnonymous = token.isAnonymous as boolean
       }
       return session
     }

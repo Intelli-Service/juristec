@@ -1,0 +1,21 @@
+CONTRATO DE TRABALHO - DOCUMENTO DE TESTE
+
+Este é um documento de exemplo para testes de upload na plataforma Juristec.
+
+DADOS DO CONTRATO:
+- Empresa: Empresa Exemplo Ltda
+- Funcionário: João Silva
+- Cargo: Analista de Sistemas
+- Data de Admissão: 01/01/2023
+- Salário: R$ 5.000,00
+- Jornada: 40 horas semanais
+
+CLÁUSULAS PRINCIPAIS:
+1. Obrigações do empregado
+2. Obrigações do empregador
+3. Remuneração e benefícios
+4. Jornada de trabalho
+5. Férias e licenças
+6. Rescisão contratual
+
+Este documento é usado apenas para testes automatizados da funcionalidade de upload de arquivos na plataforma Juristec.

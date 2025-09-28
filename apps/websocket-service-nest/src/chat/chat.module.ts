@@ -10,6 +10,7 @@ import { IntelligentUserRegistrationService } from '../lib/intelligent-user-regi
 import { FluidRegistrationService } from '../lib/fluid-registration.service';
 import { VerificationService } from '../lib/verification.service';
 import { BillingModule } from '../billing/billing.module';
+import { TokenValidationService } from '../lib/token-validation.service';
 import UserModel from '../models/User';
 import Conversation from '../models/Conversation';
 import { VerificationCodeSchema } from '../models/VerificationCode';
@@ -33,6 +34,7 @@ import { VerificationCodeSchema } from '../models/VerificationCode';
     IntelligentUserRegistrationService,
     FluidRegistrationService,
     VerificationService,
+    TokenValidationService,
   ],
   exports: [ChatGateway, GeminiService, AIService, MessageService],
 })

@@ -129,7 +129,7 @@ export default function LawyerChatPage() {
       console.error('Erro ao obter token:', error);
     }
 
-    const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000';
+    const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080';
     const newSocket = io(socketUrl, {
       auth: {
         token: token,

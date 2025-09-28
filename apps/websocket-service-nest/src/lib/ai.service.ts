@@ -13,10 +13,11 @@ export class AIService {
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('GOOGLE_API_KEY');
-    if (!apiKey) {
+    if (!apiKey && process.env.NODE_ENV !== 'test') {
       throw new Error('GOOGLE_API_KEY is not defined in the environment');
     }
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    // Use a dummy key for tests if not provided
+    this.genAI = new GoogleGenerativeAI(apiKey || 'test-api-key');
   }
 
   private async getAIConfig(): Promise<IAIConfig> {
@@ -76,7 +77,7 @@ export class AIService {
     try {
       const aiConfig = await this.getAIConfig();
       const model = this.genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-flash-lite-latest',
         generationConfig: {
           temperature: aiConfig.behaviorSettings.temperature,
           topK: 50,

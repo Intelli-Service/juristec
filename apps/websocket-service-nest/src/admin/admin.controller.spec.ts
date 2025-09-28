@@ -89,7 +89,7 @@ describe('AdminController', () => {
         const config = {
           temperature: 0.7,
           maxTokens: 1000,
-          model: 'gemini-pro',
+          model: 'gemini-flash-lite-latest',
           systemPrompt: 'You are a legal assistant',
         };
 
@@ -112,7 +112,7 @@ describe('AdminController', () => {
         const updatedConfig = {
           temperature: 0.8,
           maxTokens: 1500,
-          model: 'gemini-pro',
+          model: 'gemini-flash-lite-latest',
           systemPrompt: 'You are a legal assistant',
         };
 

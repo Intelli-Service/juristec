@@ -45,56 +45,181 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket) {
     try {
-      // Tentar autenticar se houver token, mas permitir conexões anônimas
-      const token =
-        client.handshake.auth.token ||
-        client.handshake.headers.authorization?.split(' ')[1];
+      console.log(`=== NOVA CONEXÃO WEBSOCKET ===`);
+      console.log(`Cliente ID: ${client.id}`);
+
+      // Extrair token JWT do NextAuth (cookies ou auth token)
+      let token: string | null = null;
+
+      // Primeiro tentar do handshake auth (caso seja passado diretamente)
+      if (client.handshake.auth?.token) {
+        token = client.handshake.auth.token;
+        console.log('Token encontrado no handshake auth');
+      }
+
+      // Se não encontrou, tentar extrair do cookie next-auth.session-token
+      if (!token && client.handshake.headers?.cookie) {
+        const cookies = client.handshake.headers.cookie;
+        console.log('Cookies recebidos:', cookies);
+
+        // Extrair cookie next-auth.session-token
+        const sessionCookie = this.parseCookie(
+          cookies,
+          'next-auth.session-token',
+        );
+        if (sessionCookie) {
+          token = sessionCookie;
+          console.log('Token extraído do cookie next-auth.session-token');
+        }
+      }
+
+      // Se não encontrou, tentar do header Authorization
+      if (!token && client.handshake.headers?.authorization) {
+        const authHeader = client.handshake.headers.authorization;
+        if (authHeader.startsWith('Bearer ')) {
+          token = authHeader.substring(7);
+          console.log('Token extraído do header Authorization');
+        }
+      }
 
       if (token) {
-        const payload = this.jwtService.verify(token, {
-          secret: process.env.NEXTAUTH_SECRET || 'fallback-secret',
-        });
-        client.data.user = payload;
-        client.data.isAuthenticated = true;
+        try {
+          console.log('Tentando validar token JWT...');
+          const payload = this.jwtService.verify(token, {
+            secret:
+              process.env.NEXTAUTH_SECRET || 'juristec_auth_key_2025_32bytes_',
+          });
+
+          client.data.user = payload;
+          client.data.isAuthenticated = !payload.isAnonymous; // Usuários anônimos têm isAnonymous: true
+          client.data.userId = payload.userId || payload.sub;
+          client.data.isAnonymous = payload.isAnonymous || false;
+
+          console.log(
+            `Token válido - UserId: ${client.data.userId}, Anônimo: ${client.data.isAnonymous}, Autenticado: ${client.data.isAuthenticated}`,
+          );
+          console.log('Payload completo:', payload);
+        } catch (error) {
+          console.log(
+            `Token inválido: ${error.message} - desconectando cliente`,
+          );
+          console.log('Token que falhou:', token.substring(0, 50) + '...');
+          client.data.isAuthenticated = false;
+          client.data.user = null;
+          client.data.userId = '';
+          client.data.isAnonymous = false;
+
+          // Desconectar imediatamente clientes com token inválido
+          setTimeout(() => {
+            client.disconnect(true);
+          }, 100);
+
+          return; // Não continua a execução
+        }
       } else {
+        console.log('Nenhum token fornecido - desconectando cliente');
+        console.log('Headers recebidos:', client.handshake.headers);
         client.data.isAuthenticated = false;
         client.data.user = null;
+        client.data.userId = '';
+        client.data.isAnonymous = false;
+
+        // Desconectar imediatamente clientes sem token
+        setTimeout(() => {
+          client.disconnect(true);
+        }, 100); // Pequeno delay para permitir que a mensagem de erro seja enviada
+
+        return; // Não continua a execução
       }
-    } catch (_error) {
-      // Se o token for inválido, tratar como anônimo
+
+      console.log(`Dados do cliente configurados:`, {
+        id: client.id,
+        isAuthenticated: client.data.isAuthenticated,
+        isAnonymous: client.data.isAnonymous,
+        userId: client.data.userId,
+        user: client.data.user
+          ? { email: client.data.user.email, role: client.data.user.role }
+          : null,
+      });
+    } catch (error) {
+      console.error('Erro na conexão WebSocket:', error);
       client.data.isAuthenticated = false;
       client.data.user = null;
+      client.data.userId = '';
+      client.data.isAnonymous = false;
     }
   }
 
   handleDisconnect(_client: Socket) {}
+
+  @SubscribeMessage('join-room')
   async handleJoinRoom(
-    @MessageBody() data: { roomId: string },
+    @MessageBody() data: { roomId?: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const roomId = data.roomId;
-    client.join(roomId);
+    console.log(`=== CLIENTE ENTRANDO NA SALA ===`);
+    console.log(
+      `Cliente ${client.id} - UserId: ${client.data.userId}, Anônimo: ${client.data.isAnonymous}, Autenticado: ${client.data.isAuthenticated}`,
+    );
 
+    // Verificar se o cliente tem um userId válido
+    if (!client.data.userId) {
+      console.log(`Cliente ${client.id} rejeitado - sem userId válido`);
+      client.emit('error', {
+        message: 'Sessão inválida. Recarregue a página.',
+      });
+      return;
+    }
+
+    // Usar userId como roomId se não especificado
+    const roomId = data.roomId || `user-${client.data.userId}`;
+    console.log(`Cliente ${client.id} entrando na sala: ${roomId}`);
+
+    // Adicionar cliente à sala
+    client.join(roomId);
+    console.log(`Cliente ${client.id} adicionado à sala ${roomId}`);
+
+    // Tentar carregar histórico da conversa baseado no userId
     try {
-      let conversation = await Conversation.findOne({ roomId });
+      // Buscar conversa por userId (todos os usuários têm userId consistente)
+      let conversation = await Conversation.findOne({
+        userId: client.data.userId,
+      });
+
       if (conversation) {
+        console.log(`Conversa encontrada para userId ${client.data.userId}`);
         const messages = await this.messageService.getMessages(
           { conversationId: conversation._id },
           { userId: 'system', role: 'system', permissions: ['read'] },
         );
+
         client.emit(
           'load-history',
           messages.map((msg) => ({
             id: msg._id.toString(),
             text: msg.text,
             sender: msg.sender,
+            timestamp: msg.createdAt,
           })),
         );
+
+        console.log(
+          `Histórico carregado para userId ${client.data.userId}: ${messages.length} mensagens`,
+        );
       } else {
-        // Criar nova conversa
-        conversation = await Conversation.create({ roomId });
-        // Não emitir mensagem inicial - deixar o frontend controlar a experiência
+        // Criar nova conversa associada ao userId
+        console.log(`Criando nova conversa para userId ${client.data.userId}`);
+        conversation = await Conversation.create({
+          roomId,
+          userId: client.data.userId,
+          isAuthenticated: client.data.isAuthenticated,
+          user: client.data.user,
+        });
+
         client.emit('load-history', []);
+        console.log(
+          `Nova conversa criada para userId ${client.data.userId} na sala ${roomId}`,
+        );
       }
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);
@@ -169,10 +294,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('send-message')
   async handleSendMessage(
-    @MessageBody() data: { roomId: string; message: string },
+    @MessageBody() data: { roomId: string; text: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const { roomId, message } = data;
+    const { roomId, text: message } = data;
 
     let conversation: any;
 
@@ -278,16 +403,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Processar mensagem com cadastro inteligente
-      const registrationResult =
-        await this.intelligentRegistrationService.processUserMessage(
-          message,
-          conversation._id.toString(),
-          client.data.user?.id,
-          client.data.isAuthenticated, // Passar se deve incluir histórico
+      let registrationResult;
+      let aiResponseText =
+        'Olá! Sou o assistente jurídico da Juristec. Como posso ajudar você hoje com suas questões legais?';
+
+      try {
+        registrationResult =
+          await this.intelligentRegistrationService.processUserMessage(
+            message,
+            conversation._id.toString(),
+            client.data.user?.id,
+            client.data.isAuthenticated, // Passar se deve incluir histórico
+          );
+        aiResponseText = registrationResult.response;
+      } catch (aiError) {
+        console.warn('Erro na IA Gemini:', aiError?.message || aiError);
+        // Qualquer erro do Gemini deve ser tratado como erro crítico
+        const errorMsg =
+          aiError?.message || String(aiError) || 'Erro desconhecido na IA';
+        throw new Error(
+          `Serviço de IA temporariamente indisponível: ${errorMsg}`,
         );
+      }
 
       // Usar a resposta da IA (que pode incluir function calls)
-      const aiResponseText = registrationResult.response;
 
       // Log de eventos importantes
       if (registrationResult.userRegistered) {
@@ -344,11 +483,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         console.warn('Erro ao classificar conversa:', classifyError.message);
       }
 
+      console.log('Antes de emitir mensagem da IA:', aiResponseText);
       this.server.to(roomId).emit('receive-message', {
         text: aiResponseText,
         sender: 'ai',
         messageId: aiMessage._id.toString(),
       });
+      console.log('Depois de emitir mensagem da IA');
     } catch (error) {
       console.error('Erro ao processar mensagem:', error);
 
@@ -356,31 +497,48 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         'Desculpe, ocorreu um erro interno. Tente novamente em alguns instantes.';
       let shouldRetry = false;
 
+      // Garantir que error é um objeto com message
+      const errorObj = error || {};
+      const errorMsg =
+        errorObj.message || String(errorObj) || 'Erro desconhecido';
+
       // Tratar erros específicos da API do Google Gemini
       if (
-        error.message?.includes('503') ||
-        error.message?.includes('Service Unavailable')
+        errorMsg.includes('Modelo Gemini indisponível') ||
+        errorMsg.includes('Serviço de IA temporariamente indisponível')
+      ) {
+        errorMessage =
+          'Estamos passando por uma instabilidade temporária no nosso assistente de IA. Nossa equipe foi notificada e estamos trabalhando para resolver. Tente novamente em alguns minutos.';
+        shouldRetry = true;
+      } else if (
+        errorMsg.includes('503') ||
+        errorMsg.includes('Service Unavailable')
       ) {
         errorMessage =
           'O assistente está temporariamente indisponível devido à alta demanda. Aguarde alguns minutos e tente novamente.';
         shouldRetry = true;
       } else if (
-        error.message?.includes('429') ||
-        error.message?.includes('Too Many Requests')
+        errorMsg.includes('429') ||
+        errorMsg.includes('Too Many Requests')
       ) {
         errorMessage =
           'Muitas solicitações foram feitas. Aguarde alguns minutos antes de tentar novamente.';
         shouldRetry = true;
       } else if (
-        error.message?.includes('401') ||
-        error.message?.includes('Unauthorized')
+        errorMsg.includes('404') ||
+        errorMsg.includes('Not Found') ||
+        errorMsg.includes('models/gemini-flash-lite-latest is not found')
+      ) {
+        errorMessage =
+          'O modelo de IA está temporariamente indisponível. Nossa equipe foi notificada e estamos trabalhando para resolver. Tente novamente em alguns minutos.';
+        shouldRetry = true;
+      } else if (
+        errorMsg.includes('401') ||
+        errorMsg.includes('Unauthorized')
       ) {
         errorMessage =
           'Erro de autenticação com o serviço de IA. Entre em contato com o suporte.';
-      } else if (
-        error.message?.includes('400') ||
-        error.message?.includes('Bad Request')
-      ) {
+      } else if (errorMsg.includes('400') || errorMsg.includes('Bad Request')) {
         errorMessage =
           'A mensagem enviada não pôde ser processada. Tente reformular sua pergunta.';
       }
@@ -394,7 +552,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             sender: 'system',
             metadata: {
               error: true,
-              originalError: error.message,
+              originalError: errorMsg,
               shouldRetry,
             },
           });
@@ -601,5 +759,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } catch (error) {
       console.error('Erro ao notificar atualização de cobrança:', error);
     }
+  }
+
+  private parseCookie(cookieHeader: string, name: string): string | undefined {
+    const cookies = cookieHeader.split(';').map((c) => c.trim());
+    const cookie = cookies.find((c) => c.startsWith(`${name}=`));
+    return cookie
+      ? decodeURIComponent(cookie.substring(name.length + 1))
+      : undefined;
   }
 }

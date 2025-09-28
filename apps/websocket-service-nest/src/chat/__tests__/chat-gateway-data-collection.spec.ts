@@ -99,7 +99,12 @@ describe('ChatGateway - User Data Collection Integration', () => {
         {
           provide: IntelligentUserRegistrationService,
           useValue: {
-            processUserMessage: jest.fn(),
+            processUserMessage: jest.fn().mockResolvedValue({
+              response:
+                'Olá! Para te ajudar melhor, preciso de algumas informações. Qual é o seu nome?',
+              userRegistered: false,
+              statusUpdated: false,
+            }),
           },
         },
         {
@@ -168,7 +173,7 @@ describe('ChatGateway - User Data Collection Integration', () => {
 
       // Chamar o método handleSendMessage
       await gateway.handleSendMessage(
-        { roomId: 'test-room', message: 'Olá, preciso de ajuda' },
+        { roomId: 'test-room', text: 'Olá, preciso de ajuda' },
         mockSocket as any,
       );
 
@@ -233,7 +238,7 @@ describe('ChatGateway - User Data Collection Integration', () => {
 
       // Chamar o método handleSendMessage
       await gateway.handleSendMessage(
-        { roomId: 'test-room', message: 'Olá, preciso de ajuda' },
+        { roomId: 'test-room', text: 'Olá, preciso de ajuda' },
         mockSocket as any,
       );
 

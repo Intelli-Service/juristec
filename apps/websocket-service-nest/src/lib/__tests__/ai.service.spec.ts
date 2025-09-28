@@ -137,7 +137,7 @@ describe('AIService', () => {
       });
       expect(mockGetGenerativeModel).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'gemini-1.5-flash',
+          model: 'gemini-flash-lite-latest',
           systemInstruction: mockAiConfig.systemPrompt,
         }),
       );
@@ -221,6 +221,12 @@ describe('AIService', () => {
     });
 
     it('should throw an error if GOOGLE_API_KEY is not configured', async () => {
+      // Salvar o NODE_ENV original
+      const originalNodeEnv = process.env.NODE_ENV;
+
+      // Simular ambiente de produção para forçar o erro
+      process.env.NODE_ENV = 'production';
+
       // Cria um mock do ConfigService que retorna null para GOOGLE_API_KEY
       const invalidConfigService = {
         get: jest.fn().mockReturnValue(null),
@@ -238,6 +244,9 @@ describe('AIService', () => {
           ],
         }).compile(),
       ).rejects.toThrow('GOOGLE_API_KEY is not defined in the environment');
+
+      // Restaurar NODE_ENV
+      process.env.NODE_ENV = originalNodeEnv;
     });
   });
 });

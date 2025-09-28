@@ -14,6 +14,7 @@ export interface JwtPayload {
   permissions: string[];
   email: string;
   name: string;
+  isAnonymous?: boolean;
   iat?: number;
   exp?: number;
 }
@@ -97,6 +98,7 @@ export class NextAuthGuard implements CanActivate {
       permissions: payload.permissions || [],
       email: payload.email,
       name: payload.name,
+      isAnonymous: payload.isAnonymous || false,
       iat: payload.iat,
       exp: payload.exp,
     };

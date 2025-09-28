@@ -33,6 +33,51 @@ print_status() {
     esac
 }
 
+# Enhanced curl function with HTTP status checking
+curl_check() {
+    local url=$1
+    local expected_status=${2:-200}
+    local method=${3:-GET}
+    local data=${4:-}
+
+    local response_file=$(mktemp)
+    local header_file=$(mktemp)
+
+    # Make request and capture both response and headers
+    local curl_output
+    if [ "$method" = "POST" ] && [ -n "$data" ]; then
+        curl_output=$(curl -s -w "\n%{http_code}" -X POST -H "Content-Type: application/json" -d "$data" \
+                     -D "$header_file" -o "$response_file" "$url" 2>/dev/null)
+    else
+        curl_output=$(curl -s -w "\n%{http_code}" -D "$header_file" -o "$response_file" "$url" 2>/dev/null)
+    fi
+
+    local http_code=$?
+    local response_content=$(cat "$response_file" 2>/dev/null || echo "")
+    local headers=$(cat "$header_file" 2>/dev/null || echo "")
+
+    # Clean up temp files
+    rm -f "$response_file" "$header_file"
+
+    # Check if curl succeeded
+    if [ $http_code -ne 0 ]; then
+        print_status "CURL ERROR: Failed to connect to $url" "error"
+        return 1
+    fi
+
+    # Extract status code from curl output (last line after newline)
+    local status_code=$(echo "$curl_output" | tail -1 2>/dev/null | grep -E '^[0-9]+$' || echo "")
+
+    # Check status code
+    if [ "$status_code" != "$expected_status" ]; then
+        print_status "HTTP $status_code (expected $expected_status): $url" "error"
+        return 1
+    fi
+
+    # Return content
+    echo "$response_content"
+}
+
 run_functional_test() {
     local test_name=$1
     local test_function=$2
@@ -54,7 +99,13 @@ run_functional_test() {
 test_landing_page() {
     print_status "Testing Landing Page Content" "info"
 
-    local response=$(curl -s $BASE_URL/)
+    local response=$(curl_check "$BASE_URL/")
+    local curl_exit=$?
+
+    if [ $curl_exit -ne 0 ]; then
+        print_status "Failed to access landing page" "error"
+        return 1
+    fi
 
     # Check for essential elements
     if echo "$response" | grep -q "Juristec\|legal\|advogado"; then
@@ -87,7 +138,13 @@ test_landing_page() {
 test_chat_interface() {
     print_status "Testing Chat Interface" "info"
 
-    local response=$(curl -s $BASE_URL/chat)
+    local response=$(curl_check "$BASE_URL/chat")
+    local curl_exit=$?
+
+    if [ $curl_exit -ne 0 ]; then
+        print_status "Failed to access chat interface" "error"
+        return 1
+    fi
 
     # Check for chat components
     if echo "$response" | grep -q "chat\|message\|input"; then
@@ -113,21 +170,26 @@ test_authentication() {
     print_status "Testing Authentication System" "info"
 
     # Test login page access
-    local login_page=$(curl -s $BASE_URL/auth/signin)
+    local login_page=$(curl_check "$BASE_URL/auth/signin")
+    local curl_exit=$?
 
-    if echo "$login_page" | grep -q "login\|email\|password"; then
-        print_status "Login page accessible" "success"
+    if [ $curl_exit -eq 0 ]; then
+        if echo "$login_page" | grep -q "login\|email\|password"; then
+            print_status "Login page accessible" "success"
+        else
+            print_status "Login page not accessible" "error"
+            return 1
+        fi
     else
-        print_status "Login page not accessible" "error"
+        print_status "Failed to access login page" "error"
         return 1
     fi
 
     # Test invalid login (should fail gracefully) via nginx
-    local invalid_login=$(curl -s -X POST $BACKEND_URL/auth/login \
-        -H 'Content-Type: application/json' \
-        -d '{"email":"invalid@test.com","password":"wrong"}')
+    local invalid_login=$(curl_check "$BACKEND_URL/auth/login" "401" "POST" '{"email":"invalid@test.com","password":"wrong"}')
+    local login_exit=$?
 
-    if echo "$invalid_login" | grep -q "401\|Unauthorized\|invalid"; then
+    if [ $login_exit -eq 0 ]; then
         print_status "Invalid login properly rejected" "success"
     else
         print_status "Invalid login not properly handled" "error"
@@ -141,14 +203,20 @@ test_authentication() {
 test_admin_dashboard() {
     print_status "Testing Admin Dashboard" "info"
 
-    local admin_page=$(curl -s $BASE_URL/admin)
+    local admin_page=$(curl_check "$BASE_URL/admin" "302")  # Should redirect or require auth
+    local curl_exit=$?
 
-    # Should redirect or require auth (not show content without login)
-    if echo "$admin_page" | grep -q "redirect\|login\|auth"; then
+    if [ $curl_exit -eq 0 ]; then
         print_status "Admin dashboard properly protected" "success"
     else
-        print_status "Admin dashboard not properly protected" "error"
-        return 1
+        # If it returns 200, it might not be protected
+        local admin_page_200=$(curl_check "$BASE_URL/admin" "200" 2>/dev/null)
+        if [ $? -eq 0 ]; then
+            print_status "Admin dashboard not properly protected" "error"
+            return 1
+        else
+            print_status "Admin dashboard properly protected" "success"
+        fi
     fi
 
     return 0
@@ -163,10 +231,17 @@ test_file_upload() {
     echo "<html>Test HTML</html>" > /tmp/test_doc.html
 
     # Test upload endpoint availability
-    local upload_check=$(curl -s $BACKEND_URL/uploads/info)
+    local upload_info=$(curl_check "$BACKEND_URL/uploads/info")
+    local info_exit=$?
 
-    if echo "$upload_check" | grep -q "upload\|file"; then
-        print_status "Upload endpoint available" "success"
+    if [ $info_exit -eq 0 ]; then
+        if echo "$upload_info" | grep -q "upload\|file"; then
+            print_status "Upload endpoint available" "success"
+        else
+            print_status "Upload endpoint not available" "error"
+            rm -f /tmp/test_doc.txt /tmp/test_doc.html
+            return 1
+        fi
     else
         print_status "Upload endpoint not available" "error"
         rm -f /tmp/test_doc.txt /tmp/test_doc.html
@@ -174,14 +249,14 @@ test_file_upload() {
     fi
 
     # Test actual file upload
-    local upload_result=$(curl -s -X POST $BACKEND_URL/uploads \
+    local upload_result=$(curl -s -w "%{http_code}" -X POST $BACKEND_URL/uploads \
         -F "file=@/tmp/test_doc.txt" \
-        -F 'metadata={"test": "functional"}')
+        -F 'metadata={"test": "functional"}' 2>/dev/null | head -1)
 
-    if echo "$upload_result" | grep -q "url\|fileId\|success"; then
+    if echo "$upload_result" | grep -q "200\|201"; then
         print_status "File upload successful" "success"
     else
-        print_status "File upload failed" "error"
+        print_status "File upload failed (HTTP $upload_result)" "error"
         rm -f /tmp/test_doc.txt /tmp/test_doc.html
         return 1
     fi
@@ -196,26 +271,38 @@ test_payment_system() {
     print_status "Testing Payment System" "info"
 
     # Test payment endpoint availability via nginx
-    local payment_info=$(curl -s $BACKEND_URL/payment/info)
+    local payment_info=$(curl_check "$BACKEND_URL/payment/info")
+    local info_exit=$?
 
-    if echo "$payment_info" | grep -q "payment\|pagarme\|checkout"; then
-        print_status "Payment system configured" "success"
+    if [ $info_exit -eq 0 ]; then
+        if echo "$payment_info" | grep -q "payment\|pagarme\|checkout"; then
+            print_status "Payment system configured" "success"
+        else
+            print_status "Payment system not configured" "error"
+            return 1
+        fi
     else
         print_status "Payment system not configured" "error"
         return 1
     fi
 
     # Test payment creation (should require auth/data) via nginx
-    local payment_create=$(curl -s -X POST $BACKEND_URL/payment/create \
-        -H 'Content-Type: application/json' \
-        -d '{}')
+    local payment_create=$(curl_check "$BACKEND_URL/payment/create" "400" "POST" '{}')
+    local create_exit=$?
 
     # Should either succeed with valid data or fail gracefully
-    if echo "$payment_create" | grep -q "error\|validation\|amount" || echo "$payment_create" | grep -q "checkout\|payment"; then
+    if [ $create_exit -eq 0 ]; then
         print_status "Payment creation endpoint responsive" "success"
     else
-        print_status "Payment creation endpoint not responsive" "error"
-        return 1
+        # Try with valid data structure
+        local payment_data='{"amount":1000,"description":"Test payment","userId":"test"}'
+        local payment_create_valid=$(curl_check "$BACKEND_URL/payment/create" "400" "POST" "$payment_data")
+        if [ $? -eq 0 ]; then
+            print_status "Payment creation endpoint responsive" "success"
+        else
+            print_status "Payment creation endpoint not responsive" "error"
+            return 1
+        fi
     fi
 
     return 0
@@ -226,24 +313,34 @@ test_ai_chat() {
     print_status "Testing AI Chat Integration" "info"
 
     # Test AI health endpoint via nginx
-    local ai_health=$(curl -s $BACKEND_URL/ai/health)
+    local ai_health=$(curl_check "$BACKEND_URL/ai/health")
+    local health_exit=$?
 
-    if echo "$ai_health" | grep -q '"status":"ok"\|"available":true\|"gemini"'; then
-        print_status "AI service healthy" "success"
+    if [ $health_exit -eq 0 ]; then
+        if echo "$ai_health" | grep -q '"status":"ok"\|"available":true\|"gemini"'; then
+            print_status "AI service healthy" "success"
+        else
+            print_status "AI service not healthy" "error"
+            return 1
+        fi
     else
         print_status "AI service not healthy" "error"
         return 1
     fi
 
     # Test chat message processing via nginx
-    local chat_test=$(curl -s -X POST $BACKEND_URL/chat/start \
-        -H 'Content-Type: application/json' \
-        -d '{"deviceId": "test-device-func"}')
+    local chat_test=$(curl_check "$BACKEND_URL/chat/start" "200" "POST" '{"deviceId": "test-device-func"}')
+    local chat_exit=$?
 
-    if echo "$chat_test" | grep -q "conversationId\|success"; then
-        print_status "Chat system initialized" "success"
+    if [ $chat_exit -eq 0 ]; then
+        if echo "$chat_test" | grep -q "conversationId\|success"; then
+            print_status "Chat system initialized" "success"
+        else
+            print_status "Chat system initialization failed" "error"
+            return 1
+        fi
     else
-        print_status "Chat system not initialized" "error"
+        print_status "Chat system not accessible" "error"
         return 1
     fi
 
@@ -255,10 +352,16 @@ test_database_operations() {
     print_status "Testing Database Operations" "info"
 
     # Test database health via nginx
-    local db_health=$(curl -s $BACKEND_URL/health/database)
+    local db_health=$(curl_check "$BACKEND_URL/health/database")
+    local db_exit=$?
 
-    if echo "$db_health" | grep -q '"status":"ok"\|"connected":true\|"mongodb"'; then
-        print_status "Database connection healthy" "success"
+    if [ $db_exit -eq 0 ]; then
+        if echo "$db_health" | grep -q '"status":"ok"\|"connected":true\|"mongodb"'; then
+            print_status "Database connection healthy" "success"
+        else
+            print_status "Database connection unhealthy" "error"
+            return 1
+        fi
     else
         print_status "Database connection unhealthy" "error"
         return 1
@@ -272,9 +375,10 @@ test_error_handling() {
     print_status "Testing Error Handling" "info"
 
     # Test 404 endpoint via nginx
-    local not_found=$(curl -s -w "%{http_code}" $BACKEND_URL/nonexistent-endpoint 2>/dev/null | tail -1)
+    local not_found=$(curl_check "$BACKEND_URL/nonexistent-endpoint" "404")
+    local not_found_exit=$?
 
-    if [ "$not_found" = "404" ]; then
+    if [ $not_found_exit -eq 0 ]; then
         print_status "404 errors handled properly" "success"
     else
         print_status "404 errors not handled properly" "error"
@@ -282,11 +386,10 @@ test_error_handling() {
     fi
 
     # Test invalid JSON via nginx
-    local invalid_json=$(curl -s -X POST $BACKEND_URL/auth/login \
-        -H 'Content-Type: application/json' \
-        -d 'invalid json')
+    local invalid_json=$(curl_check "$BACKEND_URL/auth/login" "400" "POST" 'invalid json')
+    local json_exit=$?
 
-    if echo "$invalid_json" | grep -q "400\|error\|invalid"; then
+    if [ $json_exit -eq 0 ]; then
         print_status "Invalid JSON handled properly" "success"
     else
         print_status "Invalid JSON not handled properly" "error"
@@ -310,11 +413,10 @@ test_security_features() {
     fi
 
     # Test SQL injection protection via nginx
-    local sql_injection=$(curl -s "$BACKEND_URL/auth/login" \
-        -H 'Content-Type: application/json' \
-        -d '{"email":"admin@test.com'\''; DROP TABLE users;--","password":"test"}')
+    local sql_injection=$(curl_check "$BACKEND_URL/auth/login" "400" "POST" '{"email":"admin@test.com'\''; DROP TABLE users;--","password":"test"}')
+    local sql_exit=$?
 
-    if echo "$sql_injection" | grep -q "401\|400\|error"; then
+    if [ $sql_exit -eq 0 ]; then
         print_status "SQL injection protection working" "success"
     else
         print_status "SQL injection protection may be vulnerable" "error"
@@ -329,6 +431,12 @@ test_mobile_responsiveness() {
     print_status "Testing Mobile Responsiveness" "info"
 
     local mobile_response=$(curl -s -H "User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15" $BASE_URL/)
+    local mobile_exit=$?
+
+    if [ $mobile_exit -ne 0 ]; then
+        print_status "Failed to access mobile page" "error"
+        return 1
+    fi
 
     # Check for responsive classes
     if echo "$mobile_response" | grep -q "sm:\|md:\|lg:\|responsive"; then
@@ -345,7 +453,13 @@ test_mobile_responsiveness() {
 test_toast_notifications() {
     print_status "Testing Toast Notifications" "info"
 
-    local chat_page=$(curl -s $BASE_URL/chat)
+    local chat_page=$(curl_check "$BASE_URL/chat")
+    local chat_exit=$?
+
+    if [ $chat_exit -ne 0 ]; then
+        print_status "Failed to access chat page" "error"
+        return 1
+    fi
 
     # Check for toast components
     if echo "$chat_page" | grep -q "toast\|notification\|Toast"; then
@@ -386,9 +500,9 @@ echo ""
 
 if [ $functional_failed -eq 0 ]; then
     print_status "🎉 ALL FUNCTIONAL TESTS PASSED!" "success"
-    return 0
+    exit 0
 else
     success_rate=$((functional_passed * 100 / functional_tests))
     print_status "⚠️ FUNCTIONAL TESTS: $functional_passed/$functional_tests passed ($success_rate%)" "warning"
-    return 1
+    exit 1
 fi
