@@ -29,7 +29,8 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [roomId] = useState(() => `room-${Date.now()}`); // Room única por conversa
+  const [roomId, setRoomId] = useState<string>(''); // Room será definida pelo token CSRF
+  const [userId, setUserId] = useState<string>(''); // ID único do usuário baseado no token CSRF
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -53,9 +54,36 @@ export default function Chat() {
 
   const notifications = useNotifications();
 
+  // Função para obter o token CSRF do NextAuth (único por sessão)
+  const getCsrfToken = (): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      // Tentar obter do cookie primeiro
+      const cookies = document.cookie.split(';');
+      const csrfCookie = cookies.find(cookie => cookie.trim().startsWith('next-auth.csrf-token='));
+
+      if (csrfCookie) {
+        const token = csrfCookie.split('=')[1];
+        resolve(token);
+        return;
+      }
+
+      // Se não encontrou no cookie, fazer uma requisição para obter
+      fetch('/api/auth/csrf')
+        .then(response => response.json())
+        .then(data => {
+          if (data.csrfToken) {
+            resolve(data.csrfToken);
+          } else {
+            reject(new Error('CSRF token not found'));
+          }
+        })
+        .catch(reject);
+    });
+  };
+
   // Hook para feedback
   const feedbackHook = useFeedback({
-    userId: 'user-' + roomId, // Usar ID consistente
+    userId: userId || 'anonymous', // Usar userId baseado no token CSRF
     conversationId: roomId,
     lawyerId: caseAssigned.lawyerId,
     onSuccess: () => {
@@ -117,88 +145,95 @@ export default function Chat() {
   };
 
   useEffect(() => {
-    const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080';
-    const newSocket = io(socketUrl);
-    setSocket(newSocket);
+    // Obter token CSRF e configurar IDs únicos
+    getCsrfToken()
+      .then(csrfToken => {
+        // Usar hash do token CSRF como identificador único e consistente
+        const hashedToken = btoa(csrfToken).replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+        const uniqueRoomId = `room-${hashedToken}`;
+        const uniqueUserId = `user-${hashedToken}`;
 
-    newSocket.emit('join-room', { roomId });
+        setRoomId(uniqueRoomId);
+        setUserId(uniqueUserId);
 
-    newSocket.on('connect', () => {
-      setIsConnected(true);
-    });
+        // Agora conectar ao WebSocket com os IDs definidos
+        const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080';
+        const newSocket = io(socketUrl);
+        setSocket(newSocket);
 
-    newSocket.on('disconnect', () => {
-      setIsConnected(false);
-    });
+        newSocket.emit('join-room', { roomId: uniqueRoomId, userId: uniqueUserId });
 
-    newSocket.on('load-history', (history: Message[]) => {
-      if (history.length > 0) {
-        setMessages(history);
-        setHasStartedConversation(true);
-      }
-      // Marcar como inicializado após carregar histórico
-      setIsInitialized(true);
-    });
-
-    newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string; isError?: boolean; shouldRetry?: boolean; createdAt?: string }) => {
-      const newMessage: Message = {
-        id: data.messageId || Date.now().toString(),
-        text: data.text,
-        sender: data.sender as 'user' | 'ai' | 'system', // Manter sender original para o cliente
-      };
-      setMessages((prev) => {
-        const newMsgs = [...prev, newMessage];
-        localStorage.setItem(`chat-${roomId}`, JSON.stringify(newMsgs));
-        return newMsgs;
-      });
-      setIsLoading(false);
-
-      // Se a mensagem é de um advogado, atualizar o estado para mostrar que o caso foi atribuído
-      if (data.sender === 'lawyer') {
-        setCaseAssigned({
-          assigned: true,
-          lawyerName: 'Advogado',
-          lawyerId: 'lawyer'
+        newSocket.on('connect', () => {
+          setIsConnected(true);
         });
-      }
-    });
 
-    // Listener para atualizações de status do caso
-    newSocket.on('case-updated', (data: { status: string; assignedTo?: string; lawyerName?: string }) => {
-      if (data.status === 'assigned' && data.assignedTo) {
-        setCaseAssigned({
-          assigned: true,
-          lawyerName: data.lawyerName || 'Advogado',
-          lawyerId: data.assignedTo,
+        newSocket.on('disconnect', () => {
+          setIsConnected(false);
         });
-      } else if (data.status === 'open') {
-        setCaseAssigned({ assigned: false });
-      }
-    });
 
-    // Listener para mostrar modal de feedback baseado em decisão da IA
-    newSocket.on('show-feedback-modal', (data: { reason: string; context: string }) => {
-      console.log('🎯 IA detectou que deve mostrar feedback:', data);
-      if (!feedbackSubmitted && !showFeedbackModal) {
-        // Pequeno delay para não interromper a conversa
-        setTimeout(() => {
+        newSocket.on('load-history', (history: Message[]) => {
+          if (history.length > 0) {
+            setMessages(history);
+            setHasStartedConversation(true);
+          }
+          // Marcar como inicializado após carregar histórico
+          setIsInitialized(true);
+        });
+
+        newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string; isError?: boolean; shouldRetry?: boolean; createdAt?: string }) => {
+          const newMessage: Message = {
+            id: data.messageId || Date.now().toString(),
+            text: data.text,
+            sender: data.sender as 'user' | 'ai' | 'system', // Manter sender original para o cliente
+          };
+          setMessages((prev) => {
+            const newMsgs = [...prev, newMessage];
+            // Salvar no localStorage para persistência local
+            localStorage.setItem(`chat-messages-${uniqueRoomId}`, JSON.stringify(newMsgs));
+            return newMsgs;
+          });
+          setIsLoading(false);
+        });
+
+        newSocket.on('show-feedback-modal', () => {
           setShowFeedbackModal(true);
-        }, 2000);
-      }
-    });
+        });
 
-    // Carregar do localStorage se existir
-    const cached = localStorage.getItem(`chat-${roomId}`);
-    if (cached) {
-      const parsedMessages = JSON.parse(cached);
-      setMessages(parsedMessages);
-      setHasStartedConversation(true);
-    }
+        newSocket.on('case-assigned', (data: { lawyerName: string; lawyerId: string }) => {
+          setCaseAssigned({ assigned: true, lawyerName: data.lawyerName, lawyerId: data.lawyerId });
+          notifications.success('Advogado atribuído', `Seu caso foi atribuído ao advogado ${data.lawyerName}`);
+        });
 
-    return () => {
-      newSocket.disconnect();
-    };
-  }, [roomId]);
+        newSocket.on('payment-required', (data: { amount: number; description: string }) => {
+          setShowChargeModal(true);
+          setChargeForm(prev => ({
+            ...prev,
+            amount: data.amount.toString(),
+            description: data.description
+          }));
+        });
+
+        // Cleanup function
+        return () => {
+          newSocket.off('connect');
+          newSocket.off('disconnect');
+          newSocket.off('load-history');
+          newSocket.off('receive-message');
+          newSocket.off('show-feedback-modal');
+          newSocket.off('case-assigned');
+          newSocket.off('payment-required');
+          newSocket.disconnect();
+        };
+      })
+      .catch(error => {
+        console.error('Erro ao obter token CSRF:', error);
+        // Fallback para IDs temporários se não conseguir obter o token
+        const fallbackId = `fallback-${Date.now()}`;
+        setRoomId(`room-${fallbackId}`);
+        setUserId(`user-${fallbackId}`);
+        setIsInitialized(true);
+      });
+  }, []);
 
   const getRespondentInfo = (sender: string) => {
     if (sender === 'user') {
@@ -229,7 +264,7 @@ export default function Chat() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('conversationId', roomId);
-      formData.append('userId', 'user-' + roomId); // Usar um ID de usuário temporário
+      formData.append('userId', userId); // Usar o ID único baseado no token CSRF
 
       const response = await fetch('/api/uploads', {
         method: 'POST',
