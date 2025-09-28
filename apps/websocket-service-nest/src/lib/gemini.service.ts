@@ -49,9 +49,20 @@ export type FunctionCall =
 @Injectable()
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
+  private isDevelopment = process.env.NODE_ENV !== 'production';
 
   constructor(private aiService: AIService) {
     this.genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+  }
+
+  private log(message: string, data?: any) {
+    if (this.isDevelopment) {
+      if (data) {
+        console.log(message, data);
+      } else {
+        console.log(message);
+      }
+    }
   }
 
   async getModel() {
@@ -210,9 +221,9 @@ export class GeminiService {
     const model = await this.getModel();
     const config = await this.aiService.getCurrentConfig();
 
-    console.log('🤖 GEMINI SERVICE - Iniciando processamento');
-    console.log(`📨 Total de mensagens recebidas: ${messages.length}`);
-    console.log(
+    this.log('🤖 GEMINI SERVICE - Iniciando processamento');
+    this.log(`📨 Total de mensagens recebidas: ${messages.length}`);
+    this.log(
       '📝 Mensagens recebidas:',
       messages.map((msg, idx) => ({
         index: idx,
@@ -227,22 +238,19 @@ export class GeminiService {
       parts: [{ text: msg.text }],
     }));
 
-    console.log('📚 Histórico preparado para Gemini:');
-    console.log(`   - Total de mensagens no histórico: ${history.length}`);
+    this.log('📚 Histórico preparado para Gemini:');
+    this.log(`   - Total de mensagens no histórico: ${history.length}`);
     history.forEach((item, idx) => {
-      console.log(`   [${idx}] Role: ${item.role}, Parts:`, item.parts);
+      this.log(`   [${idx}] Role: ${item.role}, Parts:`, item.parts);
     });
 
     // Última mensagem do usuário
     const lastMessage = messages[messages.length - 1];
-    console.log('🎯 Última mensagem a ser enviada:', {
-      sender: lastMessage.sender,
-      text:
-        lastMessage.text.substring(0, 200) +
-        (lastMessage.text.length > 200 ? '...' : ''),
-    });
-
-    // Iniciar chat com histórico
+    this.log('🎯 Última mensagem a ser enviada:', {
+      role: 'user',
+      message: lastMessage.text,
+      timestamp: new Date().toISOString(),
+    }); // Iniciar chat com histórico
     const chat = model.startChat({
       history,
       generationConfig: {
@@ -251,12 +259,12 @@ export class GeminiService {
       },
     });
 
-    console.log('🚀 Enviando mensagem para Gemini...');
+    this.log('🚀 Enviando mensagem para Gemini...');
     const result = await chat.sendMessage(lastMessage.text);
 
-    console.log('✅ Resposta recebida do Gemini');
+    this.log('✅ Resposta recebida do Gemini');
     const response = result.response;
-    console.log(
+    this.log(
       '📄 Texto da resposta:',
       response.text().substring(0, 300) +
         (response.text().length > 300 ? '...' : ''),

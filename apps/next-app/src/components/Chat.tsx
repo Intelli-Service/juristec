@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
 import { useSession } from 'next-auth/react';
@@ -50,6 +50,16 @@ export default function Chat() {
   });
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
+  // Refs para evitar dependências desnecessárias no useEffect
+  const feedbackSubmittedRef = useRef(feedbackSubmitted);
+  const showFeedbackModalRef = useRef(showFeedbackModal);
+  
+  // Manter refs atualizadas
+  useEffect(() => {
+    feedbackSubmittedRef.current = feedbackSubmitted;
+    showFeedbackModalRef.current = showFeedbackModal;
+  }, [feedbackSubmitted, showFeedbackModal]);
 
   const { data: session, status: sessionStatus } = useSession();
   const notifications = useNotifications();
@@ -189,7 +199,7 @@ export default function Chat() {
 
     // Listener para mostrar modal de feedback baseado em decisão da IA
     newSocket.on('show-feedback-modal', (data: { reason: string; context: string }) => {
-      if (!feedbackSubmitted && !showFeedbackModal) {
+      if (!feedbackSubmittedRef.current && !showFeedbackModalRef.current) {
         // Pequeno delay para não interromper a conversa
         setTimeout(() => {
           setShowFeedbackModal(true);
@@ -203,7 +213,7 @@ export default function Chat() {
     return () => {
       newSocket.disconnect();
     };
-  }, [sessionStatus, session, hasStartedConversation, feedbackSubmitted, showFeedbackModal]);
+  }, [sessionStatus, session]); // Remover dependências desnecessárias que causam re-renders
 
   const getRespondentInfo = (sender: string) => {
     if (sender === 'user') {
