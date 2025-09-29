@@ -165,13 +165,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    // Usar userId como roomId
-    const roomId = client.data.userId;
-    console.log(`Cliente ${client.id} entrando na sala: ${roomId}`);
-
-    // Adicionar cliente à sala
-    void client.join(roomId);
-    console.log(`Cliente ${client.id} adicionado à sala ${roomId}`);
+    // Conectar cliente a TODAS as suas conversas de uma vez
+    console.log(`Cliente ${client.id} conectando a todas as suas conversas...`);
+    
+    // Buscar todas as conversas do usuário
+    const userConversations = await Conversation.find({ 
+      userId: client.data.userId,
+      isActive: true 
+    }).select('roomId _id').lean();
+    
+    console.log(`Encontradas ${userConversations.length} conversas para o usuário ${client.data.userId}`);
+    
+    // Conectar cliente a todas as salas de suas conversas
+    for (const conv of userConversations) {
+      const roomId = conv.roomId || (conv._id as any).toString();
+      await client.join(roomId);
+      console.log(`Cliente ${client.id} conectado à sala: ${roomId}`);
+    }
+    
+    // Também conectar à sala geral do usuário (para notificações gerais)
+    const userRoomId = client.data.userId;
+    await client.join(userRoomId);
+    console.log(`Cliente ${client.id} conectado à sala geral: ${userRoomId}`);
 
     // Tentar carregar histórico da conversa baseado no userId
     try {
@@ -238,16 +253,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       } else {
         // Criar nova conversa associada ao userId
         console.log(`Criando nova conversa para userId ${client.data.userId}`);
+        const newRoomId = `user_${client.data.userId}_conv_${Date.now()}`;
+        
         conversation = await Conversation.create({
-          roomId,
+          roomId: newRoomId,
           userId: client.data.userId,
           isAuthenticated: client.data.isAuthenticated,
           user: client.data.user,
+          conversationNumber: 1, // Primeira conversa
+          status: 'active'
         });
+
+        // Conectar cliente à nova sala
+        await client.join(newRoomId);
 
         client.emit('load-history', []);
         console.log(
-          `Nova conversa criada para userId ${client.data.userId} na sala ${roomId}`,
+          `Nova conversa criada para userId ${client.data.userId} na sala ${newRoomId}`,
         );
       }
     } catch (error) {
@@ -904,9 +926,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      // Join the new conversation room
+      // Conectar cliente à nova sala (adicionar às salas já conectadas)
       await client.join(roomId);
-      client.data.currentConversationId = newConversation._id.toString();
+      console.log(`✅ HANDLER: Cliente conectado à nova sala: ${roomId}`);
 
       // Get all user conversations
       const conversations = await Conversation.find({ userId })
@@ -957,16 +979,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { conversationId: string },
     @ConnectedSocket() client: Socket,
   ) {
+    console.log(`🔄 SWITCH-HANDLER: switch-conversation recebido de cliente ${client.id}`);
+    console.log(`🔄 SWITCH-HANDLER: data recebida:`, data);
+    
     try {
       const userId = client.data.userId;
       const { conversationId } = data;
+      
+      console.log(`🔄 SWITCH-HANDLER: userId = ${userId}, conversationId = ${conversationId}`);
 
       if (!userId) {
+        console.log(`❌ SWITCH-HANDLER: Usuário não autenticado`);
         client.emit('error', { message: 'Usuário não autenticado' });
         return;
       }
 
-      console.log(`Switching to conversation ${conversationId} for user ${userId}`);
+      console.log(`✅ SWITCH-HANDLER: Loading history for conversation ${conversationId} for user ${userId}`);
 
       // Verify conversation belongs to user
       const conversation = await Conversation.findOne({
@@ -979,20 +1007,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      // Leave current room
-      if (client.data.currentConversationId) {
-        client.leave(client.data.currentConversationId);
-      }
-
-      // Join new conversation room
-      client.join(conversationId);
-      client.data.currentConversationId = conversationId;
-
+      // Cliente já está conectado a todas as salas, apenas carregamos o histórico
+      console.log(`📜 SWITCH-HANDLER: Carregando mensagens da conversa ${conversationId}`);
+      
       // Load conversation messages
-      const messages = await this.messageService.getMessages(
-        { conversationId },
-        { userId, role: 'client', permissions: ['access_own_chat'] }
-      );
+      let messages: any[] = [];
+      try {
+        messages = await this.messageService.getMessages(
+          { conversationId },
+          {
+            userId: client.data.userId,
+            role: client.data.isAuthenticated ? 'client' : 'anonymous',
+            permissions: ['read'],
+          }
+        );
+        console.log(`📜 SWITCH-HANDLER: ${messages.length} mensagens carregadas`);
+      } catch (messageError) {
+        console.error(`❌ SWITCH-HANDLER: Erro ao carregar mensagens:`, messageError);
+        // Continue sem mensagens se houver erro
+        messages = [];
+      }
 
       // Get all user conversations for sidebar
       const conversations = await Conversation.find({ userId })
@@ -1005,7 +1039,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         conversationId,
         messages: messages.map(msg => ({
           id: msg._id.toString(),
-          text: msg.text, // Use 'text' instead of 'content'
+          text: msg.text,
           sender: msg.sender,
           timestamp: msg.createdAt,
         })),
@@ -1020,12 +1054,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         })),
       });
 
+      console.log(`🎉 SWITCH-HANDLER: Evento conversation-switched emitido com sucesso para conversa ${conversationId}`);
+
       // TODO: Implement markMessagesAsRead method in MessageService if needed
 
     } catch (error) {
-      console.error('Erro ao trocar conversa:', error);
+      console.error('❌ SWITCH-HANDLER: Erro ao trocar conversa:', error);
       client.emit('error', { message: 'Erro ao trocar conversa' });
     }
+    
+    console.log(`🏁 SWITCH-HANDLER: switch-conversation finalizado para cliente ${client.id}`);
   }
 
   /**
