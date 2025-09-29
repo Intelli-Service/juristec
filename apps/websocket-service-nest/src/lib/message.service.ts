@@ -26,8 +26,11 @@ export class MessageService {
    * Cria uma nova mensagem com validações robustas
    */
   async createMessage(data: CreateMessageData): Promise<any> {
-    // Validar se a conversa existe
+    console.log(`💾 CREATE_MESSAGE: Tentando criar mensagem "${data.text}" sender: ${data.sender} para conversa: ${data.conversationId}`);
+    
+    // Buscar a conversa para validações
     const conversation = await Conversation.findById(data.conversationId);
+    
     if (!conversation) {
       throw new Error('Conversa não encontrada');
     }
@@ -142,8 +145,8 @@ export class MessageService {
         break;
 
       case 'ai':
-        // IA pode enviar mensagens apenas em conversas ativas
-        if (!['open', 'assigned'].includes(conversation.status)) {
+        // IA pode enviar mensagens em conversas ativas ou abertas
+        if (!['open', 'assigned', 'active'].includes(conversation.status)) {
           throw new ForbiddenException(
             'IA não pode enviar mensagens para esta conversa',
           );

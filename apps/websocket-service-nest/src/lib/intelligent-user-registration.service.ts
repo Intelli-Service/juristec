@@ -84,17 +84,21 @@ export class IntelligentUserRegistrationService {
       const geminiMessages: Array<{ text: string; sender: string }> = [];
 
       if (includeHistory && userId) {
-        // Usar histórico completo + mensagem atual
+        // Usar histórico completo (a mensagem atual já foi salva antes de chamar este método)
         messages.forEach((msg) => {
           geminiMessages.push({
             text: msg.text,
             sender: msg.sender,
           });
         });
-        // Adicionar a nova mensagem do usuário
-        geminiMessages.push({
-          text: message,
-          sender: 'user',
+        // NÃO adicionar a mensagem atual novamente - ela já está no histórico
+        
+        console.log(`🤖 GEMINI CONTEXT - Conversação ${conversationId}:`);
+        console.log(`   📨 Total de mensagens históricas: ${messages.length}`);
+        console.log(`   📨 Total de mensagens para IA: ${geminiMessages.length}`);
+        console.log(`   📨 Nova mensagem já incluída no histórico: "${message}"`);
+        geminiMessages.forEach((msg, index) => {
+          console.log(`   ${index + 1}. [${msg.sender}]: "${msg.text}"`);
         });
       } else {
         // Para usuários anônimos, usar apenas a mensagem atual

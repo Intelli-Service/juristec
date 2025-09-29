@@ -16,6 +16,7 @@ interface Message {
   text: string;
   sender: 'user' | 'ai' | 'system' | 'lawyer';
   attachments?: FileAttachment[];
+  conversationId?: string; // Opcional para compatibilidade
 }
 
 interface FileAttachment {
@@ -51,7 +52,7 @@ export default function Chat() {
   // Existing state
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
   const [socket, setSocket] = useState<Socket | null>(null);
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -127,8 +128,18 @@ export default function Chat() {
   };
 
   const switchToConversation = (conversationId: string) => {
-    if (socket && conversationId !== activeConversationId) {
-      socket.emit('switch-conversation', { conversationId });
+    if (conversationId !== activeConversationId) {
+      console.log(`🔄 Switching to conversation ${conversationId} (immediate)`);
+      
+      // Trocar conversa imediatamente no frontend
+      setActiveConversationId(conversationId);
+      setMessages([]); // Limpar mensagens até carregar as novas
+      setHasStartedConversation(false);
+      
+      // Pedir histórico da conversa em background (não bloquear UI)
+      if (socket) {
+        socket.emit('switch-conversation', { conversationId });
+      }
     }
   };
 
@@ -226,15 +237,6 @@ export default function Chat() {
       setIsConnected(false);
     });
 
-    newSocket.on('load-history', (history: Message[]) => {
-      if (history.length > 0) {
-        setMessages(history);
-        setHasStartedConversation(true);
-      }
-      // Marcar como inicializado após carregar histórico
-      setIsInitialized(true);
-    });
-
     // Multi-conversation listeners
     newSocket.on('conversations-loaded', (data: {
       conversations: Conversation[],
@@ -242,7 +244,11 @@ export default function Chat() {
     }) => {
       setConversations(data.conversations);
       if (data.conversations.length > 0 && !activeConversationId) {
-        setActiveConversationId(data.conversations[0].id);
+        const firstConversation = data.conversations[0];
+        setActiveConversationId(firstConversation.id);
+        
+        // Carregar automaticamente o histórico da primeira conversa
+        newSocket.emit('switch-conversation', { conversationId: firstConversation.id });
       }
       console.log(`Conectado a ${data.activeRooms.length} conversas`);
     });
@@ -259,22 +265,32 @@ export default function Chat() {
       roomId: string,
       messages: Message[]
     }) => {
-      setActiveConversationId(data.conversationId);
+      console.log(`📜 Carregando histórico para conversa ${data.conversationId}: ${data.messages.length} mensagens`);
       setMessages(data.messages);
       setHasStartedConversation(data.messages.length > 0);
     });
 
-    newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string; isError?: boolean; shouldRetry?: boolean; createdAt?: string }) => {
+    newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string; isError?: boolean; shouldRetry?: boolean; createdAt?: string; conversationId?: string }) => {
+      console.log(`📨 Mensagem recebida:`, data);
+      
+      // Sempre aceitar mensagens - elas serão filtradas na exibição
       const newMessage: Message = {
         id: data.messageId || Date.now().toString(),
         text: data.text,
         sender: data.sender as 'user' | 'ai' | 'system',
+        conversationId: data.conversationId, // Adicionar conversationId à mensagem
       };
+      
+      // Adicionar mensagem ao estado global (todas as conversas)
       setMessages((prev) => {
         const newMsgs = [...prev, newMessage];
         return newMsgs;
       });
-      setIsLoading(false);
+      
+      // Stop loading for this specific conversation
+      if (data.conversationId) {
+        setIsLoading(prev => ({ ...prev, [data.conversationId as string]: false }));
+      }
 
       // Se a mensagem é de um advogado, atualizar o estado para mostrar que o caso foi atribuído
       if (data.sender === 'lawyer') {
@@ -367,7 +383,7 @@ export default function Chat() {
   };
 
   const sendMessage = async () => {
-    if ((!input.trim() && !selectedFile) || !socket || isLoading) return;
+    if ((!input.trim() && !selectedFile) || !socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
 
     let attachments: FileAttachment[] = [];
 
@@ -384,6 +400,7 @@ export default function Chat() {
       text: input,
       sender: 'user',
       attachments,
+      conversationId: activeConversationId || undefined,
     };
 
     setMessages((prev) => {
@@ -394,7 +411,11 @@ export default function Chat() {
     const messageToSend = input; // Store input before clearing
     setInput('');
     setSelectedFile(null);
-    setIsLoading(true);
+    
+    // Start loading for active conversation
+    if (activeConversationId) {
+      setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
+    }
 
     // Marcar que a conversa começou após o primeiro envio
     if (!hasStartedConversation) {
@@ -405,6 +426,7 @@ export default function Chat() {
     socket.emit('send-message', {
       text: messageToSend,
       attachments,
+      conversationId: activeConversationId, // Adicionar ID da conversa ativa
     });
   };
 
@@ -441,10 +463,10 @@ export default function Chat() {
 
           <button
             onClick={createNewConversation}
-            disabled={isLoading}
+            disabled={activeConversationId ? isLoading[activeConversationId] : false}
             className="w-full bg-emerald-600 text-white py-2 px-4 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isLoading ? 'Criando...' : '+ Nova Conversa'}
+            {(activeConversationId && isLoading[activeConversationId]) ? 'Criando...' : '+ Nova Conversa'}
           </button>
         </div>
 
@@ -557,7 +579,9 @@ export default function Chat() {
               </div>
             </div>
           )}
-          {messages.map((message) => (
+          {messages
+            .filter(message => !message.conversationId || message.conversationId === activeConversationId)
+            .map((message) => (
             <div key={message.id} className="space-y-1" data-testid="message">
               {message.sender !== 'user' && message.sender !== 'system' && (
                 <div className="flex justify-start">
@@ -603,7 +627,7 @@ export default function Chat() {
               </div>
             </div>
           ))}
-          {isLoading && (
+          {activeConversationId && isLoading[activeConversationId] && (
             <div className="flex justify-start">
               <div className="bg-white text-slate-800 shadow-md border border-slate-200 px-4 py-2 rounded-lg">
                 <div className="flex items-center space-x-2">
@@ -637,7 +661,7 @@ export default function Chat() {
           {/* File Upload */}
           <FileUpload
             onFileSelect={setSelectedFile}
-            disabled={isLoading}
+            disabled={activeConversationId ? isLoading[activeConversationId] : false}
           />
 
           {/* Text Input and Send Button */}
@@ -649,17 +673,17 @@ export default function Chat() {
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
               placeholder="Digite sua mensagem jurídica..."
               className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-slate-800 placeholder-slate-500"
-              disabled={isLoading}
+              disabled={activeConversationId ? isLoading[activeConversationId] : false}
               data-testid="chat-input"
             />
             <button
               onClick={sendMessage}
-              disabled={isLoading || (!input.trim() && !selectedFile) || !isConnected}
+              disabled={(activeConversationId && isLoading[activeConversationId]) || (!input.trim() && !selectedFile) || !isConnected}
               className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
               data-testid="send-button"
               type="button"
             >
-              {isLoading ? 'Enviando...' : !isConnected ? 'Conectando...' : 'Enviar'}
+              {(activeConversationId && isLoading[activeConversationId]) ? 'Enviando...' : !isConnected ? 'Conectando...' : 'Enviar'}
             </button>
           </div>
         </div>
