@@ -19,6 +19,7 @@ import { FluidRegistrationService } from '../lib/fluid-registration.service';
 import { VerificationService } from '../lib/verification.service';
 import { BillingService } from '../lib/billing.service';
 import Conversation from '../models/Conversation';
+import { CaseStatus } from '../models/User';
 
 @WebSocketGateway({
   cors: {
@@ -165,65 +166,117 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    // Usar userId como roomId
-    const roomId = client.data.userId;
-    console.log(`Cliente ${client.id} entrando na sala: ${roomId}`);
+    // Conectar cliente a TODAS as suas conversas de uma vez
+    console.log(`Cliente ${client.id} conectando a todas as suas conversas...`);
 
-    // Adicionar cliente à sala
-    void client.join(roomId);
-    console.log(`Cliente ${client.id} adicionado à sala ${roomId}`);
+    // Buscar todas as conversas do usuário
+    const userConversations = await Conversation.find({
+      userId: client.data.userId,
+      isActive: true,
+    })
+      .select('roomId _id')
+      .lean();
 
-    // Tentar carregar histórico da conversa baseado no userId
+    console.log(
+      `Encontradas ${userConversations.length} conversas para o usuário ${client.data.userId}`,
+    );
+
+    // Conectar cliente a todas as salas de suas conversas
+    for (const conv of userConversations) {
+      const roomId = conv.roomId || (conv._id as any).toString();
+      await client.join(roomId);
+      console.log(`Cliente ${client.id} conectado à sala: ${roomId}`);
+    }
+
+    // Também conectar à sala geral do usuário (para notificações gerais)
+    const userRoomId = client.data.userId;
+    await client.join(userRoomId);
+    console.log(`Cliente ${client.id} conectado à sala geral: ${userRoomId}`);
+
+    // Carregar lista de conversas (sem carregar mensagens automaticamente)
     try {
-      // Buscar conversa por userId (todos os usuários têm userId consistente)
-      let conversation = await Conversation.findOne({
+      // Verificar se o usuário tem conversas existentes
+      const existingConversations = await Conversation.find({
         userId: client.data.userId,
-      });
+      })
+        .sort({ lastMessageAt: -1 })
+        .select(
+          '_id roomId title status createdAt lastMessageAt unreadCount classification',
+        )
+        .lean();
 
-      if (conversation) {
-        console.log(`Conversa encontrada para userId ${client.data.userId}`);
-        const messages = await this.messageService.getMessages(
-          { conversationId: conversation._id },
-          {
-            userId: client.data.userId,
-            role: client.data.isAuthenticated ? 'client' : 'anonymous',
-            permissions: ['read'],
-          },
-        );
-
-        client.emit(
-          'load-history',
-          messages.map((msg) => ({
-            id: msg._id.toString(),
-            text: msg.text,
-            sender: msg.sender,
-            timestamp: msg.createdAt,
-          })),
-        );
-
+      if (existingConversations.length === 0) {
+        // Se não tem conversas, criar a primeira
         console.log(
-          `Histórico carregado para userId ${client.data.userId}: ${messages.length} mensagens`,
+          `Criando primeira conversa para userId ${client.data.userId}`,
         );
-      } else {
-        // Criar nova conversa associada ao userId
-        console.log(`Criando nova conversa para userId ${client.data.userId}`);
-        conversation = await Conversation.create({
-          roomId,
+        const newRoomId = `user_${client.data.userId}_conv_${Date.now()}`;
+
+        const newConversation = await Conversation.create({
+          roomId: newRoomId,
           userId: client.data.userId,
           isAuthenticated: client.data.isAuthenticated,
           user: client.data.user,
+          conversationNumber: 1,
+          status: 'active',
+          title: 'Nova Conversa #1',
         });
 
-        client.emit('load-history', []);
+        // Conectar cliente à nova sala
+        await client.join(newRoomId);
+
+        // Enviar lista com a nova conversa
+        client.emit('conversations-loaded', {
+          conversations: [
+            {
+              id: newConversation._id.toString(),
+              roomId: newConversation.roomId,
+              title: newConversation.title || 'Nova Conversa #1',
+              status: newConversation.status || 'active',
+              unreadCount: 0,
+              lastMessageAt: newConversation.createdAt,
+              classification: newConversation.classification,
+            },
+          ],
+          activeRooms: [newRoomId],
+        });
+
         console.log(
-          `Nova conversa criada para userId ${client.data.userId} na sala ${roomId}`,
+          `Nova primeira conversa criada para userId ${client.data.userId} na sala ${newRoomId}`,
+        );
+      } else {
+        // Enviar lista de conversas existentes
+        client.emit('conversations-loaded', {
+          conversations: existingConversations.map((conv) => ({
+            id: (conv._id as any).toString(),
+            roomId: conv.roomId || (conv._id as any).toString(),
+            title: conv.title || 'Conversa sem título',
+            status: conv.status || 'active',
+            unreadCount: conv.unreadCount || 0,
+            lastMessageAt: conv.lastMessageAt || conv.createdAt,
+            classification: conv.classification,
+          })),
+          activeRooms: existingConversations.map(
+            (conv) => conv.roomId || (conv._id as any).toString(),
+          ),
+        });
+
+        console.log(
+          `Conversas carregadas para userId ${client.data.userId}: ${existingConversations.length} conversas`,
         );
       }
     } catch (error) {
-      console.error('Erro ao carregar histórico:', error);
-      // Mesmo com erro de DB, permitir que o usuário continue
-      client.emit('load-history', []);
+      console.error('Erro ao carregar conversas:', error);
+      client.emit('conversations-loaded', {
+        conversations: [],
+        activeRooms: [],
+      });
     }
+
+    // NÃO carregar histórico automaticamente - deixar para o conversation-switched
+    console.log(
+      `Cliente ${client.id} conectado com sucesso - aguardando seleção de conversa`,
+    );
   }
 
   @SubscribeMessage('join-lawyer-room')
@@ -292,33 +345,48 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('send-message')
   async handleSendMessage(
-    @MessageBody() data: { text: string; attachments?: any[] },
+    @MessageBody()
+    data: { text: string; attachments?: any[]; conversationId: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const { text: message, attachments: _attachments = [] } = data;
+    const {
+      text: message,
+      attachments: _attachments = [],
+      conversationId,
+    } = data;
+    const userId = client.data.userId;
 
-    // Usar userId do cliente como roomId
-    const roomId = client.data.userId;
+    console.log(`🔍 DEBUG - send-message recebido:`);
+    console.log(`   userId: ${userId}`);
+    console.log(`   conversationId: ${conversationId}`);
+    console.log(`   message: "${message}"`);
+    console.log(`   message length: ${message.length}`);
 
-    let conversation: any;
+    if (!userId) {
+      client.emit('error', { message: 'UserId não encontrado' });
+      return;
+    }
+
+    if (!conversationId) {
+      client.emit('error', { message: 'ConversationId é obrigatório' });
+      return;
+    }
+
+    // Buscar a conversa específica
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      userId: userId,
+      isActive: true,
+    });
+
+    if (!conversation) {
+      client.emit('error', { message: 'Conversa não encontrada ou não ativa' });
+      return;
+    }
+
+    const roomId = conversation.roomId;
 
     try {
-      // Tentar usar o banco de dados, mas continuar sem ele se necessário
-      try {
-        conversation = await Conversation.findOne({ roomId });
-        if (!conversation) {
-          conversation = new Conversation({ roomId });
-          await conversation.save();
-        }
-      } catch (dbError) {
-        console.warn(
-          'Erro de conexão com banco de dados, continuando sem persistência:',
-          dbError.message,
-        );
-        // Criar objeto de conversa temporário para teste
-        conversation = { _id: `temp-${roomId}`, roomId };
-      }
-
       // Criar mensagem do usuário
       let userMessage;
       try {
@@ -383,6 +451,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             text: verificationResult.message,
             sender: 'system',
             messageId: `verification-${Date.now()}`,
+            conversationId: conversation._id.toString(),
           });
 
           // Se usuário foi verificado, atualizar dados do cliente
@@ -398,6 +467,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             text: verificationResult.message,
             sender: 'system',
             messageId: `error-${Date.now()}`,
+            conversationId: conversation._id.toString(),
           });
         }
         return; // Não processar como mensagem normal da IA
@@ -459,17 +529,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Salvar resposta da IA
+      console.log('💾 Tentando salvar mensagem da IA no banco de dados...');
       let aiMessage;
       try {
         aiMessage = await this.messageService.createMessage({
           conversationId: conversation._id.toString(),
           text: aiResponseText,
           sender: 'ai',
+          senderId: 'ai-gemini', // Identificador único para IA
           metadata: { generatedBy: 'gemini' },
         });
+        console.log('✅ Mensagem da IA salva com sucesso:', aiMessage._id);
       } catch (_dbError) {
         console.warn(
-          'Erro ao salvar mensagem da IA, continuando sem persistência',
+          '❌ Erro ao salvar mensagem da IA, continuando sem persistência:',
+          _dbError.message,
         );
         aiMessage = {
           _id: `temp-ai-${Date.now()}`,
@@ -490,6 +564,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         text: aiResponseText,
         sender: 'ai',
         messageId: aiMessage._id.toString(),
+        conversationId: conversation._id.toString(),
       });
       console.log('Depois de emitir mensagem da IA');
     } catch (error) {
@@ -569,6 +644,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         messageId: `error-${Date.now()}`,
         isError: true,
         shouldRetry,
+        conversationId: conversation._id.toString(),
       });
     }
   }
@@ -590,6 +666,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           text: 'Erro: Conversa não encontrada.',
           sender: 'system',
           messageId: `error-${Date.now()}`,
+          conversationId: roomId, // usar roomId como fallback
         });
         return;
       }
@@ -613,6 +690,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           text: result.message,
           sender: 'system',
           messageId: `verification-${Date.now()}`,
+          conversationId: conversation._id.toString(),
         });
 
         // Se usuário foi criado/verificado, atualizar dados do cliente
@@ -625,6 +703,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           text: result.message,
           sender: 'system',
           messageId: `error-${Date.now()}`,
+          conversationId: conversation._id.toString(),
         });
       }
     } catch (error) {
@@ -633,6 +712,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         text: 'Erro ao verificar código. Tente novamente.',
         sender: 'system',
         messageId: `error-${Date.now()}`,
+        conversationId: roomId, // usar roomId como fallback
       });
     }
   }
@@ -689,6 +769,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         sender: 'lawyer', // Cliente verá como mensagem do advogado
         messageId: lawyerMessage._id.toString(),
         createdAt: lawyerMessage.createdAt,
+        conversationId: conversation._id.toString(),
       });
 
       // Também enviar confirmação para todos os advogados na sala específica
@@ -760,6 +841,263 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
     } catch (error) {
       console.error('Erro ao notificar atualização de cobrança:', error);
+    }
+  }
+
+  /**
+   * Handle create new conversation
+   */
+  @SubscribeMessage('create-new-conversation')
+  async handleCreateNewConversation(@ConnectedSocket() client: Socket) {
+    console.log(
+      `🆕 HANDLER: create-new-conversation recebido de cliente ${client.id}`,
+    );
+    try {
+      const userId = client.data.userId;
+      console.log(`🔍 HANDLER: userId = ${userId}, client.data =`, client.data);
+
+      if (!userId) {
+        console.log(`❌ HANDLER: Usuário não autenticado`);
+        client.emit('error', { message: 'Usuário não autenticado' });
+        return;
+      }
+
+      console.log(`✅ HANDLER: Criando nova conversa para userId: ${userId}`);
+
+      // Generate unique roomId for new conversation
+      const roomId = `user_${userId}_conv_${Date.now()}`;
+      console.log(`🔑 HANDLER: roomId gerado: ${roomId}`);
+
+      // Get next conversation number for this user
+      console.log(`🔢 HANDLER: Buscando próximo número de conversa...`);
+      const existingConversations = await Conversation.find({ userId })
+        .sort({ conversationNumber: -1 })
+        .limit(1);
+      const nextConversationNumber =
+        existingConversations.length > 0
+          ? existingConversations[0].conversationNumber + 1
+          : 1;
+      console.log(
+        `🔢 HANDLER: Próximo número de conversa: ${nextConversationNumber}`,
+      );
+
+      // Create new conversation
+      console.log(`💾 HANDLER: Chamando Conversation.create...`);
+
+      let newConversation;
+      try {
+        newConversation = await Conversation.create({
+          userId,
+          roomId,
+          title: `Nova Conversa #${nextConversationNumber}`,
+          status: CaseStatus.ACTIVE, // Usar status válido do enum CaseStatus
+          conversationNumber: nextConversationNumber,
+          isAnonymous: client.data.isAnonymous || false,
+          metadata: {
+            clientInfo: client.data.user || {},
+            conversationType: 'chat',
+          },
+        });
+        console.log(`✅ HANDLER: Nova conversa criada: ${newConversation._id}`);
+      } catch (dbError) {
+        console.error(`❌ HANDLER: Erro ao criar conversa no banco:`, dbError);
+        client.emit('error', {
+          message: 'Erro ao criar nova conversa no banco de dados',
+        });
+        return;
+      }
+
+      // Conectar cliente à nova sala (adicionar às salas já conectadas)
+      await client.join(roomId);
+      console.log(`✅ HANDLER: Cliente conectado à nova sala: ${roomId}`);
+
+      // Get all user conversations
+      const conversations = await Conversation.find({ userId })
+        .sort({ createdAt: -1 })
+        .select('_id title status createdAt lastMessageAt unreadCount')
+        .lean();
+
+      // Emit the new conversation and updated list
+      client.emit('new-conversation-created', {
+        id: newConversation._id.toString(),
+        roomId: newConversation.roomId || newConversation._id.toString(),
+        title: newConversation.title,
+        status: newConversation.status,
+        unreadCount: newConversation.unreadCount || 0,
+        lastMessageAt: newConversation.lastMessageAt,
+        classification: newConversation.classification,
+      });
+
+      // Also emit updated conversations list
+      client.emit('conversations-loaded', {
+        conversations: conversations.map((conv) => ({
+          id: (conv._id as any).toString(),
+          roomId: conv.roomId || (conv._id as any).toString(),
+          title: conv.title,
+          status: conv.status,
+          unreadCount: conv.unreadCount || 0,
+          lastMessageAt: conv.lastMessageAt,
+          classification: conv.classification,
+        })),
+        activeRooms: conversations.map(
+          (conv) => conv.roomId || (conv._id as any).toString(),
+        ),
+      });
+
+      console.log(
+        `🎉 HANDLER: Eventos emitidos com sucesso para nova conversa ${newConversation._id}`,
+      );
+    } catch (error) {
+      console.error('❌ HANDLER: Erro geral ao criar nova conversa:', error);
+      client.emit('error', { message: 'Erro ao criar nova conversa' });
+    }
+
+    console.log(
+      `🏁 HANDLER: create-new-conversation finalizado para cliente ${client.id}`,
+    );
+  }
+
+  /**
+   * Handle switch conversation
+   */
+  @SubscribeMessage('switch-conversation')
+  async handleSwitchConversation(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    console.log(
+      `🔄 SWITCH-HANDLER: switch-conversation recebido de cliente ${client.id}`,
+    );
+    console.log(`🔄 SWITCH-HANDLER: data recebida:`, data);
+
+    try {
+      const userId = client.data.userId;
+      const { conversationId } = data;
+
+      console.log(
+        `🔄 SWITCH-HANDLER: userId = ${userId}, conversationId = ${conversationId}`,
+      );
+
+      if (!userId) {
+        console.log(`❌ SWITCH-HANDLER: Usuário não autenticado`);
+        client.emit('error', { message: 'Usuário não autenticado' });
+        return;
+      }
+
+      console.log(
+        `✅ SWITCH-HANDLER: Loading history for conversation ${conversationId} for user ${userId}`,
+      );
+
+      // Verify conversation belongs to user
+      const conversation = await Conversation.findOne({
+        _id: conversationId,
+        userId,
+      });
+
+      if (!conversation) {
+        client.emit('error', { message: 'Conversa não encontrada' });
+        return;
+      }
+
+      // Cliente já está conectado a todas as salas, apenas carregamos o histórico
+      console.log(
+        `📜 SWITCH-HANDLER: Carregando mensagens da conversa ${conversationId}`,
+      );
+
+      // Load conversation messages
+      let messages: any[] = [];
+      try {
+        messages = await this.messageService.getMessages(
+          { conversationId },
+          {
+            userId: client.data.userId,
+            role: client.data.isAuthenticated ? 'client' : 'anonymous',
+            permissions: ['read'],
+          },
+        );
+        console.log(
+          `📜 SWITCH-HANDLER: ${messages.length} mensagens carregadas`,
+        );
+      } catch (messageError) {
+        console.error(
+          `❌ SWITCH-HANDLER: Erro ao carregar mensagens:`,
+          messageError,
+        );
+        // Continue sem mensagens se houver erro
+        messages = [];
+      }
+
+      // Get all user conversations for sidebar
+      const conversations = await Conversation.find({ userId })
+        .sort({ createdAt: -1 })
+        .select('_id title status createdAt lastMessageAt unreadCount')
+        .lean();
+
+      // Emit conversation switched event
+      client.emit('conversation-switched', {
+        conversationId,
+        messages: messages.map((msg) => ({
+          id: msg._id.toString(),
+          text: msg.text,
+          sender: msg.sender,
+          timestamp: msg.createdAt,
+        })),
+        conversations: conversations.map((conv) => ({
+          id: (conv._id as any).toString(),
+          roomId: conv.roomId || (conv._id as any).toString(),
+          title: conv.title || 'Conversa sem título',
+          status: conv.status || 'active',
+          unreadCount: conv.unreadCount || 0,
+          lastMessageAt: conv.lastMessageAt || conv.createdAt,
+          classification: conv.classification,
+        })),
+      });
+
+      console.log(
+        `🎉 SWITCH-HANDLER: Evento conversation-switched emitido com sucesso para conversa ${conversationId}`,
+      );
+
+      // TODO: Implement markMessagesAsRead method in MessageService if needed
+    } catch (error) {
+      console.error('❌ SWITCH-HANDLER: Erro ao trocar conversa:', error);
+      client.emit('error', { message: 'Erro ao trocar conversa' });
+    }
+
+    console.log(
+      `🏁 SWITCH-HANDLER: switch-conversation finalizado para cliente ${client.id}`,
+    );
+  }
+
+  /**
+   * Get all conversations for user
+   */
+  @SubscribeMessage('get-conversations')
+  async handleGetConversations(@ConnectedSocket() client: Socket) {
+    try {
+      const userId = client.data.userId;
+      if (!userId) {
+        client.emit('error', { message: 'Usuário não autenticado' });
+        return;
+      }
+
+      const conversations = await Conversation.find({ userId })
+        .sort({ createdAt: -1 })
+        .select('_id title status createdAt lastMessageAt unreadCount')
+        .lean();
+
+      client.emit('conversations-loaded', {
+        conversations: conversations.map((conv) => ({
+          id: (conv._id as any).toString(),
+          title: conv.title,
+          status: conv.status,
+          createdAt: conv.createdAt,
+          lastMessageAt: conv.lastMessageAt,
+          unreadCount: conv.unreadCount || 0,
+        })),
+      });
+    } catch (error) {
+      console.error('Erro ao carregar conversas:', error);
+      client.emit('error', { message: 'Erro ao carregar conversas' });
     }
   }
 

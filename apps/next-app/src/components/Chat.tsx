@@ -3,17 +3,18 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
-import { useSession } from 'next-auth/react';
 import FileUpload from './FileUpload';
 import { useNotifications } from '../hooks/useNotifications';
 import FeedbackModal, { FeedbackData } from './feedback/FeedbackModal';
 import { useFeedback } from '../hooks/useFeedback';
+import { useAutoSession } from '../hooks/useAutoSession';
 
 interface Message {
   id: string;
   text: string;
   sender: 'user' | 'ai' | 'system' | 'lawyer';
   attachments?: FileAttachment[];
+  conversationId?: string; // Opcional para compatibilidade
 }
 
 interface FileAttachment {
@@ -25,10 +26,29 @@ interface FileAttachment {
   url: string;
 }
 
+interface Conversation {
+  id: string;
+  roomId: string;
+  title: string;
+  status: string;
+  unreadCount: number;
+  lastMessageAt: Date;
+  classification?: {
+    category: string;
+    complexity: string;
+    legalArea: string;
+  };
+}
+
 export default function Chat() {
+  // Multi-conversation state
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  
+  // Existing state
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
   const [socket, setSocket] = useState<Socket | null>(null);
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -50,18 +70,24 @@ export default function Chat() {
   });
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Refs para evitar dependências desnecessárias no useEffect
   const feedbackSubmittedRef = useRef(feedbackSubmitted);
   const showFeedbackModalRef = useRef(showFeedbackModal);
   
+  // Handle client-side mounting
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Manter refs atualizadas
   useEffect(() => {
     feedbackSubmittedRef.current = feedbackSubmitted;
     showFeedbackModalRef.current = showFeedbackModal;
   }, [feedbackSubmitted, showFeedbackModal]);
 
-  const { data: session, status: sessionStatus } = useSession();
+  const { session, status: sessionStatus } = useAutoSession();
   const notifications = useNotifications();
 
   // UserId vem da sessão NextAuth (consistente para usuários anônimos e autenticados)
@@ -85,6 +111,41 @@ export default function Chat() {
   // Lógica para mostrar feedback baseada em decisão inteligente da IA
   // O feedback agora é controlado pelo evento WebSocket 'show-feedback-modal'
   // que é emitido quando a IA detecta que uma conversa deve mostrar feedback
+
+  // Multi-conversation functions
+  const createNewConversation = () => {
+    console.log('🆕 createNewConversation called!', { socket, connected: socket?.connected });
+    if (socket) {
+      console.log('✅ Emitting create-new-conversation event...');
+      socket.emit('create-new-conversation');
+    } else {
+      console.log('❌ Socket not available!');
+    }
+  };
+
+  const switchToConversation = (conversationId: string) => {
+    if (conversationId !== activeConversationId) {
+      console.log(`🔄 Switching to conversation ${conversationId} (immediate)`);
+      
+      // Trocar conversa imediatamente no frontend
+      setActiveConversationId(conversationId);
+      setMessages([]); // Limpar mensagens até carregar as novas
+      setHasStartedConversation(false);
+      
+      // Pedir histórico da conversa em background (não bloquear UI)
+      if (socket) {
+        socket.emit('switch-conversation', { conversationId });
+      }
+    }
+  };
+
+  const markAsRead = (conversationId: string) => {
+    setConversations(prev => prev.map(conv =>
+      conv.id === conversationId
+        ? { ...conv, unreadCount: 0 }
+        : conv
+    ));
+  };
 
   const handleCreateCharge = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,18 +191,37 @@ export default function Chat() {
   };
 
   useEffect(() => {
+    console.log('🎯 Chat useEffect executado', { sessionStatus, userId: session?.user?.id, session });
+    console.log('🔍 DEBUG: Session status check:', sessionStatus);
+    console.log('🔍 DEBUG: Session object:', session);
+    
     // Só conectar ao WebSocket quando a sessão estiver carregada
-    if (sessionStatus === 'loading') return;
+    if (sessionStatus === 'loading') {
+      console.log('⏳ Session ainda carregando...');
+      return;
+    }
 
     // Usar userId da sessão (NextAuth garante consistência para usuários anônimos)
     const userId = session?.user?.id;
+    console.log('🔍 DEBUG: Extracted userId:', userId);
 
     // Só prosseguir se temos um userId válido
-    if (!userId) return;
+    if (!userId) {
+      console.log('❌ Sem userId válido', { userId, session });
+      return;
+    }
 
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080';
+    console.log('🔌 Inicializando WebSocket...', { userId, sessionStatus, socketUrl });
     const newSocket = io(socketUrl);
+    console.log('🔌 WebSocket created:', newSocket);
     setSocket(newSocket);
+    console.log('🔌 setSocket called with:', newSocket);
+    
+    // For debugging - attach to window
+    if (typeof window !== 'undefined') {
+      (window as unknown as { socket: Socket }).socket = newSocket;
+    }
 
     newSocket.emit('join-room');
 
@@ -153,26 +233,60 @@ export default function Chat() {
       setIsConnected(false);
     });
 
-    newSocket.on('load-history', (history: Message[]) => {
-      if (history.length > 0) {
-        setMessages(history);
-        setHasStartedConversation(true);
+    // Multi-conversation listeners
+    newSocket.on('conversations-loaded', (data: {
+      conversations: Conversation[],
+      activeRooms: string[]
+    }) => {
+      setConversations(data.conversations);
+      if (data.conversations.length > 0 && !activeConversationId) {
+        const firstConversation = data.conversations[0];
+        setActiveConversationId(firstConversation.id);
+        
+        // Carregar automaticamente o histórico da primeira conversa
+        newSocket.emit('switch-conversation', { conversationId: firstConversation.id });
       }
-      // Marcar como inicializado após carregar histórico
-      setIsInitialized(true);
+      console.log(`Conectado a ${data.activeRooms.length} conversas`);
     });
 
-    newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string; isError?: boolean; shouldRetry?: boolean; createdAt?: string }) => {
+    newSocket.on('new-conversation-created', (newConversation: Conversation) => {
+      setConversations(prev => [newConversation, ...prev]);
+      setActiveConversationId(newConversation.id);
+      setMessages([]);
+      setHasStartedConversation(false);
+    });
+
+    newSocket.on('conversation-switched', (data: {
+      conversationId: string,
+      roomId: string,
+      messages: Message[]
+    }) => {
+      console.log(`📜 Carregando histórico para conversa ${data.conversationId}: ${data.messages.length} mensagens`);
+      setMessages(data.messages);
+      setHasStartedConversation(data.messages.length > 0);
+    });
+
+    newSocket.on('receive-message', (data: { text: string; sender: string; messageId?: string; isError?: boolean; shouldRetry?: boolean; createdAt?: string; conversationId?: string }) => {
+      console.log(`📨 Mensagem recebida:`, data);
+      
+      // Sempre aceitar mensagens - elas serão filtradas na exibição
       const newMessage: Message = {
         id: data.messageId || Date.now().toString(),
         text: data.text,
         sender: data.sender as 'user' | 'ai' | 'system',
+        conversationId: data.conversationId, // Adicionar conversationId à mensagem
       };
+      
+      // Adicionar mensagem ao estado global (todas as conversas)
       setMessages((prev) => {
         const newMsgs = [...prev, newMessage];
         return newMsgs;
       });
-      setIsLoading(false);
+      
+      // Stop loading for this specific conversation
+      if (data.conversationId) {
+        setIsLoading(prev => ({ ...prev, [data.conversationId as string]: false }));
+      }
 
       // Se a mensagem é de um advogado, atualizar o estado para mostrar que o caso foi atribuído
       if (data.sender === 'lawyer') {
@@ -199,11 +313,21 @@ export default function Chat() {
 
     // Listener para mostrar modal de feedback baseado em decisão da IA
     newSocket.on('show-feedback-modal', (data: { reason: string; context: string }) => {
+      console.log('🎯 FEEDBACK MODAL TRIGGER recebido:', data);
+      console.log('📊 Estado atual:', {
+        feedbackSubmitted: feedbackSubmittedRef.current,
+        showFeedbackModal: showFeedbackModalRef.current,
+      });
+      
       if (!feedbackSubmittedRef.current && !showFeedbackModalRef.current) {
+        console.log('✅ Agendando exibição do modal de feedback em 2s');
         // Pequeno delay para não interromper a conversa
         setTimeout(() => {
+          console.log('🎯 Exibindo modal de feedback');
           setShowFeedbackModal(true);
         }, 2000);
+      } else {
+        console.log('⏭️ Modal de feedback cancelado (já submetido ou já exibindo)');
       }
     });
 
@@ -265,7 +389,7 @@ export default function Chat() {
   };
 
   const sendMessage = async () => {
-    if ((!input.trim() && !selectedFile) || !socket || isLoading) return;
+    if ((!input.trim() && !selectedFile) || !socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
 
     let attachments: FileAttachment[] = [];
 
@@ -282,6 +406,7 @@ export default function Chat() {
       text: input,
       sender: 'user',
       attachments,
+      conversationId: activeConversationId || undefined,
     };
 
     setMessages((prev) => {
@@ -292,7 +417,11 @@ export default function Chat() {
     const messageToSend = input; // Store input before clearing
     setInput('');
     setSelectedFile(null);
-    setIsLoading(true);
+    
+    // Start loading for active conversation
+    if (activeConversationId) {
+      setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
+    }
 
     // Marcar que a conversa começou após o primeiro envio
     if (!hasStartedConversation) {
@@ -303,6 +432,7 @@ export default function Chat() {
     socket.emit('send-message', {
       text: messageToSend,
       attachments,
+      conversationId: activeConversationId, // Adicionar ID da conversa ativa
     });
   };
 
@@ -310,9 +440,101 @@ export default function Chat() {
     await feedbackHook.submitFeedback(feedbackData);
   };
 
+  // Prevent hydration mismatch by showing loading state until mounted
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Preparando seu chat...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl bg-white rounded-lg shadow-xl overflow-hidden flex flex-col" style={{height: '80vh'}}>
+    <div className="flex h-screen bg-slate-50">
+      {/* Sidebar - Lista de Conversas */}
+      <div className="w-80 bg-white border-r border-slate-200 flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b border-slate-200">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-slate-900">Conversas</h2>
+            {conversations.reduce((total, conv) => total + conv.unreadCount, 0) > 0 && (
+              <span className="bg-emerald-500 text-white text-xs px-2 py-1 rounded-full">
+                {conversations.reduce((total, conv) => total + conv.unreadCount, 0)}
+              </span>
+            )}
+          </div>
+
+          <button
+            onClick={createNewConversation}
+            disabled={activeConversationId ? isLoading[activeConversationId] : false}
+            className="w-full bg-emerald-600 text-white py-2 px-4 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {(activeConversationId && isLoading[activeConversationId]) ? 'Criando...' : '+ Nova Conversa'}
+          </button>
+        </div>
+
+        {/* Lista de Conversas */}
+        <div className="flex-1 overflow-y-auto">
+          {conversations.length === 0 ? (
+            <div className="p-4 text-center text-slate-500">
+              <p>Nenhuma conversa ainda</p>
+              <p className="text-sm">Clique em &quot;Nova Conversa&quot; para começar</p>
+            </div>
+          ) : (
+            conversations.map((conversation) => (
+              <div
+                key={conversation.id}
+                onClick={() => {
+                  switchToConversation(conversation.id);
+                  markAsRead(conversation.id);
+                }}
+                className={`p-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors ${
+                  conversation.id === activeConversationId
+                    ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
+                    : ''
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-slate-900 truncate">
+                      {conversation.title}
+                    </h3>
+                    <p className="text-sm text-slate-600 mt-1">
+                      {conversation.classification?.category || 'Não classificado'}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-2">
+                    {/* Status Badge */}
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      conversation.status === 'open'
+                        ? 'bg-green-100 text-green-800'
+                        : conversation.status === 'assigned'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {conversation.status}
+                    </span>
+
+                    {/* Unread Count */}
+                    {conversation.unreadCount > 0 && (
+                      <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full min-w-[20px] text-center">
+                        {conversation.unreadCount}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col">
         {/* Header */}
         <header className="bg-slate-900 shadow-lg border-b border-slate-800 px-4 py-4">
           <div className="flex items-center justify-between">
@@ -363,7 +585,9 @@ export default function Chat() {
               </div>
             </div>
           )}
-          {messages.map((message) => (
+          {messages
+            .filter(message => !message.conversationId || message.conversationId === activeConversationId)
+            .map((message) => (
             <div key={message.id} className="space-y-1" data-testid="message">
               {message.sender !== 'user' && message.sender !== 'system' && (
                 <div className="flex justify-start">
@@ -409,7 +633,7 @@ export default function Chat() {
               </div>
             </div>
           ))}
-          {isLoading && (
+          {activeConversationId && isLoading[activeConversationId] && (
             <div className="flex justify-start">
               <div className="bg-white text-slate-800 shadow-md border border-slate-200 px-4 py-2 rounded-lg">
                 <div className="flex items-center space-x-2">
@@ -443,7 +667,7 @@ export default function Chat() {
           {/* File Upload */}
           <FileUpload
             onFileSelect={setSelectedFile}
-            disabled={isLoading}
+            disabled={activeConversationId ? isLoading[activeConversationId] : false}
           />
 
           {/* Text Input and Send Button */}
@@ -455,17 +679,17 @@ export default function Chat() {
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
               placeholder="Digite sua mensagem jurídica..."
               className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-slate-800 placeholder-slate-500"
-              disabled={isLoading}
+              disabled={activeConversationId ? isLoading[activeConversationId] : false}
               data-testid="chat-input"
             />
             <button
               onClick={sendMessage}
-              disabled={isLoading || (!input.trim() && !selectedFile) || !isConnected}
+              disabled={(activeConversationId && isLoading[activeConversationId]) || (!input.trim() && !selectedFile) || !isConnected}
               className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
               data-testid="send-button"
               type="button"
             >
-              {isLoading ? 'Enviando...' : !isConnected ? 'Conectando...' : 'Enviar'}
+              {(activeConversationId && isLoading[activeConversationId]) ? 'Enviando...' : !isConnected ? 'Conectando...' : 'Enviar'}
             </button>
           </div>
         </div>

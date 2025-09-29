@@ -40,9 +40,32 @@ export const updateConversationStatusFunction = {
       status: {
         type: SchemaType.STRING,
         description: 'Novo status da conversa',
-        enum: ['active', 'resolved_by_ai', 'assigned_to_lawyer', 'completed'],
       },
     },
     required: ['conversationId', 'status'],
+  },
+};
+
+export const detectConversationCompletionFunction = {
+  name: 'detect_conversation_completion',
+  description:
+    'Detecta quando uma conversa deve ser finalizada e se deve mostrar feedback ao usuário',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      should_show_feedback: {
+        type: SchemaType.BOOLEAN,
+        description: 'Se deve mostrar o modal de feedback ao usuário',
+      },
+      completion_reason: {
+        type: SchemaType.STRING,
+        description: 'Razão pela qual a conversa está sendo finalizada',
+      },
+      feedback_context: {
+        type: SchemaType.STRING,
+        description: 'Contexto adicional para o feedback (opcional)',
+      },
+    },
+    required: ['should_show_feedback', 'completion_reason'],
   },
 };

@@ -556,12 +556,12 @@ export class AnalyticsService {
     // Por enquanto, valores mockados
     const averageResponseTime = 15; // minutos
     const averageConversationDuration = 45; // minutos
-    const closedConversations = conversations.filter(
-      (c) => c.status === CaseStatus.CLOSED,
+    const completedConversations = conversations.filter(
+      (c) => c.status === CaseStatus.COMPLETED,
     ).length;
     const resolutionRate =
       conversations.length > 0
-        ? (closedConversations / conversations.length) * 100
+        ? (completedConversations / conversations.length) * 100
         : 0;
     const satisfactionScore = 85; // NPS médio (quando implementado)
 

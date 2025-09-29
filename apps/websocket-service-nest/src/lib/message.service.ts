@@ -2,6 +2,9 @@ import { Injectable, ForbiddenException } from '@nestjs/common';
 import Message, { MessageSender } from '../models/Message';
 import Conversation from '../models/Conversation';
 
+// Valid conversation statuses for AI messages
+const AI_ALLOWED_STATUSES = ['open', 'active', 'assigned_to_lawyer'] as const;
+
 export interface CreateMessageData {
   conversationId: string;
   text: string;
@@ -26,27 +29,35 @@ export class MessageService {
    * Cria uma nova mensagem com validações robustas
    */
   async createMessage(data: CreateMessageData): Promise<any> {
-    // Validar se a conversa existe
+    console.log(
+      `💾 CREATE_MESSAGE: Criando mensagem "${data.text}" sender: ${data.sender} para conversa: ${data.conversationId}`,
+    );
+
+    // Validação da conversa
     const conversation = await Conversation.findById(data.conversationId);
     if (!conversation) {
       throw new Error('Conversa não encontrada');
     }
 
-    // Validar permissões baseadas no tipo de sender
-    this.validateMessagePermissions(data, conversation);
+    // Validação de permissões da IA baseada no status da conversa
+    if (data.sender === 'ai') {
+      if (!AI_ALLOWED_STATUSES.includes(conversation.status)) {
+        throw new ForbiddenException(
+          'IA não pode enviar mensagens para esta conversa',
+        );
+      }
+    }
 
-    // Criar a mensagem
+    // Criar nova mensagem
     const message = new Message({
       conversationId: data.conversationId,
-      text: data.text.trim(),
+      text: data.text,
       sender: data.sender,
       senderId: data.senderId,
-      metadata: data.metadata || {},
+      metadata: data.metadata,
     });
 
-    const savedMessage = await message.save();
-
-    // Atualizar timestamp da conversa
+    const savedMessage = await message.save(); // Atualizar timestamp da conversa
     await Conversation.findByIdAndUpdate(data.conversationId, {
       updatedAt: new Date(),
     });
@@ -142,8 +153,8 @@ export class MessageService {
         break;
 
       case 'ai':
-        // IA pode enviar mensagens apenas em conversas ativas
-        if (!['open', 'assigned'].includes(conversation.status)) {
+        // IA pode enviar mensagens em conversas ativas ou abertas
+        if (!AI_ALLOWED_STATUSES.includes(conversation.status)) {
           throw new ForbiddenException(
             'IA não pode enviar mensagens para esta conversa',
           );

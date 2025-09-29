@@ -21,7 +21,7 @@ services:
 
   # Frontend Next.js
   frontend:
-    image: node:18-alpine
+    image: node:22-alpine
     container_name: juristec-frontend
     working_dir: /app
     volumes:
@@ -45,7 +45,7 @@ services:
 
   # Backend NestJS
   backend:
-    image: node:18-alpine
+    image: node:22-alpine
     container_name: juristec-backend
     working_dir: /app
     volumes:

@@ -7,12 +7,14 @@ declare module 'next-auth' {
       id: string
       role: string
       permissions: string[]
+      isAnonymous?: boolean
     } & DefaultSession['user']
   }
 
   interface User extends DefaultUser {
     role: string
     permissions: string[]
+    isAnonymous?: boolean
   }
 }
 
@@ -21,5 +23,6 @@ declare module 'next-auth/jwt' {
     userId: string
     role: string
     permissions: string[]
+    isAnonymous?: boolean
   }
 }
