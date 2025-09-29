@@ -9,8 +9,6 @@ import FeedbackModal, { FeedbackData } from './feedback/FeedbackModal';
 import { useFeedback } from '../hooks/useFeedback';
 import { useAutoSession } from '../hooks/useAutoSession';
 
-console.log('🚀 Chat component being loaded/imported!');
-
 interface Message {
   id: string;
   text: string;
@@ -43,8 +41,6 @@ interface Conversation {
 }
 
 export default function Chat() {
-  console.log('🎯 Chat component function executing!');
-  
   // Multi-conversation state
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -317,11 +313,21 @@ export default function Chat() {
 
     // Listener para mostrar modal de feedback baseado em decisão da IA
     newSocket.on('show-feedback-modal', (data: { reason: string; context: string }) => {
+      console.log('🎯 FEEDBACK MODAL TRIGGER recebido:', data);
+      console.log('📊 Estado atual:', {
+        feedbackSubmitted: feedbackSubmittedRef.current,
+        showFeedbackModal: showFeedbackModalRef.current,
+      });
+      
       if (!feedbackSubmittedRef.current && !showFeedbackModalRef.current) {
+        console.log('✅ Agendando exibição do modal de feedback em 2s');
         // Pequeno delay para não interromper a conversa
         setTimeout(() => {
+          console.log('🎯 Exibindo modal de feedback');
           setShowFeedbackModal(true);
         }, 2000);
+      } else {
+        console.log('⏭️ Modal de feedback cancelado (já submetido ou já exibindo)');
       }
     });
 

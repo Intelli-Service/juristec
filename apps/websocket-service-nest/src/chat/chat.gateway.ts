@@ -19,6 +19,7 @@ import { FluidRegistrationService } from '../lib/fluid-registration.service';
 import { VerificationService } from '../lib/verification.service';
 import { BillingService } from '../lib/billing.service';
 import Conversation from '../models/Conversation';
+import { CaseStatus } from '../models/User';
 
 @WebSocketGateway({
   cors: {
@@ -889,7 +890,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           userId,
           roomId,
           title: `Nova Conversa #${nextConversationNumber}`,
-          status: 'active', // Usar status válido do enum CaseStatus
+          status: CaseStatus.ACTIVE, // Usar status válido do enum CaseStatus
           conversationNumber: nextConversationNumber,
           isAnonymous: client.data.isAnonymous || false,
           metadata: {

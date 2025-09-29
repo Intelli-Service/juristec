@@ -375,12 +375,9 @@ export class IntelligentUserRegistrationService {
       [CaseStatus.OPEN]: 0,
       [CaseStatus.ACTIVE]: 0,
       [CaseStatus.RESOLVED_BY_AI]: 0,
-      [CaseStatus.ASSIGNED]: 0,
       [CaseStatus.ASSIGNED_TO_LAWYER]: 0,
       [CaseStatus.COMPLETED]: 0,
-      [CaseStatus.CLOSED]: 0,
       [CaseStatus.ABANDONED]: 0,
-      [CaseStatus.PENDING_REVIEW]: 0,
     };
 
     stats.forEach((stat) => {

@@ -77,11 +77,11 @@ describe('AI Status Validation - Critical Tests', () => {
   /**
    * SEGURANÇA: IA não deve conseguir enviar mensagens em conversas CLOSED
    */
-  it('🚫 should REJECT AI messages in CLOSED conversations', async () => {
+  it('🚫 should REJECT AI messages in COMPLETED conversations', async () => {
     // Arrange
     (Conversation.findById as jest.Mock).mockResolvedValue({
       ...mockConversation,
-      status: CaseStatus.CLOSED,
+      status: CaseStatus.COMPLETED,
     });
 
     // Act & Assert - Should throw ForbiddenException
@@ -115,7 +115,7 @@ describe('AI Status Validation - Critical Tests', () => {
     // Arrange
     (Conversation.findById as jest.Mock).mockResolvedValue({
       ...mockConversation,
-      status: CaseStatus.ASSIGNED,
+      status: CaseStatus.ASSIGNED_TO_LAWYER,
     });
 
     // Act & Assert - Should NOT throw

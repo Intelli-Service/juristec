@@ -1,7 +1,9 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import Message, { MessageSender } from '../models/Message';
 import Conversation from '../models/Conversation';
-import { CaseStatus } from '../models/User';
+
+// Valid conversation statuses for AI messages
+const AI_ALLOWED_STATUSES = ['open', 'active'] as const;
 
 export interface CreateMessageData {
   conversationId: string;
@@ -39,12 +41,7 @@ export class MessageService {
 
     // Validação de permissões da IA baseada no status da conversa
     if (data.sender === 'ai') {
-      const allowedStatuses = [
-        CaseStatus.ACTIVE,
-        CaseStatus.OPEN,
-        CaseStatus.ASSIGNED,
-      ];
-      if (!allowedStatuses.includes(conversation.status)) {
+      if (!AI_ALLOWED_STATUSES.includes(conversation.status)) {
         throw new ForbiddenException(
           'IA não pode enviar mensagens para esta conversa',
         );
@@ -157,7 +154,7 @@ export class MessageService {
 
       case 'ai':
         // IA pode enviar mensagens em conversas ativas ou abertas
-        if (!['open', 'assigned', 'active'].includes(conversation.status)) {
+        if (!AI_ALLOWED_STATUSES.includes(conversation.status)) {
           throw new ForbiddenException(
             'IA não pode enviar mensagens para esta conversa',
           );

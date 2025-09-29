@@ -50,8 +50,8 @@ export interface IConversation extends Document {
 const ConversationSchema = new Schema<IConversation>({
   roomId: { type: String, required: true, unique: true }, // Unique room identifier
   userId: { type: String, required: true, index: true }, // User can have multiple conversations
-  isAuthenticated: { type: Boolean, default: false },
-  user: { type: Schema.Types.Mixed }, // Dados flexíveis do usuário autenticado
+  isAuthenticated: { type: Boolean, default: false }, // Authentication status
+  user: { type: Schema.Types.Mixed }, // Flexible authenticated user data
   status: {
     type: String,
     enum: Object.values(CaseStatus),
