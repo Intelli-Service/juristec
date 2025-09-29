@@ -292,31 +292,58 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('send-message')
   async handleSendMessage(
-    @MessageBody() data: { text: string; attachments?: any[] },
+    @MessageBody() data: { text: string; attachments?: any[]; roomId?: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const { text: message, attachments: _attachments = [] } = data;
+    const { text: message, attachments: _attachments = [], roomId: targetRoomId } = data;
+    const userId = client.data.userId;
 
-    // Usar userId do cliente como roomId
-    const roomId = client.data.userId;
+    if (!userId) {
+      client.emit('error', { message: 'UserId não encontrado' });
+      return;
+    }
+
+    // Se não especificar roomId, usar a primeira conversa ativa do usuário
+    let roomId = targetRoomId;
+    if (!roomId) {
+      const defaultConversations = await Conversation.find({
+        userId,
+        isActive: true
+      }).sort({ lastMessageAt: -1 }).limit(1);
+
+      if (defaultConversations.length > 0) {
+        roomId = defaultConversations[0].roomId;
+      } else {
+        // Criar primeira conversa se não existir
+        const newConversation = await Conversation.create({
+          roomId: `user_${userId}_conv_${Date.now()}`,
+          userId,
+          title: 'Nova Conversa #1',
+          isActive: true,
+          lastMessageAt: new Date(),
+          unreadCount: 0,
+          conversationNumber: 1,
+          isAuthenticated: client.data.isAuthenticated,
+          user: client.data.user
+        });
+        roomId = newConversation.roomId;
+        await client.join(newConversation.roomId);
+      }
+    }
+
+    if (!roomId) {
+      client.emit('error', { message: 'Não foi possível determinar a sala' });
+      return;
+    }
 
     let conversation: any;
 
     try {
-      // Tentar usar o banco de dados, mas continuar sem ele se necessário
-      try {
-        conversation = await Conversation.findOne({ roomId });
-        if (!conversation) {
-          conversation = new Conversation({ roomId });
-          await conversation.save();
-        }
-      } catch (dbError) {
-        console.warn(
-          'Erro de conexão com banco de dados, continuando sem persistência:',
-          dbError.message,
-        );
-        // Criar objeto de conversa temporário para teste
-        conversation = { _id: `temp-${roomId}`, roomId };
+      // Buscar conversa específica
+      conversation = await Conversation.findOne({ roomId, userId });
+      if (!conversation) {
+        client.emit('error', { message: 'Conversa não encontrada' });
+        return;
       }
 
       // Criar mensagem do usuário

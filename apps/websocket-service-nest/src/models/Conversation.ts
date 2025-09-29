@@ -3,10 +3,16 @@ import { CaseStatus } from './User';
 
 export interface IConversation extends Document {
   roomId: string;
-  userId: string; // UserId consistente gerado do token CSRF ou JWT
+  userId: string; // User can have multiple conversations
   isAuthenticated: boolean; // Se o usuário estava autenticado na criação
   user?: any; // Dados do usuário autenticado (se aplicável)
   status: CaseStatus;
+  // 🆕 Novos campos para múltiplas conversas
+  title: string; // "Questão Trabalhista #1", "Divórcio Consensual #2"
+  isActive: boolean; // true = ativa, false = arquivada
+  lastMessageAt: Date; // Última atividade para ordenação
+  unreadCount: number; // Mensagens não lidas pelo cliente
+  conversationNumber: number; // #1, #2, #3... por usuário
   classification: {
     category: string;
     complexity: 'simples' | 'medio' | 'complexo';
@@ -42,8 +48,8 @@ export interface IConversation extends Document {
 }
 
 const ConversationSchema = new Schema<IConversation>({
-  roomId: { type: String, required: true },
-  userId: { type: String, required: true, index: true }, // Índice para busca rápida
+  roomId: { type: String, required: true, unique: true }, // Unique room identifier
+  userId: { type: String, required: true, index: true }, // User can have multiple conversations
   isAuthenticated: { type: Boolean, default: false },
   user: { type: Schema.Types.Mixed }, // Dados flexíveis do usuário autenticado
   status: {
@@ -51,6 +57,12 @@ const ConversationSchema = new Schema<IConversation>({
     enum: Object.values(CaseStatus),
     default: CaseStatus.OPEN,
   },
+  // 🆕 Novos campos para múltiplas conversas
+  title: { type: String, default: 'Nova Conversa' }, // Conversation title
+  isActive: { type: Boolean, default: true }, // Active or archived
+  lastMessageAt: { type: Date, default: Date.now }, // Last activity timestamp
+  unreadCount: { type: Number, default: 0 }, // Unread messages count
+  conversationNumber: { type: Number, required: true }, // Sequential number per user
   classification: {
     category: { type: String, default: 'Não classificado' },
     complexity: {
@@ -95,9 +107,13 @@ const ConversationSchema = new Schema<IConversation>({
   updatedAt: { type: Date, default: Date.now },
 });
 
-// Índices para performance
+// 🆕 Novos índices para múltiplas conversas
+ConversationSchema.index({ userId: 1, isActive: 1, lastMessageAt: -1 }); // Busca conversas ativas por usuário + ordenação
+ConversationSchema.index({ roomId: 1 }, { unique: true }); // RoomId único
+ConversationSchema.index({ userId: 1, conversationNumber: 1 }, { unique: true }); // Numeração sequencial por usuário
+
+// Índices existentes mantidos
 ConversationSchema.index({ status: 1, assignedTo: 1 });
-ConversationSchema.index({ userId: 1, createdAt: -1 }); // Busca por userId + ordenação por data
 ConversationSchema.index({ 'classification.category': 1 });
 ConversationSchema.index({ 'classification.complexity': 1 });
 ConversationSchema.index({ priority: 1 });

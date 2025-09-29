@@ -32,6 +32,7 @@ jest.doMock('mongoose', () => ({
 // Mock dos modelos
 jest.mock('../../models/Conversation', () => ({
   findOne: jest.fn(),
+  find: jest.fn(),
   create: jest.fn(),
   findByIdAndUpdate: jest.fn(),
 }));
@@ -50,6 +51,16 @@ describe('ChatGateway - User Data Collection Integration', () => {
       userEmail: null,
       userPhone: null,
       save: jest.fn(),
+    });
+    ConversationMock.find.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue([{
+        _id: 'conversation-id',
+        roomId: 'test-room',
+        userId: 'test-user',
+        isActive: true,
+        lastMessageAt: new Date()
+      }])
     });
     ConversationMock.create.mockResolvedValue({
       _id: 'conversation-id',
@@ -193,7 +204,7 @@ describe('ChatGateway - User Data Collection Integration', () => {
       );
 
       // Verificar se a mensagem de contato foi enviada
-      expect(mockServer.to).toHaveBeenCalledWith('test-user-id');
+      expect(mockServer.to).toHaveBeenCalledWith('test-room');
       expect(mockServer.emit).toHaveBeenCalledWith('receive-message', {
         text: 'Olá! Para te ajudar melhor, preciso de algumas informações. Qual é o seu nome?',
         sender: 'ai',
