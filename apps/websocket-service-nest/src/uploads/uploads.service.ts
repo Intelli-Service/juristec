@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Storage } from '@google-cloud/storage';
@@ -8,7 +8,7 @@ import {
 } from '../models/FileAttachment';
 
 @Injectable()
-export class UploadsService {
+export class UploadsService implements OnModuleInit {
   private storage: Storage;
   private bucket: string;
 
@@ -16,6 +16,9 @@ export class UploadsService {
     @InjectModel(FileAttachment.name)
     private fileAttachmentModel: Model<FileAttachmentDocument>,
   ) {
+    this.bucket = process.env.GCS_BUCKET_NAME || 'juristec-uploads';
+
+    // Always initialize GCS client
     this.storage = new Storage({
       credentials: {
         type: 'service_account',
@@ -24,7 +27,32 @@ export class UploadsService {
         client_email: process.env.GCS_CLIENT_EMAIL,
       },
     });
-    this.bucket = process.env.GCS_BUCKET_NAME || 'juristec-uploads';
+  }
+
+  async onModuleInit() {
+    // Always ensure GCS bucket exists
+    await this.ensureBucketExists();
+  }
+
+  private async ensureBucketExists(): Promise<void> {
+    try {
+      const bucket = this.storage.bucket(this.bucket);
+      const [exists] = await bucket.exists();
+
+      if (!exists) {
+        console.log(`📦 Creating GCS bucket: ${this.bucket}`);
+        await bucket.create({
+          location: 'US', // Default location
+          storageClass: 'STANDARD',
+        });
+        console.log(`✅ GCS bucket created successfully: ${this.bucket}`);
+      } else {
+        console.log(`✅ GCS bucket already exists: ${this.bucket}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error ensuring bucket exists: ${error.message}`);
+      // Don't throw - let the upload fail later with a clearer error
+    }
   }
 
   async uploadFile(
@@ -35,12 +63,20 @@ export class UploadsService {
     // Validate file type and size
     this.validateFile(file);
 
+    // Always use GCS for file uploads
+    return this.uploadFileToGCS(file, conversationId, userId);
+  }
+
+  private async uploadFileToGCS(
+    file: Express.Multer.File,
+    conversationId: string,
+    userId: string,
+  ): Promise<FileAttachment> {
     // Generate unique filename
     const fileExtension = file.originalname.split('.').pop();
     const uniqueFilename = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExtension}`;
     const gcsPath = `uploads/${conversationId}/${uniqueFilename}`;
 
-    // Upload to GCS
     const bucket = this.storage.bucket(this.bucket);
     const blob = bucket.file(gcsPath);
 
@@ -79,7 +115,7 @@ export class UploadsService {
 
             // Log upload for audit trail
             console.log(
-              `[AUDIT] File uploaded: ${uniqueFilename} by user ${userId} at ${new Date().toISOString()}`,
+              `[AUDIT] File uploaded to GCS: ${uniqueFilename} by user ${userId} at ${new Date().toISOString()}`,
             );
 
             resolve(savedFile);
@@ -99,8 +135,9 @@ export class UploadsService {
       .find({ conversationId, isDeleted: false })
       .sort({ createdAt: -1 });
 
-    // Generate fresh signed URLs for all files
+    // Generate fresh URLs for all files
     for (const file of files) {
+      // Always generate fresh signed URLs from GCS
       const [signedUrl] = await this.storage
         .bucket(this.bucket)
         .file(file.gcsPath)
@@ -120,6 +157,10 @@ export class UploadsService {
     return files;
   }
 
+  async getFileByFilename(filename: string): Promise<FileAttachment | null> {
+    return this.fileAttachmentModel.findOne({ filename, isDeleted: false });
+  }
+
   async deleteFile(fileId: string, userId: string): Promise<void> {
     const file = await this.fileAttachmentModel.findOne({
       _id: fileId,
@@ -131,7 +172,7 @@ export class UploadsService {
       throw new Error('File not found or access denied');
     }
 
-    // Delete from GCS
+    // Always delete from GCS
     const bucket = this.storage.bucket(this.bucket);
     await bucket.file(file.gcsPath).delete();
 

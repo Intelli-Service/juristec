@@ -48,7 +48,20 @@ export class UploadsController {
         data: result,
       };
     } catch (error) {
-      throw new BadRequestException(error.message);
+      console.error('[UPLOAD ERROR] Detailed error:', {
+        message: error.message,
+        stack: error.stack,
+        userId,
+        conversationId,
+        file: file
+          ? {
+              originalname: file.originalname,
+              mimetype: file.mimetype,
+              size: file.size,
+            }
+          : null,
+      });
+      throw new BadRequestException(`Upload failed: ${error.message}`);
     }
   }
 

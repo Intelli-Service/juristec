@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
+import { getSession } from 'next-auth/react';
 import FileUpload from './FileUpload';
 import { useNotifications } from '../hooks/useNotifications';
 import FeedbackModal, { FeedbackData } from './feedback/FeedbackModal';
@@ -368,16 +369,17 @@ export default function Chat() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('conversationId', userId || '');
-      // userId will be extracted from JWT token in backend
 
+      // Use Next.js API route that handles authentication server-side
       const response = await fetch('/api/uploads', {
         method: 'POST',
         body: formData,
-        credentials: 'include', // ✅ Ensure NextAuth cookies are sent
+        credentials: 'include', // Include cookies for NextAuth session
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao fazer upload do arquivo');
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(errorData.error || 'Erro ao fazer upload do arquivo');
       }
 
       const result = await response.json();
