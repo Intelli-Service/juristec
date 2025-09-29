@@ -96,11 +96,12 @@ graph TD
 
 ### Pré-requisitos
 
-- Node.js 18+
-- Docker & Docker Compose
-- Google Cloud Platform account (para GCS)
-- MongoDB Atlas account
-- Pagar.me account
+- **Node.js**: 22.20.0+ LTS (recomendado) | 20.19.5+ (suportado)
+- **npm**: 10.9.3+ (incluído com Node.js)
+- **Docker & Docker Compose**: Para ambiente de desenvolvimento
+- **Google Cloud Platform**: Account para GCS (armazenamento)
+- **MongoDB Atlas**: Account para banco de dados
+- **Pagar.me**: Account para sistema de pagamentos
 
 ### Setup Rápido com Docker
 
