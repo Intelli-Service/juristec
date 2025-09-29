@@ -3,7 +3,7 @@ import Message, { MessageSender } from '../models/Message';
 import Conversation from '../models/Conversation';
 
 // Valid conversation statuses for AI messages
-const AI_ALLOWED_STATUSES = ['open', 'active'] as const;
+const AI_ALLOWED_STATUSES = ['open', 'active', 'assigned_to_lawyer'] as const;
 
 export interface CreateMessageData {
   conversationId: string;

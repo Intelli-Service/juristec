@@ -48,7 +48,8 @@ export const updateConversationStatusFunction = {
 
 export const detectConversationCompletionFunction = {
   name: 'detect_conversation_completion',
-  description: 'Detecta quando uma conversa deve ser finalizada e se deve mostrar feedback ao usuário',
+  description:
+    'Detecta quando uma conversa deve ser finalizada e se deve mostrar feedback ao usuário',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
