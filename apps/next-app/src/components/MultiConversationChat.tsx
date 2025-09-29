@@ -30,7 +30,9 @@ export default function MultiConversationChat() {
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current?.scrollIntoView) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [activeConversationMessages]);
 
   // Listen for cross-conversation notifications

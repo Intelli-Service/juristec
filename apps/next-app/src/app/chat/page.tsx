@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSession, signIn } from 'next-auth/react';
-import Chat from '@/components/Chat';
+import MultiConversationChat from '@/components/MultiConversationChat';
 
 export default function ChatPage() {
   const { data: session, status } = useSession();
@@ -39,6 +39,6 @@ export default function ChatPage() {
     );
   }
 
-  // Renderizar Chat mesmo sem sessão para testar
-  return <Chat />;
+  // Renderizar MultiConversationChat mesmo sem sessão para testar
+  return <MultiConversationChat />;
 }
