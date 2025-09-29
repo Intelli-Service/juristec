@@ -165,6 +165,17 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user }) {
+      // Se não há token e não há user, criar usuário anônimo automaticamente
+      if (!token.userId && !user) {
+        const anonymousId = `anon_${crypto.randomBytes(16).toString('hex')}`;
+        token.userId = anonymousId;
+        token.role = 'client';
+        token.permissions = ['access_own_chat'];
+        token.isAnonymous = true;
+        token.email = `${anonymousId}@anonymous.juristec`;
+        token.name = 'Usuário Anônimo';
+      }
+      
       // Incluir dados do usuário no token JWT
       if (user) {
         token.role = user.role

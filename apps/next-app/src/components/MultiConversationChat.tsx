@@ -35,6 +35,13 @@ export default function MultiConversationChat() {
     }
   }, [activeConversationMessages]);
 
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messagesEndRef.current?.scrollIntoView) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeConversationMessages]);
+
   // Listen for cross-conversation notifications
   useEffect(() => {
     const handleCrossNotification = (event: CustomEvent) => {
@@ -62,6 +69,10 @@ export default function MultiConversationChat() {
     }
   };
 
+  const handleCreateNewConversation = () => {
+    createNewConversation();
+  };
+
   const handleConversationClick = (conversationId: string) => {
     switchToConversation(conversationId);
     markAsRead(conversationId);
@@ -83,7 +94,7 @@ export default function MultiConversationChat() {
           </div>
 
           <button
-            onClick={createNewConversation}
+            onClick={handleCreateNewConversation}
             disabled={isLoading}
             className="w-full bg-emerald-600 text-white py-2 px-4 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >

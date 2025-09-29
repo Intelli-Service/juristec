@@ -33,10 +33,36 @@ export interface Message {
 
 export const useMultiConversation = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string>('');
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [activeConversationMessages, setActiveConversationMessages] = useState<Message[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    import('socket.io-client').then(({ io }) => {
+      const newSocket = io('http://localhost:4000', {
+        withCredentials: true,
+        transports: ['websocket', 'polling']
+      });
+
+      newSocket.on('connect', () => {
+        console.log('✅ WebSocket conectado');
+        // Request user conversations on connect
+        newSocket.emit('join-all-conversations');
+      });
+
+      newSocket.on('disconnect', () => {
+        console.log('❌ WebSocket desconectado');
+      });
+
+      setSocket(newSocket);
+
+      return () => {
+        newSocket.close();
+      };
+    });
+  }, []);
 
   // Conectar a todas as conversas do usuário
   useEffect(() => {
@@ -135,7 +161,7 @@ export const useMultiConversation = () => {
     if (socket) {
       setIsLoading(true);
       socket.emit('create-new-conversation');
-      setTimeout(() => setIsLoading(false), 1000); // Timeout de segurança
+      setTimeout(() => setIsLoading(false), 5000); // Timeout de segurança
     }
   }, [socket]);
 
@@ -143,7 +169,7 @@ export const useMultiConversation = () => {
     if (socket && conversationId !== activeConversationId) {
       setIsLoading(true);
       socket.emit('switch-conversation', { conversationId });
-      setTimeout(() => setIsLoading(false), 1000); // Timeout de segurança
+      setTimeout(() => setIsLoading(false), 3000); // Timeout de segurança
     }
   }, [socket, activeConversationId]);
 

@@ -790,6 +790,179 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  /**
+   * Handle create new conversation
+   */
+  @SubscribeMessage('create-new-conversation')
+  async handleCreateNewConversation(@ConnectedSocket() client: Socket) {
+    try {
+      const userId = client.data.userId;
+      if (!userId) {
+        client.emit('error', { message: 'Usuário não autenticado' });
+        return;
+      }
+
+      console.log(`Criando nova conversa para userId: ${userId}`);
+
+      // Create new conversation
+      const newConversation = await Conversation.create({
+        userId,
+        title: 'Nova Conversa',
+        status: 'pending_triage',
+        isAnonymous: client.data.isAnonymous || false,
+        metadata: {
+          clientInfo: client.data.user || {},
+          conversationType: 'chat',
+        },
+      });
+
+      console.log(`Nova conversa criada: ${newConversation._id}`);
+
+      // Get all user conversations
+      const conversations = await Conversation.find({ userId })
+        .sort({ createdAt: -1 })
+        .select('_id title status createdAt lastMessageAt unreadCount')
+        .lean();
+
+      // Emit the new conversation and updated list
+      client.emit('conversation-created', {
+        conversation: {
+          id: newConversation._id.toString(),
+          title: newConversation.title,
+          status: newConversation.status,
+          createdAt: newConversation.createdAt,
+          lastMessageAt: newConversation.lastMessageAt,
+          unreadCount: newConversation.unreadCount || 0,
+        },
+        conversations: conversations.map(conv => ({
+          id: (conv._id as any).toString(),
+          title: conv.title,
+          status: conv.status,
+          createdAt: conv.createdAt,
+          lastMessageAt: conv.lastMessageAt,
+          unreadCount: conv.unreadCount || 0,
+        })),
+      });
+
+    } catch (error) {
+      console.error('Erro ao criar nova conversa:', error);
+      client.emit('error', { message: 'Erro ao criar nova conversa' });
+    }
+  }
+
+  /**
+   * Handle switch conversation
+   */
+  @SubscribeMessage('switch-conversation')
+  async handleSwitchConversation(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    try {
+      const userId = client.data.userId;
+      const { conversationId } = data;
+
+      if (!userId) {
+        client.emit('error', { message: 'Usuário não autenticado' });
+        return;
+      }
+
+      console.log(`Switching to conversation ${conversationId} for user ${userId}`);
+
+      // Verify conversation belongs to user
+      const conversation = await Conversation.findOne({
+        _id: conversationId,
+        userId,
+      });
+
+      if (!conversation) {
+        client.emit('error', { message: 'Conversa não encontrada' });
+        return;
+      }
+
+      // Leave current room
+      if (client.data.currentConversationId) {
+        client.leave(client.data.currentConversationId);
+      }
+
+      // Join new conversation room
+      client.join(conversationId);
+      client.data.currentConversationId = conversationId;
+
+      // Load conversation messages
+      const messages = await this.messageService.getMessages(
+        { conversationId },
+        { userId, role: 'client', permissions: ['access_own_chat'] }
+      );
+
+      // Get all user conversations for sidebar
+      const conversations = await Conversation.find({ userId })
+        .sort({ createdAt: -1 })
+        .select('_id title status createdAt lastMessageAt unreadCount')
+        .lean();
+
+      // Emit conversation switched event
+      client.emit('conversation-switched', {
+        conversationId,
+        messages: messages.map(msg => ({
+          id: msg._id.toString(),
+          content: msg.content,
+          sender: msg.sender,
+          timestamp: msg.createdAt,
+          type: msg.type || 'text',
+        })),
+        conversations: conversations.map(conv => ({
+          id: (conv._id as any).toString(),
+          title: conv.title,
+          status: conv.status,
+          createdAt: conv.createdAt,
+          lastMessageAt: conv.lastMessageAt,
+          unreadCount: conv.unreadCount || 0,
+        })),
+      });
+
+      // TODO: Implement markMessagesAsRead method in MessageService if needed
+
+    } catch (error) {
+      console.error('Erro ao trocar conversa:', error);
+      client.emit('error', { message: 'Erro ao trocar conversa' });
+    }
+  }
+
+  /**
+   * Get all conversations for user
+   */
+  @SubscribeMessage('get-conversations')
+  async handleGetConversations(@ConnectedSocket() client: Socket) {
+    try {
+      const userId = client.data.userId;
+      if (!userId) {
+        client.emit('error', { message: 'Usuário não autenticado' });
+        return;
+      }
+
+      const conversations = await Conversation.find({ userId })
+        .sort({ createdAt: -1 })
+        .select('_id title status createdAt lastMessageAt unreadCount')
+        .lean();
+
+      client.emit('conversations-loaded', {
+        conversations: conversations.map(conv => ({
+          id: (conv._id as any).toString(),
+          title: conv.title,
+          status: conv.status,
+          createdAt: conv.createdAt,
+          lastMessageAt: conv.lastMessageAt,
+          unreadCount: conv.unreadCount || 0,
+        })),
+      });
+
+    } catch (error) {
+      console.error('Erro ao carregar conversas:', error);
+      client.emit('error', { message: 'Erro ao carregar conversas' });
+    }
+  }
+
   private parseCookie(cookieHeader: string, name: string): string | undefined {
     const cookies = cookieHeader.split(';').map((c) => c.trim());
     const cookie = cookies.find((c) => c.startsWith(`${name}=`));
