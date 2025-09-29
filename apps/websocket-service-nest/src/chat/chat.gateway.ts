@@ -218,7 +218,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           isAuthenticated: client.data.isAuthenticated,
           user: client.data.user,
           conversationNumber: 1,
-          status: 'active',
+          status: CaseStatus.ACTIVE,
           title: 'Nova Conversa #1',
         });
 
