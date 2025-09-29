@@ -110,7 +110,10 @@ const ConversationSchema = new Schema<IConversation>({
 // 🆕 Novos índices para múltiplas conversas
 ConversationSchema.index({ userId: 1, isActive: 1, lastMessageAt: -1 }); // Busca conversas ativas por usuário + ordenação
 ConversationSchema.index({ roomId: 1 }, { unique: true }); // RoomId único
-ConversationSchema.index({ userId: 1, conversationNumber: 1 }, { unique: true }); // Numeração sequencial por usuário
+ConversationSchema.index(
+  { userId: 1, conversationNumber: 1 },
+  { unique: true },
+); // Numeração sequencial por usuário
 
 // Índices existentes mantidos
 ConversationSchema.index({ status: 1, assignedTo: 1 });

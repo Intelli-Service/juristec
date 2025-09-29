@@ -92,11 +92,15 @@ export class IntelligentUserRegistrationService {
           });
         });
         // NÃO adicionar a mensagem atual novamente - ela já está no histórico
-        
+
         console.log(`🤖 GEMINI CONTEXT - Conversação ${conversationId}:`);
         console.log(`   📨 Total de mensagens históricas: ${messages.length}`);
-        console.log(`   📨 Total de mensagens para IA: ${geminiMessages.length}`);
-        console.log(`   📨 Nova mensagem já incluída no histórico: "${message}"`);
+        console.log(
+          `   📨 Total de mensagens para IA: ${geminiMessages.length}`,
+        );
+        console.log(
+          `   📨 Nova mensagem já incluída no histórico: "${message}"`,
+        );
         geminiMessages.forEach((msg, index) => {
           console.log(`   ${index + 1}. [${msg.sender}]: "${msg.text}"`);
         });
