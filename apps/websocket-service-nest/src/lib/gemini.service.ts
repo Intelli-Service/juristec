@@ -70,9 +70,9 @@ export class GeminiService {
   private log(message: string, data?: any) {
     if (this.isDevelopment) {
       if (data) {
-        console.log(message, data);
+        console.log(`🤖 ${message}`, data);
       } else {
-        console.log(message);
+        console.log(`🤖 ${message}`);
       }
     }
   }
@@ -262,50 +262,29 @@ export class GeminiService {
     const model = await this.getModel();
     const config = await this.aiService.getCurrentConfig();
 
-    this.log('🤖 GEMINI SERVICE - Iniciando processamento com suporte a arquivos');
-    this.log(`📨 Total de mensagens recebidas: ${messages.length}`);
-    this.log(
-      '📝 Mensagens recebidas:',
-      messages.map((msg, idx) => ({
-        index: idx,
-        sender: msg.sender,
-        text: msg.text.substring(0, 100) + (msg.text.length > 100 ? '...' : ''),
-        attachmentsCount: msg.attachments?.length || 0,
-      })),
-    );
+    this.log('GEMINI SERVICE - Iniciando processamento com suporte a arquivos');
+    this.log(`Total de mensagens recebidas: ${messages.length}`);
+
+    // Log detalhado dos anexos
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.attachments && lastMessage.attachments.length > 0) {
+      this.log(`📎 ANEXOS ENCONTRADOS: ${lastMessage.attachments.length}`);
+      lastMessage.attachments.forEach((attachment, idx) => {
+        this.log(`  ${idx + 1}. ${attachment.displayName || 'Arquivo sem nome'}`);
+        this.log(`     Tipo: ${attachment.mimeType}`);
+        this.log(`     URL: ${attachment.fileUri}`);
+      });
+    }
 
     // Preparar histórico para chat session
     const history = messages.slice(0, -1)
-      .filter((msg) => msg.sender === 'user' || msg.sender === 'ai') // Apenas mensagens user e ai
+      .filter((msg) => msg.sender === 'user' || msg.sender === 'ai')
       .map((msg) => ({
         role: msg.sender === 'user' ? 'user' : 'model',
         parts: this.buildMessageParts(msg),
       }));
 
-    // Garantir que o histórico comece com uma mensagem do usuário
-    if (history.length > 0 && history[0].role === 'model') {
-      // Se a primeira mensagem é do modelo, remover até encontrar uma do usuário
-      const firstUserIndex = history.findIndex((msg) => msg.role === 'user');
-      if (firstUserIndex > 0) {
-        history.splice(0, firstUserIndex);
-      }
-    }
-
-    this.log('📚 Histórico preparado para Gemini:');
-    this.log(`   - Total de mensagens no histórico: ${history.length}`);
-    history.forEach((item, idx) => {
-      this.log(`   [${idx}] Role: ${item.role}, Parts:`, item.parts.length);
-    });
-
-    
-    // Última mensagem do usuário
-    const lastMessage = messages[messages.length - 1];
-    this.log('�� Última mensagem a ser enviada:', {
-      role: 'user',
-      message: lastMessage.text,
-      attachmentsCount: lastMessage.attachments?.length || 0,
-      timestamp: new Date().toISOString(),
-    }); // Iniciar chat com histórico
+    // Iniciar chat com histórico
     const chat = model.startChat({
       history,
       generationConfig: {
@@ -427,17 +406,25 @@ export class GeminiService {
       ],
     });
 
-    this.log('🚀 Enviando mensagem para Gemini...');
+    this.log('Enviando mensagem para Gemini...');
     const lastMessageParts = this.buildMessageParts(lastMessage);
+
+    // Log dos parts sendo enviados
+    this.log(`Parts da mensagem: ${lastMessageParts.length}`);
+    lastMessageParts.forEach((part, idx) => {
+      if ('text' in part) {
+        this.log(`  Part ${idx}: TEXTO - ${part.text?.substring(0, 100)}${part.text && part.text.length > 100 ? '...' : ''}`);
+      } else if ('fileData' in part) {
+        this.log(`  Part ${idx}: ARQUIVO - ${part.fileData?.fileUri}`);
+      }
+    });
+
     const result = await chat.sendMessage(lastMessageParts);
 
-    this.log('✅ Resposta recebida do Gemini');
+    this.log('Resposta recebida do Gemini');
     const response = result.response;
-    this.log(
-      '📄 Texto da resposta:',
-      response.text().substring(0, 300) +
-        (response.text().length > 300 ? '...' : ''),
-    );
+    this.log(`Texto da resposta: ${response.text().substring(0, 200)}${response.text().length > 200 ? '...' : ''}`);
+
     const functionCalls: FunctionCall[] = [];
 
     // Verificar function calls na resposta
@@ -462,8 +449,6 @@ export class GeminiService {
           });
         }
       }
-    } else {
-      // Nenhuma function call na resposta
     }
 
     return {

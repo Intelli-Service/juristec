@@ -284,27 +284,6 @@ export class UploadsService implements OnModuleInit {
     );
   }
 
-  // Generate signed URL valid for 10 minutes (for AI processing)
-  async generateSignedUrlForAI(gcsPath: string): Promise<string> {
-    const [signedUrl] = await this.storage
-      .bucket(this.bucket)
-      .file(gcsPath)
-      .getSignedUrl({
-        version: 'v4',
-        action: 'read',
-        expires: Date.now() + 10 * 60 * 1000, // 10 minutes
-      });
-    return signedUrl;
-  }
-
-  // Get files associated with a specific message
-  async getFilesByMessageId(messageId: string): Promise<FileAttachment[]> {
-    return this.fileAttachmentModel.find({
-      messageId,
-      isDeleted: false
-    }).sort({ createdAt: 1 });
-  }
-
   // Get files with temporary signed URLs for AI processing
   async getFilesWithAISignedUrls(conversationId: string): Promise<Array<FileAttachment & { aiSignedUrl: string }>> {
     const files = await this.fileAttachmentModel.find({
@@ -320,6 +299,26 @@ export class UploadsService implements OnModuleInit {
     );
 
     return filesWithAISignedUrls;
+  }
+
+  // Generate signed URL valid for 10 minutes (for AI processing)
+  async generateSignedUrlForAI(gcsPath: string): Promise<string> {
+    try {
+      const [signedUrl] = await this.storage
+        .bucket(this.bucket)
+        .file(gcsPath)
+        .getSignedUrl({
+          version: 'v4',
+          action: 'read',
+          expires: Date.now() + 10 * 60 * 1000, // 10 minutes
+        });
+
+      console.log(`🔗 Generated AI signed URL for ${gcsPath}: ${signedUrl}`);
+      return signedUrl;
+    } catch (error) {
+      console.error(`❌ Error generating signed URL for AI: ${gcsPath}`, error);
+      throw error;
+    }
   }
 
   private validateFile(file: Express.Multer.File): void {

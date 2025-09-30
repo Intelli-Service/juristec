@@ -498,35 +498,35 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (_attachments && _attachments.length > 0) {
         try {
           console.log(`🔗 Processando ${_attachments.length} anexos para IA...`);
-          // Buscar arquivos da conversa e enriquecer com URLs assinadas
-          const conversationFiles = await this.uploadsService.getFilesWithAISignedUrls(conversationId);
-          console.log(`📁 Encontrados ${conversationFiles.length} arquivos na conversa`);
 
-          // Combinar anexos recebidos com arquivos da conversa (usando filename como chave)
-          processedAttachments = _attachments.map(attachment => {
-            const matchingFile = conversationFiles.find(file =>
-              file.originalName === attachment.originalName ||
-              file.filename === attachment.filename
-            );
+          // Os anexos já vêm como objetos FileAttachment completos do banco
+          // Apenas precisamos adicionar aiSignedUrl a cada um
+          processedAttachments = await Promise.all(
+            _attachments.map(async (attachment) => {
+              try {
+                console.log(`📎 Processando anexo: ${attachment.originalName} (${attachment._id})`);
 
-            if (matchingFile) {
-              console.log(`✅ Anexo encontrado: ${attachment.originalName} -> ${matchingFile.aiSignedUrl.substring(0, 50)}...`);
-              return {
-                ...attachment,
-                aiSignedUrl: matchingFile.aiSignedUrl,
-                mimeType: matchingFile.mimeType,
-                originalName: matchingFile.originalName,
-              };
-            } else {
-              console.warn(`⚠️ Anexo não encontrado na conversa: ${attachment.originalName}`);
-              return attachment; // Manter anexo mesmo sem URL assinada
-            }
-          });
+                // Gerar URL assinada específica para IA (10 minutos)
+                const aiSignedUrl = await this.uploadsService.generateSignedUrlForAI(attachment.gcsPath);
 
-          console.log(`📤 Enviando ${processedAttachments.length} anexos processados para IA`);
+                return {
+                  ...attachment,
+                  aiSignedUrl,
+                  mimeType: attachment.mimeType,
+                  originalName: attachment.originalName,
+                };
+              } catch (error) {
+                console.error(`❌ Erro ao processar anexo ${attachment.originalName}:`, error);
+                // Retornar anexo sem URL assinada, mas manter os dados
+                return attachment;
+              }
+            })
+          );
+
+          console.log(`✅ ${processedAttachments.length} anexos processados com URLs assinadas`);
         } catch (attachmentError) {
-          console.error('Erro ao processar anexos:', attachmentError);
-          // Continuar sem anexos se houver erro
+          console.error('Erro geral ao processar anexos:', attachmentError);
+          // Continuar sem anexos se houver erro geral
           processedAttachments = [];
         }
       }
