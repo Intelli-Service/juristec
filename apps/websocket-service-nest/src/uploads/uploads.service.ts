@@ -411,6 +411,37 @@ export class UploadsService implements OnModuleInit {
     }
   }
 
+  // Generate signed URL valid for 5 minutes (for user download)
+  async generateDownloadSignedUrl(fileId: string, userId: string): Promise<string> {
+    try {
+      // Find the file and verify ownership
+      const file = await this.fileAttachmentModel.findOne({
+        _id: fileId,
+        userId: userId,
+      });
+
+      if (!file) {
+        throw new Error('File not found or access denied');
+      }
+
+      // Generate signed URL valid for 5 minutes
+      const [signedUrl] = await this.storage
+        .bucket(this.bucket)
+        .file(file.gcsPath)
+        .getSignedUrl({
+          version: 'v4',
+          action: 'read',
+          expires: Date.now() + 5 * 60 * 1000, // 5 minutes
+        });
+
+      console.log(`🔗 Generated download signed URL for ${file.filename}: ${signedUrl}`);
+      return signedUrl;
+    } catch (error) {
+      console.error(`❌ Error generating download signed URL for file ${fileId}:`, error);
+      throw error;
+    }
+  }
+
   // Upload file to Gemini API and return the file URI
   private async uploadFileToGemini(
     file: Express.Multer.File,

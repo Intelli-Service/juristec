@@ -9,7 +9,8 @@ interface FileUploadProps {
   disabled?: boolean;
   showHelp?: boolean;
   onShowHelp?: () => void;
-  clearTrigger?: number; // Changed from shouldClearFile to clearTrigger for better control
+  clearTrigger?: number;
+  inline?: boolean; // New prop for inline mode (button next to send button)
 }
 
 export default function FileUpload({
@@ -17,7 +18,8 @@ export default function FileUpload({
   disabled = false,
   showHelp = false,
   onShowHelp,
-  clearTrigger = 0
+  clearTrigger = 0,
+  inline = false
 }: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -25,6 +27,7 @@ export default function FileUpload({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cleanup interval on unmount
@@ -42,6 +45,7 @@ export default function FileUpload({
       clearFile();
     }
   }, [clearTrigger]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { error: showErrorToast, success: showSuccessToast } = useNotifications();
 
@@ -141,6 +145,9 @@ export default function FileUpload({
     setIsUploading(false);
     setUploadProgress(0);
     setUploadSuccess(false);
+    if (inline) {
+      setIsExpanded(false);
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -166,48 +173,74 @@ export default function FileUpload({
         data-testid="file-input"
       />
 
-      {!selectedFile ? (
-        <div
-          data-testid="upload-area"
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => !disabled && fileInputRef.current?.click()}
-          className={`
-            border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-all duration-200
-            ${isDragOver
-              ? 'border-emerald-500 bg-emerald-50 scale-105'
-              : 'border-slate-300 hover:border-emerald-400 hover:bg-slate-50'
-            }
-            ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
-            ${error ? 'border-red-300 bg-red-50' : ''}
-          `}
-        >
-          <div className="flex flex-col items-center space-y-2">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-              error ? 'bg-red-100' : 'bg-slate-100'
-            }`}>
-              <Upload className={`w-4 h-4 ${error ? 'text-red-500' : 'text-slate-400'}`} />
-            </div>
-            <div className="text-sm text-slate-600">
-              <span className="font-medium text-emerald-600">Clique para escolher</span> ou arraste um arquivo
-            </div>
-            <div className="text-xs text-slate-500">
-              PDF, DOC, DOCX, JPG, PNG (máx. 10MB)
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className={`border rounded-lg p-3 transition-all duration-200 ${
-          uploadSuccess
-            ? 'border-emerald-300 bg-emerald-50'
-            : error
-            ? 'border-red-300 bg-red-50'
-            : 'border-slate-300 bg-slate-50'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+      {inline ? (
+        // Inline mode: Small attachment button that shows modal when clicked
+        <>
+          {!selectedFile ? (
+            <>
+              {!isExpanded ? (
+                <button
+                  onClick={() => setIsExpanded(true)}
+                  disabled={disabled}
+                  className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
+                  title="Anexar arquivo"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                </button>
+              ) : (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-slate-800">Anexar arquivo</h3>
+                      <button
+                        onClick={() => setIsExpanded(false)}
+                        className="text-slate-400 hover:text-slate-600 transition-colors"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div
+                      data-testid="upload-area"
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onClick={() => !disabled && fileInputRef.current?.click()}
+                      className={`
+                        border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-all duration-200
+                        ${isDragOver
+                          ? 'border-emerald-500 bg-emerald-50'
+                          : 'border-slate-300 hover:border-emerald-400 hover:bg-slate-50'
+                        }
+                        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+                        ${error ? 'border-red-300 bg-red-50' : ''}
+                      `}
+                    >
+                      <div className="flex flex-col items-center space-y-2">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                          error ? 'bg-red-100' : 'bg-slate-100'
+                        }`}>
+                          <Upload className={`w-4 h-4 ${error ? 'text-red-500' : 'text-slate-400'}`} />
+                        </div>
+                        <div className="text-sm text-slate-600">
+                          <span className="font-medium text-emerald-600">Clique para escolher</span> ou arraste um arquivo
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          PDF, DOC, DOCX, JPG, PNG (máx. 10MB)
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
                 uploadSuccess
                   ? 'bg-emerald-100'
                   : error
@@ -215,12 +248,12 @@ export default function FileUpload({
                   : 'bg-slate-100'
               }`}>
                 {uploadSuccess ? (
-                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <CheckCircle className="w-3 h-3 text-emerald-600" />
                 ) : error ? (
-                  <AlertCircle className="w-4 h-4 text-red-600" />
+                  <AlertCircle className="w-3 h-3 text-red-600" />
                 ) : (
                   <svg
-                    className="w-4 h-4 text-slate-600"
+                    className="w-3 h-3 text-slate-600"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -235,39 +268,140 @@ export default function FileUpload({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className={`text-sm font-medium truncate max-w-48 ${
+                <div className={`text-sm font-medium truncate max-w-32 ${
                   error ? 'text-red-800' : 'text-slate-800'
                 }`}>
                   {selectedFile.name}
                 </div>
-                <div className="text-xs text-slate-500">
-                  {formatFileSize(selectedFile.size)}
-                </div>
                 {isUploading && (
-                  <div className="mt-2">
-                    <div className="w-full bg-slate-200 rounded-full h-1.5">
+                  <div className="mt-1">
+                    <div className="w-full bg-slate-200 rounded-full h-1">
                       <div
-                        className="bg-emerald-600 h-1.5 rounded-full transition-all duration-300"
+                        className="bg-emerald-600 h-1 rounded-full transition-all duration-300"
                         style={{ width: `${uploadProgress}%` }}
                       />
-                    </div>
-                    <div className="text-xs text-slate-600 mt-1">
-                      Processando... {Math.round(uploadProgress)}%
                     </div>
                   </div>
                 )}
               </div>
+              <button
+                onClick={clearFile}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+                disabled={disabled || isUploading}
+                aria-label="Remover arquivo"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={clearFile}
-              className="text-slate-400 hover:text-slate-600 transition-colors ml-2"
-              disabled={disabled || isUploading}
-              aria-label="Remover arquivo"
+          )}
+        </>
+      ) : (
+        // Original full mode
+        <>
+          {!selectedFile ? (
+            <div
+              data-testid="upload-area"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => !disabled && fileInputRef.current?.click()}
+              className={`
+                border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-all duration-200
+                ${isDragOver
+                  ? 'border-emerald-500 bg-emerald-50 scale-105'
+                  : 'border-slate-300 hover:border-emerald-400 hover:bg-slate-50'
+                }
+                ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+                ${error ? 'border-red-300 bg-red-50' : ''}
+              `}
             >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+              <div className="flex flex-col items-center space-y-2">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                  error ? 'bg-red-100' : 'bg-slate-100'
+                }`}>
+                  <Upload className={`w-4 h-4 ${error ? 'text-red-500' : 'text-slate-400'}`} />
+                </div>
+                <div className="text-sm text-slate-600">
+                  <span className="font-medium text-emerald-600">Clique para escolher</span> ou arraste um arquivo
+                </div>
+                <div className="text-xs text-slate-500">
+                  PDF, DOC, DOCX, JPG, PNG (máx. 10MB)
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className={`border rounded-lg p-3 transition-all duration-200 ${
+              uploadSuccess
+                ? 'border-emerald-300 bg-emerald-50'
+                : error
+                ? 'border-red-300 bg-red-50'
+                : 'border-slate-300 bg-slate-50'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    uploadSuccess
+                      ? 'bg-emerald-100'
+                      : error
+                      ? 'bg-red-100'
+                      : 'bg-slate-100'
+                  }`}>
+                    {uploadSuccess ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    ) : error ? (
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                    ) : (
+                      <svg
+                        className="w-4 h-4 text-slate-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm font-medium truncate max-w-48 ${
+                      error ? 'text-red-800' : 'text-slate-800'
+                    }`}>
+                      {selectedFile.name}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {formatFileSize(selectedFile.size)}
+                    </div>
+                    {isUploading && (
+                      <div className="mt-2">
+                        <div className="w-full bg-slate-200 rounded-full h-1.5">
+                          <div
+                            className="bg-emerald-600 h-1.5 rounded-full transition-all duration-300"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                        <div className="text-xs text-slate-600 mt-1">
+                          Processando... {Math.round(uploadProgress)}%
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={clearFile}
+                  className="text-slate-400 hover:text-slate-600 transition-colors ml-2"
+                  disabled={disabled || isUploading}
+                  aria-label="Remover arquivo"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Error message inline */}

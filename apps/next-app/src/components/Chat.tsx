@@ -5,6 +5,7 @@ import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
 import { getSession } from 'next-auth/react';
 import FileUpload from './FileUpload';
+import MessageAttachments from './MessageAttachments';
 import { useNotifications } from '../hooks/useNotifications';
 import FeedbackModal, { FeedbackData } from './feedback/FeedbackModal';
 import { useFeedback } from '../hooks/useFeedback';
@@ -147,6 +148,46 @@ export default function Chat() {
         ? { ...conv, unreadCount: 0 }
         : conv
     ));
+  };
+
+  const handleAttachmentDownload = async (attachment: FileAttachment) => {
+    try {
+      // Gerar signed URL para download
+      const response = await fetch(`/api/uploads/download/${attachment.id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao gerar URL de download');
+      }
+
+      const data = await response.json();
+      const signedUrl = data.signedUrl;
+
+      // Fazer download usando a signed URL
+      const downloadResponse = await fetch(signedUrl);
+      if (!downloadResponse.ok) {
+        throw new Error('Erro ao fazer download do arquivo');
+      }
+
+      const blob = await downloadResponse.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachment.originalName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      notifications.success('Download concluído', `${attachment.originalName} foi baixado com sucesso.`);
+    } catch (error) {
+      console.error('Erro ao fazer download:', error);
+      notifications.error('Erro no download', 'Não foi possível baixar o arquivo. Tente novamente.');
+    }
   };
 
   const handleCreateCharge = async (e: React.FormEvent) => {
@@ -444,8 +485,8 @@ export default function Chat() {
       setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
     }
 
-    // Marcar que a conversa começou após o primeiro envio
-    if (!hasStartedConversation) {
+    // Marcar que a conversa começou apenas se há conteúdo real
+    if (!hasStartedConversation && (input.trim() || selectedFile)) {
       setHasStartedConversation(true);
     }
 
@@ -476,7 +517,7 @@ export default function Chat() {
   return (
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar - Lista de Conversas */}
-      <div className="w-80 bg-white border-r border-slate-200 flex flex-col">
+      <div className="w-72 bg-white border-r border-slate-200 flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-slate-200">
           <div className="flex items-center justify-between mb-4">
@@ -650,6 +691,12 @@ export default function Chat() {
                   data-testid={`message-${message.sender}`}
                 >
                   {message.text}
+                  {message.attachments && message.attachments.length > 0 && (
+                    <MessageAttachments
+                      attachments={message.attachments}
+                      onDownload={handleAttachmentDownload}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -690,6 +737,7 @@ export default function Chat() {
             onFileSelect={setSelectedFile}
             disabled={activeConversationId ? isLoading[activeConversationId] : false}
             clearTrigger={clearFileTrigger}
+            inline={true}
           />
 
           {/* Text Input and Send Button */}

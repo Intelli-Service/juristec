@@ -124,14 +124,18 @@ export class UploadsController {
     };
   }
 
-  @Get('info')
-  getUploadInfo() {
-    return {
-      service: 'file-upload',
-      status: 'available',
-      maxFileSize: '10MB',
-      allowedTypes: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
-      timestamp: new Date().toISOString(),
-    };
+  @Get('download/:fileId')
+  async generateDownloadUrl(@Param('fileId') fileId: string, @Request() req: any) {
+    const userId = req.user.userId; // Extract from JWT token
+
+    try {
+      const signedUrl = await this.uploadsService.generateDownloadSignedUrl(fileId, userId);
+      return {
+        success: true,
+        signedUrl,
+      };
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 }
