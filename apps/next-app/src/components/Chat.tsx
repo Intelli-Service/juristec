@@ -689,7 +689,7 @@ export default function Chat() {
           <FileUpload
             onFileSelect={setSelectedFile}
             disabled={activeConversationId ? isLoading[activeConversationId] : false}
-            shouldClearFile={clearFileTrigger > 0}
+            clearTrigger={clearFileTrigger}
           />
 
           {/* Text Input and Send Button */}

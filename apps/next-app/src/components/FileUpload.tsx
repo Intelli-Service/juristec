@@ -9,7 +9,7 @@ interface FileUploadProps {
   disabled?: boolean;
   showHelp?: boolean;
   onShowHelp?: () => void;
-  shouldClearFile?: boolean;
+  clearTrigger?: number; // Changed from shouldClearFile to clearTrigger for better control
 }
 
 export default function FileUpload({
@@ -17,7 +17,7 @@ export default function FileUpload({
   disabled = false,
   showHelp = false,
   onShowHelp,
-  shouldClearFile = false
+  clearTrigger = 0
 }: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -36,12 +36,12 @@ export default function FileUpload({
     };
   }, []);
 
-  // Clear file when shouldClearFile prop changes to true
+  // Clear file when clearTrigger changes (increments)
   useEffect(() => {
-    if (shouldClearFile) {
+    if (clearTrigger > 0) {
       clearFile();
     }
-  }, [shouldClearFile]);
+  }, [clearTrigger]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { error: showErrorToast, success: showSuccessToast } = useNotifications();
 
