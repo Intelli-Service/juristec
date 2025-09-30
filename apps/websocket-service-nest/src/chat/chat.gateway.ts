@@ -499,31 +499,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         try {
           console.log(`🔗 Processando ${_attachments.length} anexos para IA...`);
 
-          // Os anexos já vêm como objetos FileAttachment completos do banco
-          // Apenas precisamos adicionar aiSignedUrl a cada um
-          processedAttachments = await Promise.all(
-            _attachments.map(async (attachment) => {
-              try {
-                console.log(`📎 Processando anexo: ${attachment.originalName} (${attachment._id})`);
+          // Usar a nova função que retorna arquivos com URIs do Gemini
+          processedAttachments = await this.uploadsService.getFilesWithAISignedUrls(conversation._id.toString());
 
-                // Gerar URL assinada específica para IA (10 minutos)
-                const aiSignedUrl = await this.uploadsService.generateSignedUrlForAI(attachment.gcsPath);
-
-                return {
-                  ...attachment,
-                  aiSignedUrl,
-                  mimeType: attachment.mimeType,
-                  originalName: attachment.originalName,
-                };
-              } catch (error) {
-                console.error(`❌ Erro ao processar anexo ${attachment.originalName}:`, error);
-                // Retornar anexo sem URL assinada, mas manter os dados
-                return attachment;
-              }
-            })
-          );
-
-          console.log(`✅ ${processedAttachments.length} anexos processados com URLs assinadas`);
+          console.log(`✅ ${processedAttachments.length} anexos processados com URIs do Gemini`);
         } catch (attachmentError) {
           console.error('Erro geral ao processar anexos:', attachmentError);
           // Continuar sem anexos se houver erro geral

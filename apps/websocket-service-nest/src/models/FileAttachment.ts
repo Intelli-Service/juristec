@@ -44,6 +44,16 @@ export class FileAttachment {
 
   @Prop()
   textExtractionError?: string;
+
+  // Campos para integração com Gemini AI
+  @Prop()
+  geminiFileUri?: string; // URI do arquivo na API do Gemini
+
+  @Prop()
+  geminiUploadStatus?: 'pending' | 'uploading' | 'completed' | 'failed';
+
+  @Prop()
+  geminiUploadError?: string;
 }
 
 export const FileAttachmentSchema =

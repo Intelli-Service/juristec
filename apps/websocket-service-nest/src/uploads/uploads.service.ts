@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Storage } from '@google-cloud/storage';
+import axios from 'axios';
 import {
   FileAttachment,
   FileAttachmentDocument,
@@ -120,6 +121,14 @@ export class UploadsService implements OnModuleInit {
 
         const uploadResult = await this.uploadWithTimeout(blob, file, gcsPath);
 
+        // Upload file to Gemini API (don't block on failure)
+        let geminiFileUri: string | null = null;
+        try {
+          geminiFileUri = await this.uploadFileToGemini(file, file.originalname);
+        } catch (geminiError) {
+          console.warn(`⚠️ Gemini upload failed, but GCS upload succeeded: ${file.originalname}`, geminiError);
+        }
+
         // Save metadata to database after successful upload
         const fileAttachment = new this.fileAttachmentModel({
           filename: uniqueFilename, // Use unique filename for storage
@@ -132,6 +141,8 @@ export class UploadsService implements OnModuleInit {
           userId,
           messageId: messageId || '', // Associate with message if provided
           textExtractionStatus: 'pending', // Mark for text extraction
+          geminiFileUri,
+          geminiUploadStatus: geminiFileUri ? 'completed' : 'failed',
         });
 
         const savedFile = await fileAttachment.save();
@@ -284,23 +295,6 @@ export class UploadsService implements OnModuleInit {
     );
   }
 
-  // Get files with temporary signed URLs for AI processing
-  async getFilesWithAISignedUrls(conversationId: string): Promise<Array<FileAttachment & { aiSignedUrl: string }>> {
-    const files = await this.fileAttachmentModel.find({
-      conversationId,
-      isDeleted: false
-    }).sort({ createdAt: -1 });
-
-    const filesWithAISignedUrls = await Promise.all(
-      files.map(async (file) => ({
-        ...file.toObject(),
-        aiSignedUrl: await this.generateSignedUrlForAI(file.gcsPath),
-      }))
-    );
-
-    return filesWithAISignedUrls;
-  }
-
   // Generate signed URL valid for 10 minutes (for AI processing)
   async generateSignedUrlForAI(gcsPath: string): Promise<string> {
     try {
@@ -318,6 +312,84 @@ export class UploadsService implements OnModuleInit {
     } catch (error) {
       console.error(`❌ Error generating signed URL for AI: ${gcsPath}`, error);
       throw error;
+    }
+  }
+
+  // Upload file to Gemini API and return the file URI
+  private async uploadFileToGemini(file: Express.Multer.File, displayName: string): Promise<string | null> {
+    try {
+      const apiKey = process.env.GOOGLE_API_KEY;
+      if (!apiKey) {
+        console.warn('⚠️ GOOGLE_API_KEY not configured, skipping Gemini file upload');
+        return null;
+      }
+
+      console.log(`📤 Starting Gemini upload for file: ${displayName}`);
+
+      // Step 1: Initiate resumable upload
+      const initiateResponse = await axios.post(
+        'https://generativelanguage.googleapis.com/upload/v1beta/files',
+        {
+          file: {
+            display_name: displayName,
+          },
+        },
+        {
+          headers: {
+            'X-Goog-Api-Key': apiKey,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      console.log(`📤 Gemini initiate response:`, {
+        status: initiateResponse.status,
+        headers: initiateResponse.headers,
+        data: initiateResponse.data,
+      });
+
+      const uploadUrl = initiateResponse.data?.file?.uploadUrl || initiateResponse.headers['x-goog-upload-url'];
+      if (!uploadUrl) {
+        console.error(`❌ No upload URL in response:`, initiateResponse.data);
+        throw new Error('No upload URL received from Gemini API');
+      }
+
+      console.log(`📤 Upload URL received: ${uploadUrl.substring(0, 100)}...`);
+
+      // Step 2: Upload the actual file
+      console.log(`📤 Uploading file content (${file.size} bytes) to Gemini...`);
+      const uploadResponse = await axios.put(uploadUrl, file.buffer, {
+        headers: {
+          'Content-Type': file.mimetype,
+          'Content-Length': file.size,
+        },
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      });
+
+      console.log(`✅ File uploaded to Gemini API: ${displayName}`, {
+        status: uploadResponse.status,
+        response: uploadResponse.data,
+      });
+
+      // Step 3: Get the file information
+      console.log(`📤 Getting file information from Gemini...`);
+      const fileInfoResponse = await axios.get(
+        `https://generativelanguage.googleapis.com/v1beta/files/${initiateResponse.data.file.name}`,
+        {
+          headers: {
+            'X-Goog-Api-Key': apiKey,
+          },
+        }
+      );
+
+      const geminiFileUri = fileInfoResponse.data.file.uri;
+      console.log(`🔗 Gemini file URI: ${geminiFileUri}`);
+
+      return geminiFileUri;
+    } catch (error) {
+      console.error(`❌ Error uploading file to Gemini API: ${displayName}`, error);
+      return null;
     }
   }
 
@@ -340,6 +412,59 @@ export class UploadsService implements OnModuleInit {
 
     if (file.size > maxSize) {
       throw new Error('File size exceeds 10MB limit.');
+    }
+  }
+
+  // Get files with Gemini URIs for AI processing (returns Gemini URIs instead of signed URLs)
+  async getFilesWithAISignedUrls(conversationId: string): Promise<FileAttachment[]> {
+    try {
+      console.log(`🔍 Getting files with AI URIs for conversation: ${conversationId}`);
+
+      const files = await this.fileAttachmentModel
+        .find({ conversationId, isDeleted: false })
+        .sort({ createdAt: -1 });
+
+      console.log(`📁 Found ${files.length} files for conversation ${conversationId}`);
+
+      // Process each file to include Gemini URI for AI processing
+      const processedFiles = await Promise.all(
+        files.map(async (file) => {
+          try {
+            console.log(`🔗 Processing file: ${file.originalName} (${file._id})`);
+
+            // Use Gemini URI if available, otherwise fallback to GCS signed URL
+            let aiUri = file.geminiFileUri;
+
+            if (!aiUri) {
+              console.warn(`⚠️ No Gemini URI available for ${file.originalName}, generating GCS signed URL`);
+              // Fallback to GCS signed URL if Gemini upload failed
+              aiUri = await this.generateSignedUrlForAI(file.gcsPath);
+            }
+
+            return {
+              ...file.toObject(),
+              aiSignedUrl: aiUri, // This will be the Gemini URI or fallback GCS URL
+              mimeType: file.mimeType,
+              originalName: file.originalName,
+            };
+          } catch (error) {
+            console.error(`❌ Error processing file ${file.originalName}:`, error);
+            // Return file with basic info if processing fails
+            return {
+              ...file.toObject(),
+              aiSignedUrl: null,
+              mimeType: file.mimeType,
+              originalName: file.originalName,
+            };
+          }
+        })
+      );
+
+      console.log(`✅ Processed ${processedFiles.length} files with AI URIs`);
+      return processedFiles;
+    } catch (error) {
+      console.error(`❌ Error getting files with AI URIs for conversation ${conversationId}:`, error);
+      throw error;
     }
   }
 }
