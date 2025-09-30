@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Storage } from '@google-cloud/storage';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
 import {
   FileAttachment,
@@ -324,11 +325,11 @@ export class UploadsService implements OnModuleInit {
         return null;
       }
 
-      console.log(`📤 Starting Gemini upload for file: ${displayName}`);
+      console.log(`📤 Starting Gemini upload for file: ${displayName} (${file.size} bytes, ${file.mimetype})`);
 
       // Step 1: Initiate resumable upload
       const initiateResponse = await axios.post(
-        'https://generativelanguage.googleapis.com/upload/v1beta/files',
+        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
         {
           file: {
             display_name: displayName,
@@ -336,22 +337,20 @@ export class UploadsService implements OnModuleInit {
         },
         {
           headers: {
-            'X-Goog-Api-Key': apiKey,
             'Content-Type': 'application/json',
           },
         }
       );
 
-      console.log(`📤 Gemini initiate response:`, {
-        status: initiateResponse.status,
-        headers: initiateResponse.headers,
-        data: initiateResponse.data,
-      });
+      console.log(`📤 Gemini initiate response status: ${initiateResponse.status}`);
+      console.log(`📤 Response data:`, JSON.stringify(initiateResponse.data, null, 2));
 
-      const uploadUrl = initiateResponse.data?.file?.uploadUrl || initiateResponse.headers['x-goog-upload-url'];
+      // The upload URL should be in the response
+      const uploadUrl = initiateResponse.data?.file?.uploadUrl;
       if (!uploadUrl) {
-        console.error(`❌ No upload URL in response:`, initiateResponse.data);
-        throw new Error('No upload URL received from Gemini API');
+        console.error(`❌ No upload URL in response. Full response:`, initiateResponse.data);
+        console.error(`❌ Response headers:`, initiateResponse.headers);
+        return null; // Don't throw, just return null to allow GCS upload to continue
       }
 
       console.log(`📤 Upload URL received: ${uploadUrl.substring(0, 100)}...`);
@@ -361,7 +360,7 @@ export class UploadsService implements OnModuleInit {
       const uploadResponse = await axios.put(uploadUrl, file.buffer, {
         headers: {
           'Content-Type': file.mimetype,
-          'Content-Length': file.size,
+          'Content-Length': file.size.toString(),
         },
         maxBodyLength: Infinity,
         maxContentLength: Infinity,
@@ -369,18 +368,14 @@ export class UploadsService implements OnModuleInit {
 
       console.log(`✅ File uploaded to Gemini API: ${displayName}`, {
         status: uploadResponse.status,
-        response: uploadResponse.data,
+        responseSize: JSON.stringify(uploadResponse.data).length,
       });
 
-      // Step 3: Get the file information
+      // Step 3: Get the file information to get the final URI
       console.log(`📤 Getting file information from Gemini...`);
+      const fileName = initiateResponse.data.file.name;
       const fileInfoResponse = await axios.get(
-        `https://generativelanguage.googleapis.com/v1beta/files/${initiateResponse.data.file.name}`,
-        {
-          headers: {
-            'X-Goog-Api-Key': apiKey,
-          },
-        }
+        `https://generativelanguage.googleapis.com/v1beta/files/${fileName}?key=${apiKey}`
       );
 
       const geminiFileUri = fileInfoResponse.data.file.uri;
@@ -388,8 +383,12 @@ export class UploadsService implements OnModuleInit {
 
       return geminiFileUri;
     } catch (error) {
-      console.error(`❌ Error uploading file to Gemini API: ${displayName}`, error);
-      return null;
+      console.error(`❌ Error uploading file to Gemini API: ${displayName}`, {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      return null; // Don't throw, allow GCS upload to continue
     }
   }
 
