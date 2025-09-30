@@ -384,10 +384,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    // Se não há texto mas há anexos, definir um texto padrão
-    const finalMessage = hasText
-      ? message
-      : '📎 Anexei alguns arquivos para análise';
+    // Se não há texto mas há anexos, enviar apenas os anexos sem texto adicional
+    const finalMessage = hasText ? message : '';
 
     // Buscar a conversa específica
     const conversation = await Conversation.findOne({

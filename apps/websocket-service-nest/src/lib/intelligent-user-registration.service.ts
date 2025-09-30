@@ -112,8 +112,8 @@ export class IntelligentUserRegistrationService {
 
           let messageText = msg.text;
 
-          // Adicionar contexto textual dos anexos apenas se houver anexos
-          if (geminiAttachments.length > 0) {
+          // Adicionar contexto textual dos anexos apenas se houver anexos E houver texto na mensagem
+          if (geminiAttachments.length > 0 && messageText.trim().length > 0) {
             let attachmentsContext = '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
             geminiAttachments.forEach((file, index) => {
               attachmentsContext += `${index + 1}. **${file.displayName}**\n`;
@@ -189,15 +189,17 @@ export class IntelligentUserRegistrationService {
             });
           });
 
-          // Adicionar contexto textual dos anexos
-          attachmentsContext = '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
-          geminiAttachments.forEach((file, index) => {
-            attachmentsContext += `${index + 1}. **${file.displayName}**\n`;
-            attachmentsContext += `   - Tipo: ${file.mimeType}\n`;
-            attachmentsContext += '\n';
-          });
-          attachmentsContext +=
-            '**IMPORTANTE:** Os documentos foram enviados como anexos para análise direta pela IA.\n\n';
+          // Adicionar contexto textual dos anexos apenas se houver texto na mensagem
+          if (message.trim().length > 0) {
+            attachmentsContext = '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
+            geminiAttachments.forEach((file, index) => {
+              attachmentsContext += `${index + 1}. **${file.displayName}**\n`;
+              attachmentsContext += `   - Tipo: ${file.mimeType}\n`;
+              attachmentsContext += '\n';
+            });
+            attachmentsContext +=
+              '**IMPORTANTE:** Os documentos foram enviados como anexos para análise direta pela IA.\n\n';
+          }
         }
 
         geminiMessages.push({
