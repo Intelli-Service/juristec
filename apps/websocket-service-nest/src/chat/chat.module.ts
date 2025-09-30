@@ -15,7 +15,7 @@ import { UploadsModule } from '../uploads/uploads.module';
 import UserModel from '../models/User';
 import Conversation from '../models/Conversation';
 import { VerificationCodeSchema } from '../models/VerificationCode';
-import { FileAttachment, FileAttachmentSchema } from '../models/FileAttachment';
+import { FileAttachmentSchema } from '../models/FileAttachment';
 
 @Module({
   imports: [

@@ -31,6 +31,7 @@ const mockFluidRegistrationService = {
 const mockUploadsService = {
   generateSignedUrl: jest.fn(),
   getFilesWithAISignedUrls: jest.fn(),
+  getFilesByMessageId: jest.fn(),
 };
 
 const mockUserModel = {
@@ -135,6 +136,7 @@ describe('IntelligentUserRegistrationService', () => {
         temperature: 0.7,
       });
       mockUploadsService.getFilesWithAISignedUrls.mockResolvedValue([]);
+      mockUploadsService.getFilesByMessageId.mockResolvedValue([]);
     });
 
     describe('Status Classification via Function Calls', () => {

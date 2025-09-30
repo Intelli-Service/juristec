@@ -414,23 +414,33 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         // Se há anexos, reassociar arquivos temporários com o messageId real
         if (_attachments && _attachments.length > 0) {
-          console.log(`🔄 Reassociando ${_attachments.length} anexos com messageId real: ${userMessage._id}`);
+          console.log(
+            `🔄 Reassociando ${_attachments.length} anexos com messageId real: ${userMessage._id}`,
+          );
 
           for (const attachment of _attachments) {
             try {
-              const reassigned = await this.uploadsService.reassignFileMessageId(
-                attachment.originalName,
-                conversation._id.toString(),
-                userMessage._id.toString()
-              );
+              const reassigned =
+                await this.uploadsService.reassignFileMessageId(
+                  attachment.originalName,
+                  conversation._id.toString(),
+                  userMessage._id.toString(),
+                );
 
               if (reassigned) {
-                console.log(`✅ Arquivo ${attachment.originalName} reassociado com messageId ${userMessage._id}`);
+                console.log(
+                  `✅ Arquivo ${attachment.originalName} reassociado com messageId ${userMessage._id}`,
+                );
               } else {
-                console.warn(`⚠️ Arquivo ${attachment.originalName} não encontrado para reassociação`);
+                console.warn(
+                  `⚠️ Arquivo ${attachment.originalName} não encontrado para reassociação`,
+                );
               }
             } catch (reassociateError) {
-              console.error(`❌ Erro ao reassociar arquivo ${attachment.originalName}:`, reassociateError);
+              console.error(
+                `❌ Erro ao reassociar arquivo ${attachment.originalName}:`,
+                reassociateError,
+              );
             }
           }
         }

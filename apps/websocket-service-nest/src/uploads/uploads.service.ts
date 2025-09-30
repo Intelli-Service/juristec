@@ -29,7 +29,9 @@ export class UploadsService implements OnModuleInit {
       try {
         // Validate API key format (basic validation)
         if (!apiKey.startsWith('AIza') || apiKey.length < 20) {
-          console.warn('⚠️ GOOGLE_API_KEY format appears invalid, Gemini integration may not work');
+          console.warn(
+            '⚠️ GOOGLE_API_KEY format appears invalid, Gemini integration may not work',
+          );
         }
         this.genAI = new GoogleGenAI({ apiKey });
         console.log('✅ GoogleGenAI client initialized successfully');
@@ -38,7 +40,9 @@ export class UploadsService implements OnModuleInit {
         this.genAI = null as any;
       }
     } else {
-      console.warn('⚠️ GOOGLE_API_KEY not provided, Gemini file upload will be disabled');
+      console.warn(
+        '⚠️ GOOGLE_API_KEY not provided, Gemini file upload will be disabled',
+      );
       this.genAI = null as any;
     }
 
@@ -194,7 +198,7 @@ export class UploadsService implements OnModuleInit {
           userId,
           messageId,
           uniqueFilename,
-          geminiFileUri: geminiFileUri ? 'PRESENT' : 'ABSENT'
+          geminiFileUri: geminiFileUri ? 'PRESENT' : 'ABSENT',
         });
 
         const savedFile = await fileAttachment.save();
@@ -205,7 +209,7 @@ export class UploadsService implements OnModuleInit {
           savedConversationId: savedFile.conversationId,
           savedUserId: savedFile.userId,
           savedMessageId: savedFile.messageId,
-          savedGeminiUri: savedFile.geminiFileUri ? 'PRESENT' : 'ABSENT'
+          savedGeminiUri: savedFile.geminiFileUri ? 'PRESENT' : 'ABSENT',
         });
 
         // Log upload for audit trail
@@ -307,14 +311,14 @@ export class UploadsService implements OnModuleInit {
     console.log(`🔍 QUERY FILES BY CONVERSATION:`, {
       conversationId,
       userId,
-      query: { conversationId, isDeleted: false }
+      query: { conversationId, isDeleted: false },
     });
 
     // Verificar conexão do modelo
     console.log(`📊 MODEL CONNECTION STATUS:`, {
       modelName: this.fileAttachmentModel.modelName,
       db: this.fileAttachmentModel.db?.name,
-      readyState: this.fileAttachmentModel.db?.readyState
+      readyState: this.fileAttachmentModel.db?.readyState,
     });
 
     const files = await this.fileAttachmentModel
@@ -324,14 +328,14 @@ export class UploadsService implements OnModuleInit {
     console.log(`📁 QUERY RESULT:`, {
       conversationId,
       filesFound: files.length,
-      files: files.map(f => ({
+      files: files.map((f) => ({
         id: f._id,
         originalName: f.originalName,
         messageId: f.messageId,
         userId: f.userId,
         conversationId: f.conversationId,
-        isDeleted: f.isDeleted
-      }))
+        isDeleted: f.isDeleted,
+      })),
     });
 
     // Generate fresh URLs for all files
@@ -446,7 +450,7 @@ export class UploadsService implements OnModuleInit {
       }
 
       console.log(
-        `✅ File uploaded to Gemini successfully: ${ JSON.stringify(uploadedFile, null, 2) }`,
+        `✅ File uploaded to Gemini successfully: ${JSON.stringify(uploadedFile, null, 2)}`,
       );
 
       return uploadedFile.uri;
@@ -564,13 +568,17 @@ export class UploadsService implements OnModuleInit {
       const processedFiles = await Promise.all(
         files.map(async (file) => {
           try {
-            console.log(`🔗 Processing file: ${file.originalName} (${String(file._id)})`);
+            console.log(
+              `🔗 Processing file: ${file.originalName} (${String(file._id)})`,
+            );
 
             // Use Gemini URI if available, otherwise fallback to GCS signed URL
             let aiUri = file.geminiFileUri;
 
             if (!aiUri) {
-              console.warn(`⚠️ No Gemini URI available for ${file.originalName}, generating GCS signed URL`);
+              console.warn(
+                `⚠️ No Gemini URI available for ${file.originalName}, generating GCS signed URL`,
+              );
               // Fallback to GCS signed URL if Gemini upload failed
               aiUri = await this.generateSignedUrlForAI(file.gcsPath);
             }
@@ -582,7 +590,10 @@ export class UploadsService implements OnModuleInit {
               originalName: file.originalName,
             };
           } catch (error) {
-            console.error(`❌ Error processing file ${file.originalName}:`, error);
+            console.error(
+              `❌ Error processing file ${file.originalName}:`,
+              error,
+            );
             // Return file with basic info if processing fails
             return {
               ...file.toObject(),
@@ -594,7 +605,9 @@ export class UploadsService implements OnModuleInit {
         }),
       );
 
-      console.log(`✅ Processed ${processedFiles.length} files with AI URIs for message ${messageId}`);
+      console.log(
+        `✅ Processed ${processedFiles.length} files with AI URIs for message ${messageId}`,
+      );
       return processedFiles;
     } catch (error) {
       console.error(`❌ Error getting files for message ${messageId}:`, error);
@@ -617,40 +630,44 @@ export class UploadsService implements OnModuleInit {
           conversationId,
           messageId: { $regex: /^temp-/ },
           isDeleted: false,
-        }
+        },
       });
 
       // Aguardar um pouco para garantir que a transação anterior foi commitada
-      await new Promise(resolve => setTimeout(resolve, this.TRANSACTION_COMMIT_DELAY_MS));
+      await new Promise((resolve) =>
+        setTimeout(resolve, this.TRANSACTION_COMMIT_DELAY_MS),
+      );
 
       // Primeiro, vamos listar todos os arquivos da conversa para debug
-      const allFiles = await this.fileAttachmentModel.find({ 
-        conversationId, 
-        isDeleted: false 
+      const allFiles = await this.fileAttachmentModel.find({
+        conversationId,
+        isDeleted: false,
       });
-      
-      console.log(`📁 REASSIGN DEBUG - Todos os arquivos na conversa ${conversationId}:`, 
-        allFiles.map(f => ({
+
+      console.log(
+        `📁 REASSIGN DEBUG - Todos os arquivos na conversa ${conversationId}:`,
+        allFiles.map((f) => ({
           id: f._id,
           originalName: f.originalName,
           messageId: f.messageId,
-          isTemp: f.messageId.startsWith('temp-')
-        }))
+          isTemp: f.messageId.startsWith('temp-'),
+        })),
       );
 
       // Também buscar por originalName apenas
-      const filesByName = await this.fileAttachmentModel.find({ 
-        originalName, 
-        isDeleted: false 
+      const filesByName = await this.fileAttachmentModel.find({
+        originalName,
+        isDeleted: false,
       });
-      
-      console.log(`📁 REASSIGN DEBUG - Arquivos com mesmo originalName "${originalName}":`, 
-        filesByName.map(f => ({
+
+      console.log(
+        `📁 REASSIGN DEBUG - Arquivos com mesmo originalName "${originalName}":`,
+        filesByName.map((f) => ({
           id: f._id,
           conversationId: f.conversationId,
           messageId: f.messageId,
-          isTemp: f.messageId.startsWith('temp-')
-        }))
+          isTemp: f.messageId.startsWith('temp-'),
+        })),
       );
 
       const result = await this.fileAttachmentModel.updateOne(
@@ -660,14 +677,14 @@ export class UploadsService implements OnModuleInit {
           messageId: { $regex: /^temp-/ }, // Apenas arquivos temporários
           isDeleted: false,
         },
-        { messageId: newMessageId }
+        { messageId: newMessageId },
       );
 
       console.log(`🔄 REASSIGN RESULT:`, {
         originalName,
         matchedCount: result.matchedCount,
         modifiedCount: result.modifiedCount,
-        acknowledged: result.acknowledged
+        acknowledged: result.acknowledged,
       });
 
       return result.modifiedCount > 0;

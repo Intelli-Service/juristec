@@ -427,17 +427,22 @@ export class GeminiService {
     // Log detalhado completo dos parts sendo enviados
     this.log(`🔍 GEMINI API REQUEST DETAILS:`);
     this.log(`📊 Total Parts da mensagem: ${lastMessageParts.length}`);
-    
+
     // Log detalhado de cada part
     lastMessageParts.forEach((part, idx) => {
       if ('text' in part) {
         this.log(`  📝 Part ${idx}: TEXTO`);
-        this.log(`     Conteúdo: "${part.text?.substring(0, 200)}${part.text && part.text.length > 200 ? '...' : ''}"`);
+        this.log(
+          `     Conteúdo: "${part.text?.substring(0, 200)}${part.text && part.text.length > 200 ? '...' : ''}"`,
+        );
       } else if ('fileData' in part) {
         this.log(`  📎 Part ${idx}: ARQUIVO`);
         this.log(`     URI: ${part.fileData?.fileUri}`);
         this.log(`     MimeType: ${part.fileData?.mimeType}`);
-        this.log(`     Objeto completo:`, JSON.stringify(part.fileData, null, 2));
+        this.log(
+          `     Objeto completo:`,
+          JSON.stringify(part.fileData, null, 2),
+        );
       } else {
         this.log(`  ❓ Part ${idx}: TIPO DESCONHECIDO`);
         this.log(`     Objeto completo:`, JSON.stringify(part, null, 2));
@@ -449,13 +454,15 @@ export class GeminiService {
       this.log(`🚀 RESUMO DO OBJETO ENVIADO PARA GEMINI API:`);
       this.log(
         `Parts: ${lastMessageParts.length}, ` +
-        `Types: [${lastMessageParts.map(p => ('text' in p ? 'text' : ('fileData' in p ? 'fileData' : 'unknown'))).join(', ')}], ` +
-        `Mensagem (preview): "${lastMessage ? String(lastMessage).substring(0, 100) + (String(lastMessage).length > 100 ? '...' : '') : '[empty]'}", ` +
-        `Histórico: ${messages.slice(0, -1).length} mensagens`
+          `Types: [${lastMessageParts.map((p) => ('text' in p ? 'text' : 'fileData' in p ? 'fileData' : 'unknown')).join(', ')}], ` +
+          `Mensagem (preview): "${lastMessage ? JSON.stringify(lastMessage).substring(0, 100) + (JSON.stringify(lastMessage).length > 100 ? '...' : '') : '[empty]'}", ` +
+          `Histórico: ${messages.slice(0, -1).length} mensagens`,
       );
     } else {
       // Log sanitizado para produção
-      this.log(`🚀 Enviando para Gemini: ${lastMessageParts.length} parts, ${messages.slice(0, -1).length} mensagens de histórico`);
+      this.log(
+        `🚀 Enviando para Gemini: ${lastMessageParts.length} parts, ${messages.slice(0, -1).length} mensagens de histórico`,
+      );
     }
 
     const result = await chat.sendMessage(lastMessageParts);

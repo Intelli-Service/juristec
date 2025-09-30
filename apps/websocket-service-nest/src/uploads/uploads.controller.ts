@@ -34,7 +34,7 @@ export class UploadsController {
       messageId,
       userId: req.user?.userId,
       hasMessageId: !!messageId,
-      messageIdType: typeof messageId
+      messageIdType: typeof messageId,
     });
 
     if (!file) {
@@ -54,13 +54,13 @@ export class UploadsController {
         userId,
         messageId, // Optional messageId for file-message association
       );
-      
+
       console.log(`✅ UPLOAD SUCCESS:`, {
         fileName: file.originalname,
         savedMessageId: result.messageId,
-        resultKeys: Object.keys(result)
+        resultKeys: Object.keys(result),
       });
-      
+
       return {
         success: true,
         data: result,
