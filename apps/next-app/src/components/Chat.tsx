@@ -72,6 +72,7 @@ export default function Chat() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [clearFileTrigger, setClearFileTrigger] = useState(0);
 
   // Refs para evitar dependências desnecessárias no useEffect
   const feedbackSubmittedRef = useRef(feedbackSubmitted);
@@ -436,6 +437,7 @@ export default function Chat() {
 
     setInput('');
     setSelectedFile(null);
+    setClearFileTrigger(prev => prev + 1); // Trigger file clearing in FileUpload component
 
     // Start loading for active conversation
     if (activeConversationId) {
@@ -687,6 +689,7 @@ export default function Chat() {
           <FileUpload
             onFileSelect={setSelectedFile}
             disabled={activeConversationId ? isLoading[activeConversationId] : false}
+            shouldClearFile={clearFileTrigger > 0}
           />
 
           {/* Text Input and Send Button */}

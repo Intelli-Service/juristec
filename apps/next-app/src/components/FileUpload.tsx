@@ -9,13 +9,15 @@ interface FileUploadProps {
   disabled?: boolean;
   showHelp?: boolean;
   onShowHelp?: () => void;
+  shouldClearFile?: boolean;
 }
 
 export default function FileUpload({
   onFileSelect,
   disabled = false,
   showHelp = false,
-  onShowHelp
+  onShowHelp,
+  shouldClearFile = false
 }: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -33,6 +35,13 @@ export default function FileUpload({
       }
     };
   }, []);
+
+  // Clear file when shouldClearFile prop changes to true
+  useEffect(() => {
+    if (shouldClearFile) {
+      clearFile();
+    }
+  }, [shouldClearFile]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { error: showErrorToast, success: showSuccessToast } = useNotifications();
 
