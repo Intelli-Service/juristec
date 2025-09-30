@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Storage } from '@google-cloud/storage';
 import { GoogleGenAI } from '@google/genai';
 import {
@@ -365,8 +365,13 @@ export class UploadsService implements OnModuleInit {
   }
 
   async deleteFile(fileId: string, userId: string): Promise<void> {
+    // Validate fileId is a valid ObjectId
+    if (!Types.ObjectId.isValid(fileId)) {
+      throw new Error('Invalid file ID format');
+    }
+
     const file = await this.fileAttachmentModel.findOne({
-      _id: fileId,
+      _id: new Types.ObjectId(fileId),
       userId,
       isDeleted: false,
     });
@@ -381,7 +386,7 @@ export class UploadsService implements OnModuleInit {
 
     // Mark as deleted in database
     await this.fileAttachmentModel.updateOne(
-      { _id: fileId },
+      { _id: new Types.ObjectId(fileId) },
       { isDeleted: true },
     );
 
@@ -414,9 +419,14 @@ export class UploadsService implements OnModuleInit {
   // Generate signed URL valid for 5 minutes (for user download)
   async generateDownloadSignedUrl(fileId: string, userId: string): Promise<string> {
     try {
+      // Validate fileId is a valid ObjectId
+      if (!Types.ObjectId.isValid(fileId)) {
+        throw new Error('Invalid file ID format');
+      }
+
       // Find the file and verify ownership
       const file = await this.fileAttachmentModel.findOne({
-        _id: fileId,
+        _id: new Types.ObjectId(fileId),
         userId: userId,
       });
 

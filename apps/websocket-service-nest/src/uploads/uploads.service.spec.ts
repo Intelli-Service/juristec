@@ -64,4 +64,13 @@ describe('UploadsService', () => {
       );
     });
   });
+
+  describe('generateDownloadSignedUrl', () => {
+    it('should throw error for invalid ObjectId', async () => {
+      const invalidFileId = 'invalid-id';
+      const userId = 'user123';
+
+      await expect(service.generateDownloadSignedUrl(invalidFileId, userId)).rejects.toThrow('Invalid file ID format');
+    });
+  });
 });
