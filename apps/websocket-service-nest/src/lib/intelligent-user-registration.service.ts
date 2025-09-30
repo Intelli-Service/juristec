@@ -90,7 +90,8 @@ export class IntelligentUserRegistrationService {
       const geminiMessages: MessageWithAttachments[] = [];
 
       // Buscar arquivos da conversa com signed URLs temporárias para IA
-      const conversationFiles = await this.uploadsService.getFilesWithAISignedUrls(conversationId);
+      const conversationFiles =
+        await this.uploadsService.getFilesWithAISignedUrls(conversationId);
 
       if (includeHistory && userId) {
         // Usar histórico completo (a mensagem atual já foi salva antes de chamar este método)
@@ -106,6 +107,8 @@ export class IntelligentUserRegistrationService {
 
         // Adicionar anexos da mensagem atual (se houver)
         if (attachments && attachments.length > 0) {
+          console.log(`📎 Processando ${attachments.length} anexos da mensagem atual:`, attachments);
+
           const lastUserMessageIndex = geminiMessages
             .map((msg, index) => ({ msg, index }))
             .reverse()
@@ -114,23 +117,28 @@ export class IntelligentUserRegistrationService {
           if (lastUserMessageIndex !== undefined) {
             // Converter anexos da mensagem atual para o formato GeminiAttachment
             const geminiAttachments: GeminiAttachment[] = attachments
-              .filter(attachment => attachment && attachment.aiSignedUrl) // Filtrar apenas anexos válidos
-              .map(attachment => ({
+              .filter((attachment) => attachment && attachment.aiSignedUrl) // Filtrar apenas anexos válidos
+              .map((attachment) => ({
                 fileUri: attachment.aiSignedUrl,
                 mimeType: attachment.mimeType,
                 displayName: attachment.originalName,
               }));
 
-            geminiMessages[lastUserMessageIndex].attachments = geminiAttachments;
+            console.log(`📎 Criados ${geminiAttachments.length} GeminiAttachments:`, geminiAttachments);
+
+            geminiMessages[lastUserMessageIndex].attachments =
+              geminiAttachments;
 
             // Adicionar contexto textual dos anexos (compatibilidade)
-            let attachmentsContext = '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
+            let attachmentsContext =
+              '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
             geminiAttachments.forEach((file, index) => {
               attachmentsContext += `${index + 1}. **${file.displayName}**\n`;
               attachmentsContext += `   - Tipo: ${file.mimeType}\n`;
               attachmentsContext += '\n';
             });
-            attachmentsContext += '**IMPORTANTE:** Os documentos foram enviados como anexos para análise direta pela IA.\n\n';
+            attachmentsContext +=
+              '**IMPORTANTE:** Os documentos foram enviados como anexos para análise direta pela IA.\n\n';
 
             geminiMessages[lastUserMessageIndex].text += attachmentsContext;
           }
@@ -155,7 +163,9 @@ export class IntelligentUserRegistrationService {
         let geminiAttachments: GeminiAttachment[] = [];
 
         if (attachments && attachments.length > 0) {
-          console.log(`📎 Processando ${attachments.length} anexos para usuário anônimo:`);
+          console.log(
+            `📎 Processando ${attachments.length} anexos para usuário anônimo:`,
+          );
           attachments.forEach((att, idx) => {
             console.log(`   ${idx + 1}. Anexo:`, {
               originalName: att?.originalName,
@@ -167,14 +177,16 @@ export class IntelligentUserRegistrationService {
 
           // Converter anexos da mensagem atual para o formato GeminiAttachment
           geminiAttachments = attachments
-            .filter(attachment => attachment && attachment.aiSignedUrl) // Filtrar apenas anexos válidos
-            .map(attachment => ({
+            .filter((attachment) => attachment && attachment.aiSignedUrl) // Filtrar apenas anexos válidos
+            .map((attachment) => ({
               fileUri: attachment.aiSignedUrl,
               mimeType: attachment.mimeType,
               displayName: attachment.originalName,
             }));
 
-          console.log(`✅ Criados ${geminiAttachments.length} GeminiAttachments válidos`);
+          console.log(
+            `✅ Criados ${geminiAttachments.length} GeminiAttachments válidos`,
+          );
 
           // Adicionar contexto textual dos anexos
           attachmentsContext = '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
@@ -183,7 +195,8 @@ export class IntelligentUserRegistrationService {
             attachmentsContext += `   - Tipo: ${file.mimeType}\n`;
             attachmentsContext += '\n';
           });
-          attachmentsContext += '**IMPORTANTE:** Os documentos foram enviados como anexos para análise direta pela IA.\n\n';
+          attachmentsContext +=
+            '**IMPORTANTE:** Os documentos foram enviados como anexos para análise direta pela IA.\n\n';
         }
 
         geminiMessages.push({
@@ -194,8 +207,10 @@ export class IntelligentUserRegistrationService {
 
         console.log(`📤 Enviando para GeminiService:`, {
           totalMessages: geminiMessages.length,
-          lastMessageAttachments: geminiMessages[geminiMessages.length - 1]?.attachments?.length || 0,
-          attachmentsDetails: geminiMessages[geminiMessages.length - 1]?.attachments || [],
+          lastMessageAttachments:
+            geminiMessages[geminiMessages.length - 1]?.attachments?.length || 0,
+          attachmentsDetails:
+            geminiMessages[geminiMessages.length - 1]?.attachments || [],
         });
       }
 

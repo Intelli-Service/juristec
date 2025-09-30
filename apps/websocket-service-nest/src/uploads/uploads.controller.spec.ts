@@ -56,7 +56,12 @@ describe('UploadsController', () => {
 
       mockUploadsService.uploadFile.mockResolvedValue(mockResult);
 
-      const result = await controller.uploadFile(mockFile, 'conv-123', mockReq, undefined);
+      const result = await controller.uploadFile(
+        mockFile,
+        'conv-123',
+        mockReq,
+        undefined,
+      );
 
       expect(result).toEqual({
         success: true,

@@ -385,7 +385,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     // Se não há texto mas há anexos, definir um texto padrão
-    const finalMessage = hasText ? message : '📎 Anexei alguns arquivos para análise';
+    const finalMessage = hasText
+      ? message
+      : '📎 Anexei alguns arquivos para análise';
 
     // Buscar a conversa específica
     const conversation = await Conversation.findOne({
@@ -497,12 +499,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       let processedAttachments: any[] = [];
       if (_attachments && _attachments.length > 0) {
         try {
-          console.log(`🔗 Processando ${_attachments.length} anexos para IA...`);
+          console.log(
+            `🔗 Processando ${_attachments.length} anexos para IA...`,
+          );
 
           // Usar a nova função que retorna arquivos com URIs do Gemini
-          processedAttachments = await this.uploadsService.getFilesWithAISignedUrls(conversation._id.toString());
+          processedAttachments =
+            await this.uploadsService.getFilesWithAISignedUrls(
+              conversation._id.toString(),
+            );
 
-          console.log(`✅ ${processedAttachments.length} anexos processados com URIs do Gemini`);
+          console.log(
+            `✅ ${processedAttachments.length} anexos processados com URIs do Gemini`,
+          );
         } catch (attachmentError) {
           console.error('Erro geral ao processar anexos:', attachmentError);
           // Continuar sem anexos se houver erro geral

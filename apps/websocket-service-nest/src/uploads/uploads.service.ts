@@ -2,8 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Storage } from '@google-cloud/storage';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import axios from 'axios';
+import { GoogleGenAI } from '@google/genai';
 import {
   FileAttachment,
   FileAttachmentDocument,
@@ -13,6 +12,7 @@ import {
 export class UploadsService implements OnModuleInit {
   private storage: Storage;
   private bucket: string;
+  private genAI: GoogleGenAI;
 
   constructor(
     @InjectModel(FileAttachment.name)
@@ -20,20 +20,36 @@ export class UploadsService implements OnModuleInit {
   ) {
     this.bucket = process.env.GCS_BUCKET_NAME || 'juristec-uploads';
 
+    // Initialize Google GenAI client
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (apiKey) {
+      this.genAI = new GoogleGenAI({ apiKey });
+    }
+
     // Validate GCS credentials (skip in test environment)
-    const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID;
-    if (!isTestEnv && (!process.env.GCS_PROJECT_ID || !process.env.GCS_PRIVATE_KEY || !process.env.GCS_CLIENT_EMAIL)) {
-      throw new Error('GCS credentials not properly configured. Missing required environment variables: GCS_PROJECT_ID, GCS_PRIVATE_KEY, GCS_CLIENT_EMAIL');
+    const isTestEnv =
+      process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID;
+    if (
+      !isTestEnv &&
+      (!process.env.GCS_PROJECT_ID ||
+        !process.env.GCS_PRIVATE_KEY ||
+        !process.env.GCS_CLIENT_EMAIL)
+    ) {
+      throw new Error(
+        'GCS credentials not properly configured. Missing required environment variables: GCS_PROJECT_ID, GCS_PRIVATE_KEY, GCS_CLIENT_EMAIL',
+      );
     }
 
     // Always initialize GCS client
     this.storage = new Storage({
-      credentials: isTestEnv ? undefined : {
-        type: 'service_account',
-        project_id: process.env.GCS_PROJECT_ID,
-        private_key: process.env.GCS_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        client_email: process.env.GCS_CLIENT_EMAIL,
-      },
+      credentials: isTestEnv
+        ? undefined
+        : {
+            type: 'service_account',
+            project_id: process.env.GCS_PROJECT_ID,
+            private_key: process.env.GCS_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+            client_email: process.env.GCS_CLIENT_EMAIL,
+          },
       // Add timeout and retry configuration
       timeout: 30000,
       retryOptions: {
@@ -46,7 +62,8 @@ export class UploadsService implements OnModuleInit {
 
   async onModuleInit() {
     // Skip GCS setup in test environment
-    const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID;
+    const isTestEnv =
+      process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID;
     if (!isTestEnv) {
       // Always ensure GCS bucket exists
       await this.ensureBucketExists();
@@ -73,10 +90,11 @@ export class UploadsService implements OnModuleInit {
       // Test bucket access
       await bucket.getMetadata();
       console.log(`🔗 GCS bucket access verified: ${this.bucket}`);
-
     } catch (error) {
       console.error(`❌ GCS bucket setup failed:`, error);
-      throw new Error(`Failed to setup GCS bucket ${this.bucket}: ${error.message}`);
+      throw new Error(
+        `Failed to setup GCS bucket ${this.bucket}: ${error.message}`,
+      );
     }
   }
 
@@ -118,16 +136,24 @@ export class UploadsService implements OnModuleInit {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`[UPLOAD] Attempt ${attempt}/${maxRetries} for file: ${uniqueFilename}`);
+        console.log(
+          `[UPLOAD] Attempt ${attempt}/${maxRetries} for file: ${uniqueFilename}`,
+        );
 
         const uploadResult = await this.uploadWithTimeout(blob, file, gcsPath);
 
         // Upload file to Gemini API (don't block on failure)
         let geminiFileUri: string | null = null;
         try {
-          geminiFileUri = await this.uploadFileToGemini(file, file.originalname);
+          geminiFileUri = await this.uploadFileToGemini(
+            file,
+            file.originalname,
+          );
         } catch (geminiError) {
-          console.warn(`⚠️ Gemini upload failed, but GCS upload succeeded: ${file.originalname}`, geminiError);
+          console.warn(
+            `⚠️ Gemini upload failed, but GCS upload succeeded: ${file.originalname}`,
+            geminiError,
+          );
         }
 
         // Save metadata to database after successful upload
@@ -156,27 +182,32 @@ export class UploadsService implements OnModuleInit {
         return savedFile;
       } catch (error) {
         lastError = error as Error;
-        console.error(`[UPLOAD ERROR] Attempt ${attempt}/${maxRetries} failed:`, {
-          error: lastError.message,
-          userId,
-          conversationId,
-          file: {
-            originalname: file.originalname,
-            mimetype: file.mimetype,
-            size: file.size,
+        console.error(
+          `[UPLOAD ERROR] Attempt ${attempt}/${maxRetries} failed:`,
+          {
+            error: lastError.message,
+            userId,
+            conversationId,
+            file: {
+              originalname: file.originalname,
+              mimetype: file.mimetype,
+              size: file.size,
+            },
           },
-        });
+        );
 
         // Wait before retry (exponential backoff)
         if (attempt < maxRetries) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
 
     // All retries failed
-    throw new Error(`Upload failed after ${maxRetries} attempts: ${lastError?.message}`);
+    throw new Error(
+      `Upload failed after ${maxRetries} attempts: ${lastError?.message}`,
+    );
   }
 
   private async uploadWithTimeout(
@@ -317,76 +348,52 @@ export class UploadsService implements OnModuleInit {
   }
 
   // Upload file to Gemini API and return the file URI
-  private async uploadFileToGemini(file: Express.Multer.File, displayName: string): Promise<string | null> {
+  private async uploadFileToGemini(
+    file: Express.Multer.File,
+    displayName: string,
+  ): Promise<string | null> {
     try {
-      const apiKey = process.env.GOOGLE_API_KEY;
-      if (!apiKey) {
-        console.warn('⚠️ GOOGLE_API_KEY not configured, skipping Gemini file upload');
+      if (!this.genAI) {
+        console.warn(
+          '⚠️ GoogleGenAI client not initialized, skipping Gemini file upload',
+        );
         return null;
       }
 
-      console.log(`📤 Starting Gemini upload for file: ${displayName} (${file.size} bytes, ${file.mimetype})`);
-
-      // Step 1: Initiate resumable upload
-      const initiateResponse = await axios.post(
-        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
-        {
-          file: {
-            display_name: displayName,
-          },
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
+      console.log(
+        `📤 Starting Gemini upload for file: ${displayName} (${file.size} bytes, ${file.mimetype})`,
       );
 
-      console.log(`📤 Gemini initiate response status: ${initiateResponse.status}`);
-      console.log(`📤 Response data:`, JSON.stringify(initiateResponse.data, null, 2));
+      // Convert buffer to Blob for the SDK (Node.js Buffer to Uint8Array)
+      const fileBlob = new Blob([new Uint8Array(file.buffer)], {
+        type: file.mimetype,
+      });
 
-      // The upload URL should be in the response
-      const uploadUrl = initiateResponse.data?.file?.uploadUrl;
-      if (!uploadUrl) {
-        console.error(`❌ No upload URL in response. Full response:`, initiateResponse.data);
-        console.error(`❌ Response headers:`, initiateResponse.headers);
-        return null; // Don't throw, just return null to allow GCS upload to continue
+      // Use the official Google GenAI SDK following the documentation example
+      const uploadedFile = await this.genAI.files.upload({
+        file: fileBlob,
+        config: {
+          mimeType: file.mimetype,
+          displayName: displayName,
+        },
+      });
+
+      if (!uploadedFile.uri) {
+        console.warn(
+          `⚠️ Gemini upload succeeded but no URI returned for file: ${displayName}`,
+        );
+        return null;
       }
 
-      console.log(`📤 Upload URL received: ${uploadUrl.substring(0, 100)}...`);
-
-      // Step 2: Upload the actual file
-      console.log(`📤 Uploading file content (${file.size} bytes) to Gemini...`);
-      const uploadResponse = await axios.put(uploadUrl, file.buffer, {
-        headers: {
-          'Content-Type': file.mimetype,
-          'Content-Length': file.size.toString(),
-        },
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity,
-      });
-
-      console.log(`✅ File uploaded to Gemini API: ${displayName}`, {
-        status: uploadResponse.status,
-        responseSize: JSON.stringify(uploadResponse.data).length,
-      });
-
-      // Step 3: Get the file information to get the final URI
-      console.log(`📤 Getting file information from Gemini...`);
-      const fileName = initiateResponse.data.file.name;
-      const fileInfoResponse = await axios.get(
-        `https://generativelanguage.googleapis.com/v1beta/files/${fileName}?key=${apiKey}`
+      console.log(
+        `✅ File uploaded to Gemini successfully: ${ JSON.stringify(uploadedFile, null, 2) }`,
       );
 
-      const geminiFileUri = fileInfoResponse.data.file.uri;
-      console.log(`🔗 Gemini file URI: ${geminiFileUri}`);
-
-      return geminiFileUri;
+      return uploadedFile.uri;
     } catch (error) {
       console.error(`❌ Error uploading file to Gemini API: ${displayName}`, {
         message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
+        stack: error.stack,
       });
       return null; // Don't throw, allow GCS upload to continue
     }
@@ -415,27 +422,37 @@ export class UploadsService implements OnModuleInit {
   }
 
   // Get files with Gemini URIs for AI processing (returns Gemini URIs instead of signed URLs)
-  async getFilesWithAISignedUrls(conversationId: string): Promise<FileAttachment[]> {
+  async getFilesWithAISignedUrls(
+    conversationId: string,
+  ): Promise<FileAttachment[]> {
     try {
-      console.log(`🔍 Getting files with AI URIs for conversation: ${conversationId}`);
+      console.log(
+        `🔍 Getting files with AI URIs for conversation: ${conversationId}`,
+      );
 
       const files = await this.fileAttachmentModel
         .find({ conversationId, isDeleted: false })
         .sort({ createdAt: -1 });
 
-      console.log(`📁 Found ${files.length} files for conversation ${conversationId}`);
+      console.log(
+        `📁 Found ${files.length} files for conversation ${conversationId}`,
+      );
 
       // Process each file to include Gemini URI for AI processing
       const processedFiles = await Promise.all(
         files.map(async (file) => {
           try {
-            console.log(`🔗 Processing file: ${file.originalName} (${file._id})`);
+            console.log(
+              `🔗 Processing file: ${file.originalName} (${String(file._id)})`,
+            );
 
             // Use Gemini URI if available, otherwise fallback to GCS signed URL
             let aiUri = file.geminiFileUri;
 
             if (!aiUri) {
-              console.warn(`⚠️ No Gemini URI available for ${file.originalName}, generating GCS signed URL`);
+              console.warn(
+                `⚠️ No Gemini URI available for ${file.originalName}, generating GCS signed URL`,
+              );
               // Fallback to GCS signed URL if Gemini upload failed
               aiUri = await this.generateSignedUrlForAI(file.gcsPath);
             }
@@ -447,7 +464,10 @@ export class UploadsService implements OnModuleInit {
               originalName: file.originalName,
             };
           } catch (error) {
-            console.error(`❌ Error processing file ${file.originalName}:`, error);
+            console.error(
+              `❌ Error processing file ${file.originalName}:`,
+              error,
+            );
             // Return file with basic info if processing fails
             return {
               ...file.toObject(),
@@ -456,13 +476,16 @@ export class UploadsService implements OnModuleInit {
               originalName: file.originalName,
             };
           }
-        })
+        }),
       );
 
       console.log(`✅ Processed ${processedFiles.length} files with AI URIs`);
       return processedFiles;
     } catch (error) {
-      console.error(`❌ Error getting files with AI URIs for conversation ${conversationId}:`, error);
+      console.error(
+        `❌ Error getting files with AI URIs for conversation ${conversationId}:`,
+        error,
+      );
       throw error;
     }
   }

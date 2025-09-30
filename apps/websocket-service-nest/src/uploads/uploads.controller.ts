@@ -100,7 +100,8 @@ export class UploadsController {
 
   @Get('ai-files/:conversationId')
   async getFilesForAI(@Param('conversationId') conversationId: string) {
-    const files = await this.uploadsService.getFilesWithAISignedUrls(conversationId);
+    const files =
+      await this.uploadsService.getFilesWithAISignedUrls(conversationId);
     return {
       success: true,
       data: files,

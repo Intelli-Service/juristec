@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { GoogleGenerativeAI, SchemaType, Part, FileDataPart, TextPart } from '@google/generative-ai';
+import {
+  GoogleGenerativeAI,
+  SchemaType,
+  Part,
+  FileDataPart,
+  TextPart,
+} from '@google/generative-ai';
 import { AIService } from './ai.service';
 
 export interface RegisterUserFunctionCall {
@@ -93,6 +99,12 @@ export class GeminiService {
     // Adicionar arquivos como FileDataParts
     if (message.attachments && message.attachments.length > 0) {
       message.attachments.forEach((attachment) => {
+        console.log(`📎 Adding file to Gemini parts:`, {
+          fileUri: attachment.fileUri,
+          mimeType: attachment.mimeType,
+          displayName: attachment.displayName,
+        });
+
         parts.push({
           fileData: {
             fileUri: attachment.fileUri,
@@ -270,14 +282,17 @@ export class GeminiService {
     if (lastMessage.attachments && lastMessage.attachments.length > 0) {
       this.log(`📎 ANEXOS ENCONTRADOS: ${lastMessage.attachments.length}`);
       lastMessage.attachments.forEach((attachment, idx) => {
-        this.log(`  ${idx + 1}. ${attachment.displayName || 'Arquivo sem nome'}`);
+        this.log(
+          `  ${idx + 1}. ${attachment.displayName || 'Arquivo sem nome'}`,
+        );
         this.log(`     Tipo: ${attachment.mimeType}`);
         this.log(`     URL: ${attachment.fileUri}`);
       });
     }
 
     // Preparar histórico para chat session
-    const history = messages.slice(0, -1)
+    const history = messages
+      .slice(0, -1)
       .filter((msg) => msg.sender === 'user' || msg.sender === 'ai')
       .map((msg) => ({
         role: msg.sender === 'user' ? 'user' : 'model',
@@ -413,7 +428,9 @@ export class GeminiService {
     this.log(`Parts da mensagem: ${lastMessageParts.length}`);
     lastMessageParts.forEach((part, idx) => {
       if ('text' in part) {
-        this.log(`  Part ${idx}: TEXTO - ${part.text?.substring(0, 100)}${part.text && part.text.length > 100 ? '...' : ''}`);
+        this.log(
+          `  Part ${idx}: TEXTO - ${part.text?.substring(0, 100)}${part.text && part.text.length > 100 ? '...' : ''}`,
+        );
       } else if ('fileData' in part) {
         this.log(`  Part ${idx}: ARQUIVO - ${part.fileData?.fileUri}`);
       }
@@ -423,7 +440,9 @@ export class GeminiService {
 
     this.log('Resposta recebida do Gemini');
     const response = result.response;
-    this.log(`Texto da resposta: ${response.text().substring(0, 200)}${response.text().length > 200 ? '...' : ''}`);
+    this.log(
+      `Texto da resposta: ${response.text().substring(0, 200)}${response.text().length > 200 ? '...' : ''}`,
+    );
 
     const functionCalls: FunctionCall[] = [];
 
@@ -465,11 +484,13 @@ export class GeminiService {
     messages: { text: string; sender: string }[],
   ): Promise<{ response: string; functionCalls?: FunctionCall[] }> {
     // Converter mensagens legadas para o novo formato
-    const messagesWithAttachments: MessageWithAttachments[] = messages.map(msg => ({
-      text: msg.text,
-      sender: msg.sender,
-      attachments: [],
-    }));
+    const messagesWithAttachments: MessageWithAttachments[] = messages.map(
+      (msg) => ({
+        text: msg.text,
+        sender: msg.sender,
+        attachments: [],
+      }),
+    );
 
     return this.generateAIResponseWithFunctions(messagesWithAttachments);
   }
