@@ -4,6 +4,7 @@ import { GeminiService } from './gemini.service';
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
 import { FluidRegistrationService } from './fluid-registration.service';
+import { UploadsService } from '../uploads/uploads.service';
 import { getModelToken } from '@nestjs/mongoose';
 import { CaseStatus } from '../models/User';
 
@@ -27,6 +28,11 @@ const mockFluidRegistrationService = {
   processFluidRegistration: jest.fn(),
 };
 
+const mockUploadsService = {
+  generateSignedUrl: jest.fn(),
+  getFilesWithAISignedUrls: jest.fn(),
+};
+
 const mockUserModel = {
   findById: jest.fn(),
   findOneAndUpdate: jest.fn(),
@@ -36,6 +42,10 @@ const mockConversationModel = {
   findById: jest.fn(),
   findOneAndUpdate: jest.fn(),
   findByIdAndUpdate: jest.fn(),
+};
+
+const mockFileAttachmentModel = {
+  find: jest.fn(),
 };
 
 describe('IntelligentUserRegistrationService', () => {
@@ -65,12 +75,20 @@ describe('IntelligentUserRegistrationService', () => {
           useValue: mockFluidRegistrationService,
         },
         {
+          provide: UploadsService,
+          useValue: mockUploadsService,
+        },
+        {
           provide: getModelToken('User'),
           useValue: mockUserModel,
         },
         {
           provide: getModelToken('Conversation'),
           useValue: mockConversationModel,
+        },
+        {
+          provide: getModelToken('FileAttachment'),
+          useValue: mockFileAttachmentModel,
         },
       ],
     }).compile();
@@ -116,6 +134,7 @@ describe('IntelligentUserRegistrationService', () => {
         model: 'gemini-pro',
         temperature: 0.7,
       });
+      mockUploadsService.getFilesWithAISignedUrls.mockResolvedValue([]);
     });
 
     describe('Status Classification via Function Calls', () => {
@@ -148,9 +167,9 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
-        });
+        mockGeminiService.generateAIResponse.mockResolvedValue(
+          mockAIResponse.response,
+        );
         mockConversationModel.findByIdAndUpdate.mockResolvedValue({
           _id: mockConversationId,
           status: 'resolved_by_ai',
@@ -222,9 +241,9 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
-        });
+        mockGeminiService.generateAIResponse.mockResolvedValue(
+          mockAIResponse.response,
+        );
         mockConversationModel.findByIdAndUpdate.mockResolvedValue({
           _id: mockConversationId,
           status: 'assigned_to_lawyer',
@@ -289,9 +308,9 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
-        });
+        mockGeminiService.generateAIResponse.mockResolvedValue(
+          mockAIResponse.response,
+        );
         mockFluidRegistrationService.processFluidRegistration.mockResolvedValue(
           {
             success: true,
@@ -340,9 +359,9 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
-        });
+        mockGeminiService.generateAIResponse.mockResolvedValue(
+          mockAIResponse.response,
+        );
 
         // Act
         const result = await service.processUserMessage(
@@ -384,9 +403,9 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
-        });
+        mockGeminiService.generateAIResponse.mockResolvedValue(
+          mockAIResponse.response,
+        );
 
         // Act
         const result = await service.processUserMessage(
@@ -419,9 +438,9 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockResolvedValue(
           mockAIResponse,
         );
-        mockGeminiService.generateAIResponse.mockResolvedValue({
-          text: mockAIResponse.response,
-        });
+        mockGeminiService.generateAIResponse.mockResolvedValue(
+          mockAIResponse.response,
+        );
 
         // Act
         const result = await service.processUserMessage(

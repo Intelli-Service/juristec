@@ -8,6 +8,7 @@ import { MessageService } from '../../lib/message.service';
 import { IntelligentUserRegistrationService } from '../../lib/intelligent-user-registration.service';
 import { FluidRegistrationService } from '../../lib/fluid-registration.service';
 import { VerificationService } from '../../lib/verification.service';
+import { UploadsService } from '../../uploads/uploads.service';
 import { BillingService } from '../../lib/billing.service';
 
 // Mock do mongoose
@@ -98,6 +99,12 @@ describe('ChatGateway - WebSocket Authentication', () => {
         {
           provide: VerificationService,
           useValue: {},
+        },
+        {
+          provide: UploadsService,
+          useValue: {
+            getFilesWithAISignedUrls: jest.fn(),
+          },
         },
         {
           provide: BillingService,

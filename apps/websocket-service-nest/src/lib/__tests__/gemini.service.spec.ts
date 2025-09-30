@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { GeminiService } from '../gemini.service';
+import { GeminiService, MessageWithAttachments } from '../gemini.service';
 import { AIService } from '../ai.service';
 
 // Mock do AIService
@@ -278,6 +278,51 @@ describe('GeminiService', () => {
       expect(result.functionCalls![1].name).toBe(
         'detect_conversation_completion',
       );
+    });
+
+    it('should handle messages with only attachments (no text)', async () => {
+      const messages: MessageWithAttachments[] = [
+        {
+          text: '📎 Anexei alguns arquivos para análise',
+          sender: 'user',
+          attachments: [
+            {
+              fileUri: 'https://storage.googleapis.com/test/file.pdf',
+              mimeType: 'application/pdf',
+              displayName: 'document.pdf',
+            },
+          ],
+        },
+      ];
+
+      const result = await service.generateAIResponseWithFunctions(messages);
+
+      expect(result).toEqual({
+        response: 'Resposta de teste da IA',
+        functionCalls: undefined,
+      });
+    });
+
+    it('should filter history to start with user message', async () => {
+      const messages: MessageWithAttachments[] = [
+        {
+          text: 'Mensagem do AI anterior',
+          sender: 'ai',
+          attachments: [],
+        },
+        {
+          text: 'Mensagem do usuário',
+          sender: 'user',
+          attachments: [],
+        },
+      ];
+
+      const result = await service.generateAIResponseWithFunctions(messages);
+
+      expect(result).toEqual({
+        response: 'Resposta de teste da IA',
+        functionCalls: undefined,
+      });
     });
 
     it('should handle API errors gracefully', async () => {

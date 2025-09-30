@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType, Part, FileDataPart, TextPart } from '@google/generative-ai';
 import { AIService } from './ai.service';
 
 export interface RegisterUserFunctionCall {
@@ -46,6 +46,18 @@ export type FunctionCall =
   | UpdateConversationStatusFunctionCall
   | DetectConversationCompletionFunctionCall;
 
+export interface GeminiAttachment {
+  fileUri: string;
+  mimeType: string;
+  displayName?: string;
+}
+
+export interface MessageWithAttachments {
+  text: string;
+  sender: string;
+  attachments?: GeminiAttachment[];
+}
+
 @Injectable()
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
@@ -63,6 +75,34 @@ export class GeminiService {
         console.log(message);
       }
     }
+  }
+
+  /**
+   * Converte uma mensagem com anexos em Parts do Gemini
+   */
+  private buildMessageParts(message: MessageWithAttachments): Part[] {
+    const parts: Part[] = [];
+
+    // Adicionar texto da mensagem se existir
+    if (message.text && message.text.trim()) {
+      parts.push({
+        text: message.text,
+      } as TextPart);
+    }
+
+    // Adicionar arquivos como FileDataParts
+    if (message.attachments && message.attachments.length > 0) {
+      message.attachments.forEach((attachment) => {
+        parts.push({
+          fileData: {
+            fileUri: attachment.fileUri,
+            mimeType: attachment.mimeType,
+          },
+        } as FileDataPart);
+      });
+    }
+
+    return parts;
   }
 
   async getModel() {
@@ -217,12 +257,12 @@ export class GeminiService {
   }
 
   async generateAIResponseWithFunctions(
-    messages: { text: string; sender: string }[],
+    messages: MessageWithAttachments[],
   ): Promise<{ response: string; functionCalls?: FunctionCall[] }> {
     const model = await this.getModel();
     const config = await this.aiService.getCurrentConfig();
 
-    this.log('🤖 GEMINI SERVICE - Iniciando processamento');
+    this.log('🤖 GEMINI SERVICE - Iniciando processamento com suporte a arquivos');
     this.log(`📨 Total de mensagens recebidas: ${messages.length}`);
     this.log(
       '📝 Mensagens recebidas:',
@@ -230,26 +270,40 @@ export class GeminiService {
         index: idx,
         sender: msg.sender,
         text: msg.text.substring(0, 100) + (msg.text.length > 100 ? '...' : ''),
+        attachmentsCount: msg.attachments?.length || 0,
       })),
     );
 
     // Preparar histórico para chat session
-    const history = messages.slice(0, -1).map((msg) => ({
-      role: msg.sender === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.text }],
-    }));
+    const history = messages.slice(0, -1)
+      .filter((msg) => msg.sender === 'user' || msg.sender === 'ai') // Apenas mensagens user e ai
+      .map((msg) => ({
+        role: msg.sender === 'user' ? 'user' : 'model',
+        parts: this.buildMessageParts(msg),
+      }));
+
+    // Garantir que o histórico comece com uma mensagem do usuário
+    if (history.length > 0 && history[0].role === 'model') {
+      // Se a primeira mensagem é do modelo, remover até encontrar uma do usuário
+      const firstUserIndex = history.findIndex((msg) => msg.role === 'user');
+      if (firstUserIndex > 0) {
+        history.splice(0, firstUserIndex);
+      }
+    }
 
     this.log('📚 Histórico preparado para Gemini:');
     this.log(`   - Total de mensagens no histórico: ${history.length}`);
     history.forEach((item, idx) => {
-      this.log(`   [${idx}] Role: ${item.role}, Parts:`, item.parts);
+      this.log(`   [${idx}] Role: ${item.role}, Parts:`, item.parts.length);
     });
 
+    
     // Última mensagem do usuário
     const lastMessage = messages[messages.length - 1];
     this.log('�� Última mensagem a ser enviada:', {
       role: 'user',
       message: lastMessage.text,
+      attachmentsCount: lastMessage.attachments?.length || 0,
       timestamp: new Date().toISOString(),
     }); // Iniciar chat com histórico
     const chat = model.startChat({
@@ -374,7 +428,8 @@ export class GeminiService {
     });
 
     this.log('🚀 Enviando mensagem para Gemini...');
-    const result = await chat.sendMessage(lastMessage.text);
+    const lastMessageParts = this.buildMessageParts(lastMessage);
+    const result = await chat.sendMessage(lastMessageParts);
 
     this.log('✅ Resposta recebida do Gemini');
     const response = result.response;
@@ -415,6 +470,23 @@ export class GeminiService {
       response: response.text(),
       functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
     };
+  }
+
+  /**
+   * Método legado para compatibilidade - usa apenas texto
+   * @deprecated Use generateAIResponseWithFunctions com MessageWithAttachments
+   */
+  async generateAIResponseWithFunctionsLegacy(
+    messages: { text: string; sender: string }[],
+  ): Promise<{ response: string; functionCalls?: FunctionCall[] }> {
+    // Converter mensagens legadas para o novo formato
+    const messagesWithAttachments: MessageWithAttachments[] = messages.map(msg => ({
+      text: msg.text,
+      sender: msg.sender,
+      attachments: [],
+    }));
+
+    return this.generateAIResponseWithFunctions(messagesWithAttachments);
   }
 
   // Método para atualizar o prompt do sistema (para administração)

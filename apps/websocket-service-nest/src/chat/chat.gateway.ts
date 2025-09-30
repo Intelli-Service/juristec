@@ -17,6 +17,7 @@ import { MessageService } from '../lib/message.service';
 import { IntelligentUserRegistrationService } from '../lib/intelligent-user-registration.service';
 import { FluidRegistrationService } from '../lib/fluid-registration.service';
 import { VerificationService } from '../lib/verification.service';
+import { UploadsService } from '../uploads/uploads.service';
 import { BillingService } from '../lib/billing.service';
 import Conversation from '../models/Conversation';
 import { CaseStatus } from '../models/User';
@@ -42,6 +43,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly intelligentRegistrationService: IntelligentUserRegistrationService,
     private readonly fluidRegistrationService: FluidRegistrationService,
     private readonly verificationService: VerificationService,
+    private readonly uploadsService: UploadsService,
     private readonly billingService: BillingService,
   ) {}
 
@@ -360,7 +362,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`   userId: ${userId}`);
     console.log(`   conversationId: ${conversationId}`);
     console.log(`   message: "${message}"`);
-    console.log(`   message length: ${message.length}`);
+    console.log(`   message length: ${message?.length || 0}`);
+    console.log(`   attachments count: ${_attachments?.length || 0}`);
 
     if (!userId) {
       client.emit('error', { message: 'UserId não encontrado' });
@@ -371,6 +374,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('error', { message: 'ConversationId é obrigatório' });
       return;
     }
+
+    // Validar se há pelo menos texto ou anexos
+    const hasText = message && message.trim().length > 0;
+    const hasAttachments = _attachments && _attachments.length > 0;
+
+    if (!hasText && !hasAttachments) {
+      client.emit('error', { message: 'Mensagem deve conter texto ou anexos' });
+      return;
+    }
+
+    // Se não há texto mas há anexos, definir um texto padrão
+    const finalMessage = hasText ? message : '📎 Anexei alguns arquivos para análise';
 
     // Buscar a conversa específica
     const conversation = await Conversation.findOne({
@@ -392,7 +407,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       try {
         userMessage = await this.messageService.createMessage({
           conversationId: conversation._id.toString(),
-          text: message,
+          text: finalMessage,
           sender: 'user',
           senderId: client.data.user?.userId, // Pode ser null para usuários anônimos
         });
@@ -402,7 +417,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         );
         userMessage = {
           _id: `temp-msg-${Date.now()}`,
-          text: message,
+          text: finalMessage,
           sender: 'user',
         };
       }
@@ -478,15 +493,53 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       let aiResponseText =
         'Olá! Sou o assistente jurídico da Juristec. Como posso ajudar você hoje com suas questões legais?';
 
+      // Preparar anexos com URLs assinadas para IA
+      let processedAttachments: any[] = [];
+      if (_attachments && _attachments.length > 0) {
+        try {
+          console.log(`🔗 Processando ${_attachments.length} anexos para IA...`);
+          // Buscar arquivos da conversa e enriquecer com URLs assinadas
+          const conversationFiles = await this.uploadsService.getFilesWithAISignedUrls(conversationId);
+          console.log(`📁 Encontrados ${conversationFiles.length} arquivos na conversa`);
+
+          // Combinar anexos recebidos com arquivos da conversa (usando filename como chave)
+          processedAttachments = _attachments.map(attachment => {
+            const matchingFile = conversationFiles.find(file =>
+              file.originalName === attachment.originalName ||
+              file.filename === attachment.filename
+            );
+
+            if (matchingFile) {
+              console.log(`✅ Anexo encontrado: ${attachment.originalName} -> ${matchingFile.aiSignedUrl.substring(0, 50)}...`);
+              return {
+                ...attachment,
+                aiSignedUrl: matchingFile.aiSignedUrl,
+                mimeType: matchingFile.mimeType,
+                originalName: matchingFile.originalName,
+              };
+            } else {
+              console.warn(`⚠️ Anexo não encontrado na conversa: ${attachment.originalName}`);
+              return attachment; // Manter anexo mesmo sem URL assinada
+            }
+          });
+
+          console.log(`📤 Enviando ${processedAttachments.length} anexos processados para IA`);
+        } catch (attachmentError) {
+          console.error('Erro ao processar anexos:', attachmentError);
+          // Continuar sem anexos se houver erro
+          processedAttachments = [];
+        }
+      }
+
       try {
         registrationResult =
           await this.intelligentRegistrationService.processUserMessage(
-            message,
+            finalMessage,
             conversation._id.toString(),
             client.data.userId, // Usar userId consistente (sempre existe, mesmo para usuários anônimos)
             true, // Sempre incluir histórico quando há conversationId (todas as mensagens são salvas no banco)
             client.data.isAuthenticated, // Passar se o usuário está autenticado para determinar o role correto
-            _attachments, // Passar anexos para processamento pela IA
+            processedAttachments, // Passar anexos processados com URLs assinadas
           );
         aiResponseText = registrationResult.response;
       } catch (aiError) {

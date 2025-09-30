@@ -3,6 +3,8 @@ import {
   GeminiService,
   RegisterUserFunctionCall,
   UpdateConversationStatusFunctionCall,
+  GeminiAttachment,
+  MessageWithAttachments,
 } from './gemini.service';
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
@@ -85,46 +87,51 @@ export class IntelligentUserRegistrationService {
       }
 
       // Preparar mensagens para o Gemini
-      const geminiMessages: Array<{ text: string; sender: string }> = [];
+      const geminiMessages: MessageWithAttachments[] = [];
 
       // Buscar arquivos da conversa com signed URLs temporárias para IA
       const conversationFiles = await this.uploadsService.getFilesWithAISignedUrls(conversationId);
 
-      // Preparar contexto dos anexos com URLs temporárias
-      let attachmentsContext = '';
-      if (conversationFiles.length > 0) {
-        attachmentsContext = '\n\n📎 DOCUMENTOS ANEXADOS NA CONVERSA:\n';
-        conversationFiles.forEach((file, index) => {
-          attachmentsContext += `${index + 1}. **${file.originalName}**\n`;
-          attachmentsContext += `   - Tipo: ${file.mimeType}\n`;
-          attachmentsContext += `   - Tamanho: ${file.size} bytes\n`;
-          attachmentsContext += `   - URL temporária: ${file.aiSignedUrl}\n`;
-          if (file.extractedText) {
-            attachmentsContext += `   - Conteúdo extraído: ${file.extractedText.substring(0, 500)}${file.extractedText.length > 500 ? '...' : ''}\n`;
-          }
-          attachmentsContext += '\n';
-        });
-        attachmentsContext += '**IMPORTANTE:** Considere estes documentos ao analisar a consulta do usuário.\n\n';
-        console.log(`📎 ${conversationFiles.length} arquivos incluídos no contexto da IA`);
-      }
-
       if (includeHistory && userId) {
         // Usar histórico completo (a mensagem atual já foi salva antes de chamar este método)
         messages.forEach((msg) => {
+          // Para mensagens históricas, não temos anexos associados diretamente
+          // Os anexos serão incluídos apenas na mensagem atual
           geminiMessages.push({
             text: msg.text,
             sender: msg.sender,
+            attachments: [], // Anexos serão adicionados apenas na mensagem atual
           });
         });
 
-        // Adicionar contexto dos anexos à última mensagem do usuário (se houver)
-        if (attachmentsContext && geminiMessages.length > 0) {
+        // Adicionar anexos da mensagem atual (se houver)
+        if (attachments && attachments.length > 0) {
           const lastUserMessageIndex = geminiMessages
             .map((msg, index) => ({ msg, index }))
             .reverse()
             .find(({ msg }) => msg.sender === 'user')?.index;
 
           if (lastUserMessageIndex !== undefined) {
+            // Converter anexos da mensagem atual para o formato GeminiAttachment
+            const geminiAttachments: GeminiAttachment[] = attachments
+              .filter(attachment => attachment && attachment.aiSignedUrl) // Filtrar apenas anexos válidos
+              .map(attachment => ({
+                fileUri: attachment.aiSignedUrl,
+                mimeType: attachment.mimeType,
+                displayName: attachment.originalName,
+              }));
+
+            geminiMessages[lastUserMessageIndex].attachments = geminiAttachments;
+
+            // Adicionar contexto textual dos anexos (compatibilidade)
+            let attachmentsContext = '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
+            geminiAttachments.forEach((file, index) => {
+              attachmentsContext += `${index + 1}. **${file.displayName}**\n`;
+              attachmentsContext += `   - Tipo: ${file.mimeType}\n`;
+              attachmentsContext += '\n';
+            });
+            attachmentsContext += '**IMPORTANTE:** Os documentos foram enviados como anexos para análise direta pela IA.\n\n';
+
             geminiMessages[lastUserMessageIndex].text += attachmentsContext;
           }
         }
@@ -144,9 +151,51 @@ export class IntelligentUserRegistrationService {
         });
       } else {
         // Para usuários anônimos, usar apenas a mensagem atual
+        let attachmentsContext = '';
+        let geminiAttachments: GeminiAttachment[] = [];
+
+        if (attachments && attachments.length > 0) {
+          console.log(`📎 Processando ${attachments.length} anexos para usuário anônimo:`);
+          attachments.forEach((att, idx) => {
+            console.log(`   ${idx + 1}. Anexo:`, {
+              originalName: att?.originalName,
+              mimeType: att?.mimeType,
+              aiSignedUrl: att?.aiSignedUrl ? 'PRESENTE' : 'AUSENTE',
+              hasAiSignedUrl: !!att?.aiSignedUrl,
+            });
+          });
+
+          // Converter anexos da mensagem atual para o formato GeminiAttachment
+          geminiAttachments = attachments
+            .filter(attachment => attachment && attachment.aiSignedUrl) // Filtrar apenas anexos válidos
+            .map(attachment => ({
+              fileUri: attachment.aiSignedUrl,
+              mimeType: attachment.mimeType,
+              displayName: attachment.originalName,
+            }));
+
+          console.log(`✅ Criados ${geminiAttachments.length} GeminiAttachments válidos`);
+
+          // Adicionar contexto textual dos anexos
+          attachmentsContext = '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
+          geminiAttachments.forEach((file, index) => {
+            attachmentsContext += `${index + 1}. **${file.displayName}**\n`;
+            attachmentsContext += `   - Tipo: ${file.mimeType}\n`;
+            attachmentsContext += '\n';
+          });
+          attachmentsContext += '**IMPORTANTE:** Os documentos foram enviados como anexos para análise direta pela IA.\n\n';
+        }
+
         geminiMessages.push({
           text: message + attachmentsContext,
           sender: 'user',
+          attachments: geminiAttachments,
+        });
+
+        console.log(`📤 Enviando para GeminiService:`, {
+          totalMessages: geminiMessages.length,
+          lastMessageAttachments: geminiMessages[geminiMessages.length - 1]?.attachments?.length || 0,
+          attachmentsDetails: geminiMessages[geminiMessages.length - 1]?.attachments || [],
         });
       }
 

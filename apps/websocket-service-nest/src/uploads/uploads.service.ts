@@ -18,24 +18,42 @@ export class UploadsService implements OnModuleInit {
   ) {
     this.bucket = process.env.GCS_BUCKET_NAME || 'juristec-uploads';
 
+    // Validate GCS credentials (skip in test environment)
+    const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID;
+    if (!isTestEnv && (!process.env.GCS_PROJECT_ID || !process.env.GCS_PRIVATE_KEY || !process.env.GCS_CLIENT_EMAIL)) {
+      throw new Error('GCS credentials not properly configured. Missing required environment variables: GCS_PROJECT_ID, GCS_PRIVATE_KEY, GCS_CLIENT_EMAIL');
+    }
+
     // Always initialize GCS client
     this.storage = new Storage({
-      credentials: {
+      credentials: isTestEnv ? undefined : {
         type: 'service_account',
         project_id: process.env.GCS_PROJECT_ID,
         private_key: process.env.GCS_PRIVATE_KEY?.replace(/\\n/g, '\n'),
         client_email: process.env.GCS_CLIENT_EMAIL,
       },
+      // Add timeout and retry configuration
+      timeout: 30000,
+      retryOptions: {
+        retryDelayMultiplier: 2,
+        totalTimeout: 60000,
+        maxRetries: 3,
+      },
     });
   }
 
   async onModuleInit() {
-    // Always ensure GCS bucket exists
-    await this.ensureBucketExists();
+    // Skip GCS setup in test environment
+    const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID;
+    if (!isTestEnv) {
+      // Always ensure GCS bucket exists
+      await this.ensureBucketExists();
+    }
   }
 
   private async ensureBucketExists(): Promise<void> {
     try {
+      console.log(`🔍 Checking GCS bucket: ${this.bucket}`);
       const bucket = this.storage.bucket(this.bucket);
       const [exists] = await bucket.exists();
 
@@ -49,9 +67,14 @@ export class UploadsService implements OnModuleInit {
       } else {
         console.log(`✅ GCS bucket already exists: ${this.bucket}`);
       }
+
+      // Test bucket access
+      await bucket.getMetadata();
+      console.log(`🔗 GCS bucket access verified: ${this.bucket}`);
+
     } catch (error) {
-      console.error(`❌ Error ensuring bucket exists: ${error.message}`);
-      // Don't throw - let the upload fail later with a clearer error
+      console.error(`❌ GCS bucket setup failed:`, error);
+      throw new Error(`Failed to setup GCS bucket ${this.bucket}: ${error.message}`);
     }
   }
 
@@ -74,6 +97,11 @@ export class UploadsService implements OnModuleInit {
     userId: string,
     messageId?: string,
   ): Promise<FileAttachment> {
+    // Validate file buffer
+    if (!file.buffer || file.buffer.length === 0) {
+      throw new Error('File buffer is empty or invalid');
+    }
+
     // Generate unique filename
     const fileExtension = file.originalname.split('.').pop();
     const uniqueFilename = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExtension}`;
@@ -82,17 +110,88 @@ export class UploadsService implements OnModuleInit {
     const bucket = this.storage.bucket(this.bucket);
     const blob = bucket.file(gcsPath);
 
-    const stream = blob.createWriteStream({
-      metadata: {
-        contentType: file.mimetype,
-      },
-      resumable: false,
-    });
+    // Upload with timeout and retry logic
+    const maxRetries = 3;
+    let lastError: Error | null = null;
 
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[UPLOAD] Attempt ${attempt}/${maxRetries} for file: ${uniqueFilename}`);
+
+        const uploadResult = await this.uploadWithTimeout(blob, file, gcsPath);
+
+        // Save metadata to database after successful upload
+        const fileAttachment = new this.fileAttachmentModel({
+          filename: uniqueFilename, // Use unique filename for storage
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          url: uploadResult.url, // Use signed URL
+          gcsPath,
+          conversationId,
+          userId,
+          messageId: messageId || '', // Associate with message if provided
+          textExtractionStatus: 'pending', // Mark for text extraction
+        });
+
+        const savedFile = await fileAttachment.save();
+
+        // Log upload for audit trail
+        console.log(
+          `[AUDIT] File uploaded to GCS: ${uniqueFilename} (${file.size} bytes) by user ${userId}`,
+        );
+
+        return savedFile;
+      } catch (error) {
+        lastError = error as Error;
+        console.error(`[UPLOAD ERROR] Attempt ${attempt}/${maxRetries} failed:`, {
+          error: lastError.message,
+          userId,
+          conversationId,
+          file: {
+            originalname: file.originalname,
+            mimetype: file.mimetype,
+            size: file.size,
+          },
+        });
+
+        // Wait before retry (exponential backoff)
+        if (attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // All retries failed
+    throw new Error(`Upload failed after ${maxRetries} attempts: ${lastError?.message}`);
+  }
+
+  private async uploadWithTimeout(
+    blob: any,
+    file: Express.Multer.File,
+    gcsPath: string,
+  ): Promise<FileAttachment> {
     return new Promise((resolve, reject) => {
-      stream.on('error', reject);
+      const timeout = setTimeout(() => {
+        reject(new Error('Upload timeout after 30 seconds'));
+      }, 30000); // 30 second timeout
+
+      const stream = blob.createWriteStream({
+        metadata: {
+          contentType: file.mimetype,
+        },
+        resumable: false,
+        timeout: 25000, // 25 second stream timeout
+      });
+
+      stream.on('error', (error: Error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
 
       stream.on('finish', () => {
+        clearTimeout(timeout);
         // Generate signed URL for secure access (expires in 1 hour)
         blob
           .getSignedUrl({
@@ -101,32 +200,25 @@ export class UploadsService implements OnModuleInit {
             expires: Date.now() + 60 * 60 * 1000, // 1 hour
           })
           .then(async ([signedUrl]) => {
-            // Save metadata to database
-            const fileAttachment = new this.fileAttachmentModel({
-              filename: uniqueFilename,
+            // This method should not save to DB - let the caller handle it
+            // Just return the upload result
+            resolve({
+              filename: file.originalname,
               originalName: file.originalname,
               mimeType: file.mimetype,
               size: file.size,
-              url: signedUrl, // Use signed URL instead of public URL
+              url: signedUrl,
               gcsPath,
-              conversationId,
-              userId,
-              messageId: messageId || '', // Associate with message if provided
-              textExtractionStatus: 'pending', // Mark for text extraction
-            });
-
-            const savedFile = await fileAttachment.save();
-
-            // Log upload for audit trail
-            console.log(
-              `[AUDIT] File uploaded to GCS: ${uniqueFilename} by user ${userId} at ${new Date().toISOString()}`,
-            );
-
-            resolve(savedFile);
+              conversationId: '', // Will be set by caller
+              userId: '', // Will be set by caller
+              messageId: '',
+              textExtractionStatus: 'pending',
+            } as FileAttachment);
           })
           .catch(reject);
       });
 
+      // Write file buffer to stream
       stream.end(file.buffer);
     });
   }
