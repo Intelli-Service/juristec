@@ -172,7 +172,25 @@ export class UploadsService implements OnModuleInit {
           geminiUploadStatus: geminiFileUri ? 'completed' : 'failed',
         });
 
+        console.log(`💾 SAVING FILE TO DB - BEFORE SAVE:`, {
+          originalName: file.originalname,
+          conversationId,
+          userId,
+          messageId,
+          uniqueFilename,
+          geminiFileUri: geminiFileUri ? 'PRESENT' : 'ABSENT'
+        });
+
         const savedFile = await fileAttachment.save();
+
+        console.log(`✅ FILE SAVED TO DB - AFTER SAVE:`, {
+          savedId: savedFile._id,
+          savedOriginalName: savedFile.originalName,
+          savedConversationId: savedFile.conversationId,
+          savedUserId: savedFile.userId,
+          savedMessageId: savedFile.messageId,
+          savedGeminiUri: savedFile.geminiFileUri ? 'PRESENT' : 'ABSENT'
+        });
 
         // Log upload for audit trail
         console.log(
@@ -270,9 +288,35 @@ export class UploadsService implements OnModuleInit {
     conversationId: string,
     userId?: string,
   ): Promise<FileAttachment[]> {
+    console.log(`🔍 QUERY FILES BY CONVERSATION:`, {
+      conversationId,
+      userId,
+      query: { conversationId, isDeleted: false }
+    });
+
+    // Verificar conexão do modelo
+    console.log(`📊 MODEL CONNECTION STATUS:`, {
+      modelName: this.fileAttachmentModel.modelName,
+      db: this.fileAttachmentModel.db?.name,
+      readyState: this.fileAttachmentModel.db?.readyState
+    });
+
     const files = await this.fileAttachmentModel
       .find({ conversationId, isDeleted: false })
       .sort({ createdAt: -1 });
+
+    console.log(`📁 QUERY RESULT:`, {
+      conversationId,
+      filesFound: files.length,
+      files: files.map(f => ({
+        id: f._id,
+        originalName: f.originalName,
+        messageId: f.messageId,
+        userId: f.userId,
+        conversationId: f.conversationId,
+        isDeleted: f.isDeleted
+      }))
+    });
 
     // Generate fresh URLs for all files
     for (const file of files) {
@@ -487,6 +531,133 @@ export class UploadsService implements OnModuleInit {
         error,
       );
       throw error;
+    }
+  }
+
+  async getFilesByMessageId(messageId: string): Promise<FileAttachment[]> {
+    try {
+      console.log(`🔍 Getting files for message: ${messageId}`);
+
+      const files = await this.fileAttachmentModel
+        .find({ messageId, isDeleted: false })
+        .sort({ createdAt: 1 });
+
+      console.log(`📁 Found ${files.length} files for message ${messageId}`);
+
+      // Process each file to include Gemini URI for AI processing
+      const processedFiles = await Promise.all(
+        files.map(async (file) => {
+          try {
+            console.log(`🔗 Processing file: ${file.originalName} (${String(file._id)})`);
+
+            // Use Gemini URI if available, otherwise fallback to GCS signed URL
+            let aiUri = file.geminiFileUri;
+
+            if (!aiUri) {
+              console.warn(`⚠️ No Gemini URI available for ${file.originalName}, generating GCS signed URL`);
+              // Fallback to GCS signed URL if Gemini upload failed
+              aiUri = await this.generateSignedUrlForAI(file.gcsPath);
+            }
+
+            return {
+              ...file.toObject(),
+              aiSignedUrl: aiUri, // This will be the Gemini URI or fallback GCS URL
+              mimeType: file.mimeType,
+              originalName: file.originalName,
+            };
+          } catch (error) {
+            console.error(`❌ Error processing file ${file.originalName}:`, error);
+            // Return file with basic info if processing fails
+            return {
+              ...file.toObject(),
+              aiSignedUrl: null,
+              mimeType: file.mimeType,
+              originalName: file.originalName,
+            };
+          }
+        }),
+      );
+
+      console.log(`✅ Processed ${processedFiles.length} files with AI URIs for message ${messageId}`);
+      return processedFiles;
+    } catch (error) {
+      console.error(`❌ Error getting files for message ${messageId}:`, error);
+      throw error;
+    }
+  }
+
+  async reassignFileMessageId(
+    originalName: string,
+    conversationId: string,
+    newMessageId: string,
+  ): Promise<boolean> {
+    try {
+      console.log(`🔍 REASSIGN DEBUG - Procurando arquivo para reassociar:`, {
+        originalName,
+        conversationId,
+        newMessageId,
+        searchCriteria: {
+          originalName,
+          conversationId,
+          messageId: { $regex: /^temp-/ },
+          isDeleted: false,
+        }
+      });
+
+      // Aguardar um pouco para garantir que a transação anterior foi commitada
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Primeiro, vamos listar todos os arquivos da conversa para debug
+      const allFiles = await this.fileAttachmentModel.find({ 
+        conversationId, 
+        isDeleted: false 
+      });
+      
+      console.log(`📁 REASSIGN DEBUG - Todos os arquivos na conversa ${conversationId}:`, 
+        allFiles.map(f => ({
+          id: f._id,
+          originalName: f.originalName,
+          messageId: f.messageId,
+          isTemp: f.messageId.startsWith('temp-')
+        }))
+      );
+
+      // Também buscar por originalName apenas
+      const filesByName = await this.fileAttachmentModel.find({ 
+        originalName, 
+        isDeleted: false 
+      });
+      
+      console.log(`📁 REASSIGN DEBUG - Arquivos com mesmo originalName "${originalName}":`, 
+        filesByName.map(f => ({
+          id: f._id,
+          conversationId: f.conversationId,
+          messageId: f.messageId,
+          isTemp: f.messageId.startsWith('temp-')
+        }))
+      );
+
+      const result = await this.fileAttachmentModel.updateOne(
+        {
+          originalName,
+          conversationId,
+          messageId: { $regex: /^temp-/ }, // Apenas arquivos temporários
+          isDeleted: false,
+        },
+        { messageId: newMessageId }
+      );
+
+      console.log(`🔄 REASSIGN RESULT:`, {
+        originalName,
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+        acknowledged: result.acknowledged
+      });
+
+      return result.modifiedCount > 0;
+    } catch (error) {
+      console.error(`❌ Error reassigning file ${originalName}:`, error);
+      return false;
     }
   }
 }

@@ -413,6 +413,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           sender: 'user',
           senderId: client.data.user?.userId, // Pode ser null para usuários anônimos
         });
+
+        // Se há anexos, reassociar arquivos temporários com o messageId real
+        if (_attachments && _attachments.length > 0) {
+          console.log(`🔄 Reassociando ${_attachments.length} anexos com messageId real: ${userMessage._id}`);
+
+          for (const attachment of _attachments) {
+            try {
+              const reassigned = await this.uploadsService.reassignFileMessageId(
+                attachment.originalName,
+                conversation._id.toString(),
+                userMessage._id.toString()
+              );
+
+              if (reassigned) {
+                console.log(`✅ Arquivo ${attachment.originalName} reassociado com messageId ${userMessage._id}`);
+              } else {
+                console.warn(`⚠️ Arquivo ${attachment.originalName} não encontrado para reassociação`);
+              }
+            } catch (reassociateError) {
+              console.error(`❌ Erro ao reassociar arquivo ${attachment.originalName}:`, reassociateError);
+            }
+          }
+        }
       } catch (_dbError) {
         console.warn(
           'Erro ao salvar mensagem do usuário, continuando sem persistência',
@@ -495,30 +518,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       let aiResponseText =
         'Olá! Sou o assistente jurídico da Juristec. Como posso ajudar você hoje com suas questões legais?';
 
-      // Preparar anexos com URLs assinadas para IA
-      let processedAttachments: any[] = [];
-      if (_attachments && _attachments.length > 0) {
-        try {
-          console.log(
-            `🔗 Processando ${_attachments.length} anexos para IA...`,
-          );
-
-          // Usar a nova função que retorna arquivos com URIs do Gemini
-          processedAttachments =
-            await this.uploadsService.getFilesWithAISignedUrls(
-              conversation._id.toString(),
-            );
-
-          console.log(
-            `✅ ${processedAttachments.length} anexos processados com URIs do Gemini`,
-          );
-        } catch (attachmentError) {
-          console.error('Erro geral ao processar anexos:', attachmentError);
-          // Continuar sem anexos se houver erro geral
-          processedAttachments = [];
-        }
-      }
-
       try {
         registrationResult =
           await this.intelligentRegistrationService.processUserMessage(
@@ -527,7 +526,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             client.data.userId, // Usar userId consistente (sempre existe, mesmo para usuários anônimos)
             true, // Sempre incluir histórico quando há conversationId (todas as mensagens são salvas no banco)
             client.data.isAuthenticated, // Passar se o usuário está autenticado para determinar o role correto
-            processedAttachments, // Passar anexos processados com URLs assinadas
           );
         aiResponseText = registrationResult.response;
       } catch (aiError) {

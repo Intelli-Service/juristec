@@ -424,17 +424,33 @@ export class GeminiService {
     this.log('Enviando mensagem para Gemini...');
     const lastMessageParts = this.buildMessageParts(lastMessage);
 
-    // Log dos parts sendo enviados
-    this.log(`Parts da mensagem: ${lastMessageParts.length}`);
+    // Log detalhado completo dos parts sendo enviados
+    this.log(`🔍 GEMINI API REQUEST DETAILS:`);
+    this.log(`📊 Total Parts da mensagem: ${lastMessageParts.length}`);
+    
+    // Log detalhado de cada part
     lastMessageParts.forEach((part, idx) => {
       if ('text' in part) {
-        this.log(
-          `  Part ${idx}: TEXTO - ${part.text?.substring(0, 100)}${part.text && part.text.length > 100 ? '...' : ''}`,
-        );
+        this.log(`  📝 Part ${idx}: TEXTO`);
+        this.log(`     Conteúdo: "${part.text?.substring(0, 200)}${part.text && part.text.length > 200 ? '...' : ''}"`);
       } else if ('fileData' in part) {
-        this.log(`  Part ${idx}: ARQUIVO - ${part.fileData?.fileUri}`);
+        this.log(`  📎 Part ${idx}: ARQUIVO`);
+        this.log(`     URI: ${part.fileData?.fileUri}`);
+        this.log(`     MimeType: ${part.fileData?.mimeType}`);
+        this.log(`     Objeto completo:`, JSON.stringify(part.fileData, null, 2));
+      } else {
+        this.log(`  ❓ Part ${idx}: TIPO DESCONHECIDO`);
+        this.log(`     Objeto completo:`, JSON.stringify(part, null, 2));
       }
     });
+
+    // Log do objeto completo sendo enviado para Gemini
+    this.log(`🚀 OBJETO COMPLETO ENVIADO PARA GEMINI API:`);
+    this.log(JSON.stringify({
+      parts: lastMessageParts,
+      message: lastMessage,
+      historyLength: messages.slice(0, -1).length
+    }, null, 2));
 
     const result = await chat.sendMessage(lastMessageParts);
 

@@ -28,6 +28,15 @@ export class UploadsController {
     @Request() req: any,
     @Body('messageId') messageId?: string,
   ) {
+    console.log(`📤 UPLOAD CONTROLLER DEBUG:`, {
+      fileName: file?.originalname,
+      conversationId,
+      messageId,
+      userId: req.user?.userId,
+      hasMessageId: !!messageId,
+      messageIdType: typeof messageId
+    });
+
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
@@ -45,6 +54,13 @@ export class UploadsController {
         userId,
         messageId, // Optional messageId for file-message association
       );
+      
+      console.log(`✅ UPLOAD SUCCESS:`, {
+        fileName: file.originalname,
+        savedMessageId: result.messageId,
+        resultKeys: Object.keys(result)
+      });
+      
       return {
         success: true,
         data: result,

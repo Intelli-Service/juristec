@@ -94,44 +94,27 @@ export class IntelligentUserRegistrationService {
         await this.uploadsService.getFilesWithAISignedUrls(conversationId);
 
       if (includeHistory && userId) {
-        // Usar histórico completo (a mensagem atual já foi salva antes de chamar este método)
-        messages.forEach((msg) => {
-          // Para mensagens históricas, não temos anexos associados diretamente
-          // Os anexos serão incluídos apenas na mensagem atual
-          geminiMessages.push({
-            text: msg.text,
-            sender: msg.sender,
-            attachments: [], // Anexos serão adicionados apenas na mensagem atual
-          });
-        });
+        // Usar histórico completo com anexos de cada mensagem
+        for (const msg of messages) {
+          // Buscar anexos específicos desta mensagem
+          const messageAttachments = await this.uploadsService.getFilesByMessageId(msg._id.toString());
 
-        // Adicionar anexos da mensagem atual (se houver)
-        if (attachments && attachments.length > 0) {
-          console.log(`📎 Processando ${attachments.length} anexos da mensagem atual:`, attachments);
+          // Converter anexos da mensagem para o formato GeminiAttachment
+          const geminiAttachments: GeminiAttachment[] = messageAttachments
+            .filter((attachment: any) => attachment && attachment.aiSignedUrl) // Filtrar apenas anexos válidos
+            .map((attachment: any) => ({
+              fileUri: attachment.aiSignedUrl,
+              mimeType: attachment.mimeType,
+              displayName: attachment.originalName,
+            }));
 
-          const lastUserMessageIndex = geminiMessages
-            .map((msg, index) => ({ msg, index }))
-            .reverse()
-            .find(({ msg }) => msg.sender === 'user')?.index;
+          console.log(`📎 Mensagem ${msg._id}: ${geminiAttachments.length} anexos encontrados`);
 
-          if (lastUserMessageIndex !== undefined) {
-            // Converter anexos da mensagem atual para o formato GeminiAttachment
-            const geminiAttachments: GeminiAttachment[] = attachments
-              .filter((attachment) => attachment && attachment.aiSignedUrl) // Filtrar apenas anexos válidos
-              .map((attachment) => ({
-                fileUri: attachment.aiSignedUrl,
-                mimeType: attachment.mimeType,
-                displayName: attachment.originalName,
-              }));
+          let messageText = msg.text;
 
-            console.log(`📎 Criados ${geminiAttachments.length} GeminiAttachments:`, geminiAttachments);
-
-            geminiMessages[lastUserMessageIndex].attachments =
-              geminiAttachments;
-
-            // Adicionar contexto textual dos anexos (compatibilidade)
-            let attachmentsContext =
-              '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
+          // Adicionar contexto textual dos anexos apenas se houver anexos
+          if (geminiAttachments.length > 0) {
+            let attachmentsContext = '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
             geminiAttachments.forEach((file, index) => {
               attachmentsContext += `${index + 1}. **${file.displayName}**\n`;
               attachmentsContext += `   - Tipo: ${file.mimeType}\n`;
@@ -140,8 +123,14 @@ export class IntelligentUserRegistrationService {
             attachmentsContext +=
               '**IMPORTANTE:** Os documentos foram enviados como anexos para análise direta pela IA.\n\n';
 
-            geminiMessages[lastUserMessageIndex].text += attachmentsContext;
+            messageText += attachmentsContext;
           }
+
+          geminiMessages.push({
+            text: messageText,
+            sender: msg.sender,
+            attachments: geminiAttachments,
+          });
         }
 
         // NÃO adicionar a mensagem atual novamente - ela já está no histórico
@@ -164,14 +153,17 @@ export class IntelligentUserRegistrationService {
 
         if (attachments && attachments.length > 0) {
           console.log(
-            `📎 Processando ${attachments.length} anexos para usuário anônimo:`,
+            `📎 PROCESSANDO ${attachments.length} ANEXOS para usuário anônimo:`,
           );
+          
+          // Log detalhado de cada anexo recebido
           attachments.forEach((att, idx) => {
-            console.log(`   ${idx + 1}. Anexo:`, {
+            console.log(`🔍 ANEXO ${idx + 1} DETALHES COMPLETOS:`, {
               originalName: att?.originalName,
               mimeType: att?.mimeType,
-              aiSignedUrl: att?.aiSignedUrl ? 'PRESENTE' : 'AUSENTE',
+              aiSignedUrl: att?.aiSignedUrl,
               hasAiSignedUrl: !!att?.aiSignedUrl,
+              objetoCompleto: JSON.stringify(att, null, 2)
             });
           });
 
@@ -185,8 +177,17 @@ export class IntelligentUserRegistrationService {
             }));
 
           console.log(
-            `✅ Criados ${geminiAttachments.length} GeminiAttachments válidos`,
+            `✅ RESULTADO: ${geminiAttachments.length} GeminiAttachments válidos criados`,
           );
+          
+          // Log dos GeminiAttachments criados
+          geminiAttachments.forEach((att, idx) => {
+            console.log(`📎 GeminiAttachment ${idx + 1}:`, {
+              fileUri: att.fileUri,
+              mimeType: att.mimeType,
+              displayName: att.displayName
+            });
+          });
 
           // Adicionar contexto textual dos anexos
           attachmentsContext = '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
@@ -205,14 +206,33 @@ export class IntelligentUserRegistrationService {
           attachments: geminiAttachments,
         });
 
-        console.log(`📤 Enviando para GeminiService:`, {
+        console.log(`📤 ENVIANDO PARA GEMINI SERVICE - DETALHES COMPLETOS:`, {
           totalMessages: geminiMessages.length,
-          lastMessageAttachments:
-            geminiMessages[geminiMessages.length - 1]?.attachments?.length || 0,
-          attachmentsDetails:
-            geminiMessages[geminiMessages.length - 1]?.attachments || [],
+          lastMessage: {
+            text: (message + attachmentsContext).substring(0, 100) + '...',
+            sender: 'user',
+            attachmentsCount: geminiAttachments.length,
+            attachments: geminiAttachments
+          },
+          allMessages: geminiMessages.map((msg, idx) => ({
+            index: idx,
+            sender: msg.sender,
+            textLength: msg.text.length,
+            attachmentsCount: msg.attachments?.length || 0,
+            attachments: msg.attachments || []
+          }))
         });
       }
+
+      // Log final antes de chamar o Gemini
+      console.log(`🚀 CHAMADA FINAL PARA GEMINI - RESUMO:`, {
+        messagesTotal: geminiMessages.length,
+        anexosEncontrados: geminiMessages.reduce((total, msg) => total + (msg.attachments?.length || 0), 0),
+        ultimaMensagem: {
+          hasAttachments: (geminiMessages[geminiMessages.length - 1]?.attachments?.length || 0) > 0,
+          attachmentsDetails: geminiMessages[geminiMessages.length - 1]?.attachments
+        }
+      });
 
       // Gerar resposta com function calls
       const result =

@@ -368,10 +368,19 @@ export default function Chat() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('conversationId', userId || '');
+      // CORREÇÃO: Usar activeConversationId em vez de userId
+      formData.append('conversationId', activeConversationId || '');
       if (messageId) {
         formData.append('messageId', messageId);
       }
+
+      console.log(`📤 UPLOAD DEBUG - Frontend:`, {
+        file: file.name,
+        activeConversationId,
+        userId,
+        messageId,
+        usingConversationId: activeConversationId || ''
+      });
 
       // Use Next.js API route that handles authentication server-side
       const response = await fetch('/api/uploads', {
@@ -396,27 +405,26 @@ export default function Chat() {
   const sendMessage = async () => {
     if ((!input.trim() && !selectedFile) || !socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
 
-    let attachments: FileAttachment[] = [];
+    // Para arquivos, fazer upload primeiro para obter informações
+    let uploadedFile: FileAttachment | null = null;
+    if (selectedFile) {
+      // Usar um ID temporário para upload - será associado à mensagem real no backend
+      const tempMessageId = `temp-${Date.now()}`;
+      uploadedFile = await uploadFile(selectedFile, tempMessageId);
+      if (!uploadedFile) {
+        notifications.error('Erro no upload', 'Não foi possível fazer upload do arquivo');
+        return;
+      }
+    }
 
-    // Create message first to get messageId for file association
+    // Create message for UI
     const userMessage: Message = {
       id: Date.now().toString(),
       text: input,
       sender: 'user',
-      attachments: [], // Will be updated after upload
+      attachments: uploadedFile ? [uploadedFile] : [],
       conversationId: activeConversationId || undefined,
     };
-
-    const messageId = userMessage.id;
-
-    // Upload file if selected, associating with the message
-    if (selectedFile) {
-      const uploadedFile = await uploadFile(selectedFile, messageId);
-      if (uploadedFile) {
-        attachments = [uploadedFile];
-        userMessage.attachments = attachments; // Update message with attachment
-      }
-    }
 
     setMessages((prev) => {
       const newMsgs = [...prev, userMessage];
@@ -424,10 +432,11 @@ export default function Chat() {
     });
 
     const messageToSend = input; // Store input before clearing
-    setInput('');
+    const attachmentsToSend = uploadedFile ? [uploadedFile] : [];
+
     setInput('');
     setSelectedFile(null);
-    
+
     // Start loading for active conversation
     if (activeConversationId) {
       setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
@@ -441,8 +450,8 @@ export default function Chat() {
     // Send message via WebSocket
     socket.emit('send-message', {
       text: messageToSend,
-      attachments,
-      conversationId: activeConversationId, // Adicionar ID da conversa ativa
+      attachments: attachmentsToSend,
+      conversationId: activeConversationId,
     });
   };
 
