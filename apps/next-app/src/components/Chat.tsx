@@ -364,11 +364,14 @@ export default function Chat() {
     };
   };
 
-  const uploadFile = async (file: File): Promise<FileAttachment | null> => {
+  const uploadFile = async (file: File, messageId?: string): Promise<FileAttachment | null> => {
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('conversationId', userId || '');
+      if (messageId) {
+        formData.append('messageId', messageId);
+      }
 
       // Use Next.js API route that handles authentication server-side
       const response = await fetch('/api/uploads', {
@@ -395,21 +398,25 @@ export default function Chat() {
 
     let attachments: FileAttachment[] = [];
 
-    // Upload file if selected
-    if (selectedFile) {
-      const uploadedFile = await uploadFile(selectedFile);
-      if (uploadedFile) {
-        attachments = [uploadedFile];
-      }
-    }
-
+    // Create message first to get messageId for file association
     const userMessage: Message = {
       id: Date.now().toString(),
       text: input,
       sender: 'user',
-      attachments,
+      attachments: [], // Will be updated after upload
       conversationId: activeConversationId || undefined,
     };
+
+    const messageId = userMessage.id;
+
+    // Upload file if selected, associating with the message
+    if (selectedFile) {
+      const uploadedFile = await uploadFile(selectedFile, messageId);
+      if (uploadedFile) {
+        attachments = [uploadedFile];
+        userMessage.attachments = attachments; // Update message with attachment
+      }
+    }
 
     setMessages((prev) => {
       const newMsgs = [...prev, userMessage];
@@ -417,6 +424,7 @@ export default function Chat() {
     });
 
     const messageToSend = input; // Store input before clearing
+    setInput('');
     setInput('');
     setSelectedFile(null);
     

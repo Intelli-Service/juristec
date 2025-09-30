@@ -486,6 +486,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             client.data.userId, // Usar userId consistente (sempre existe, mesmo para usuários anônimos)
             true, // Sempre incluir histórico quando há conversationId (todas as mensagens são salvas no banco)
             client.data.isAuthenticated, // Passar se o usuário está autenticado para determinar o role correto
+            _attachments, // Passar anexos para processamento pela IA
           );
         aiResponseText = registrationResult.response;
       } catch (aiError) {

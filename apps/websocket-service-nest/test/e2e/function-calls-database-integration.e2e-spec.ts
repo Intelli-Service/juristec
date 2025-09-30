@@ -152,6 +152,10 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
       const result = await intelligentRegistrationService.processUserMessage(
         'Olá, meu nome é João Silva, fui demitido injustamente e quero saber meus direitos',
         'conv-456-def',
+        undefined, // userId
+        true, // includeHistory
+        false, // isAuthenticated
+        [], // attachments
       );
 
       // Verificações

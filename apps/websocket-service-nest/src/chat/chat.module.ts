@@ -11,9 +11,11 @@ import { FluidRegistrationService } from '../lib/fluid-registration.service';
 import { VerificationService } from '../lib/verification.service';
 import { BillingModule } from '../billing/billing.module';
 import { TokenValidationService } from '../lib/token-validation.service';
+import { UploadsModule } from '../uploads/uploads.module';
 import UserModel from '../models/User';
 import Conversation from '../models/Conversation';
 import { VerificationCodeSchema } from '../models/VerificationCode';
+import { FileAttachment, FileAttachmentSchema } from '../models/FileAttachment';
 
 @Module({
   imports: [
@@ -22,8 +24,10 @@ import { VerificationCodeSchema } from '../models/VerificationCode';
       { name: 'User', schema: UserModel.schema },
       { name: 'Conversation', schema: Conversation.schema },
       { name: 'VerificationCode', schema: VerificationCodeSchema },
+      { name: 'FileAttachment', schema: FileAttachmentSchema },
     ]),
     BillingModule,
+    UploadsModule,
   ],
   controllers: [ChatController],
   providers: [

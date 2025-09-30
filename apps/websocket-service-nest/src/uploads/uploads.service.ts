@@ -59,18 +59,20 @@ export class UploadsService implements OnModuleInit {
     file: Express.Multer.File,
     conversationId: string,
     userId: string,
+    messageId?: string,
   ): Promise<FileAttachment> {
     // Validate file type and size
     this.validateFile(file);
 
     // Always use GCS for file uploads
-    return this.uploadFileToGCS(file, conversationId, userId);
+    return this.uploadFileToGCS(file, conversationId, userId, messageId);
   }
 
   private async uploadFileToGCS(
     file: Express.Multer.File,
     conversationId: string,
     userId: string,
+    messageId?: string,
   ): Promise<FileAttachment> {
     // Generate unique filename
     const fileExtension = file.originalname.split('.').pop();
@@ -109,6 +111,8 @@ export class UploadsService implements OnModuleInit {
               gcsPath,
               conversationId,
               userId,
+              messageId: messageId || '', // Associate with message if provided
+              textExtractionStatus: 'pending', // Mark for text extraction
             });
 
             const savedFile = await fileAttachment.save();
@@ -186,6 +190,44 @@ export class UploadsService implements OnModuleInit {
     console.log(
       `[AUDIT] File deleted: ${file.filename} by user ${userId} at ${new Date().toISOString()}`,
     );
+  }
+
+  // Generate signed URL valid for 10 minutes (for AI processing)
+  async generateSignedUrlForAI(gcsPath: string): Promise<string> {
+    const [signedUrl] = await this.storage
+      .bucket(this.bucket)
+      .file(gcsPath)
+      .getSignedUrl({
+        version: 'v4',
+        action: 'read',
+        expires: Date.now() + 10 * 60 * 1000, // 10 minutes
+      });
+    return signedUrl;
+  }
+
+  // Get files associated with a specific message
+  async getFilesByMessageId(messageId: string): Promise<FileAttachment[]> {
+    return this.fileAttachmentModel.find({
+      messageId,
+      isDeleted: false
+    }).sort({ createdAt: 1 });
+  }
+
+  // Get files with temporary signed URLs for AI processing
+  async getFilesWithAISignedUrls(conversationId: string): Promise<Array<FileAttachment & { aiSignedUrl: string }>> {
+    const files = await this.fileAttachmentModel.find({
+      conversationId,
+      isDeleted: false
+    }).sort({ createdAt: -1 });
+
+    const filesWithAISignedUrls = await Promise.all(
+      files.map(async (file) => ({
+        ...file.toObject(),
+        aiSignedUrl: await this.generateSignedUrlForAI(file.gcsPath),
+      }))
+    );
+
+    return filesWithAISignedUrls;
   }
 
   private validateFile(file: Express.Multer.File): void {

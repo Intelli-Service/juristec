@@ -29,8 +29,21 @@ export class FileAttachment {
   @Prop({ required: true })
   userId: string;
 
+  @Prop({ required: true })
+  messageId: string; // ID da mensagem associada ao arquivo
+
   @Prop({ default: false })
   isDeleted: boolean;
+
+  // Campos para processamento de conteúdo
+  @Prop()
+  extractedText?: string; // Texto extraído do arquivo (PDF, DOC, etc.)
+
+  @Prop()
+  textExtractionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+
+  @Prop()
+  textExtractionError?: string;
 }
 
 export const FileAttachmentSchema =

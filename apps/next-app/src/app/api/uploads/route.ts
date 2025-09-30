@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const conversationId = formData.get('conversationId') as string;
+    const messageId = formData.get('messageId') as string;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -45,6 +46,9 @@ export async function POST(request: NextRequest) {
     const backendFormData = new FormData();
     backendFormData.append('file', file);
     backendFormData.append('conversationId', conversationId);
+    if (messageId) {
+      backendFormData.append('messageId', messageId);
+    }
 
     // Fazer proxy para o backend NestJS
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';

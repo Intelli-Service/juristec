@@ -26,6 +26,7 @@ export class UploadsController {
     @UploadedFile() file: Express.Multer.File,
     @Body('conversationId') conversationId: string,
     @Request() req: any,
+    @Body('messageId') messageId?: string,
   ) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
@@ -42,6 +43,7 @@ export class UploadsController {
         file,
         conversationId,
         userId,
+        messageId, // Optional messageId for file-message association
       );
       return {
         success: true,
@@ -94,6 +96,15 @@ export class UploadsController {
     } catch (error) {
       throw new BadRequestException(error.message);
     }
+  }
+
+  @Get('ai-files/:conversationId')
+  async getFilesForAI(@Param('conversationId') conversationId: string) {
+    const files = await this.uploadsService.getFilesWithAISignedUrls(conversationId);
+    return {
+      success: true,
+      data: files,
+    };
   }
 
   @Get('info')

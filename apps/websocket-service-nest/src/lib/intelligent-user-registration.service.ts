@@ -7,6 +7,7 @@ import {
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
 import { FluidRegistrationService } from './fluid-registration.service';
+import { UploadsService } from '../uploads/uploads.service';
 import { IUser } from '../models/User';
 import { CaseStatus } from '../models/User';
 import { InjectModel } from '@nestjs/mongoose';
@@ -41,8 +42,10 @@ export class IntelligentUserRegistrationService {
     private readonly aiService: AIService,
     private readonly messageService: MessageService,
     private readonly fluidRegistrationService: FluidRegistrationService,
+    private readonly uploadsService: UploadsService,
     @InjectModel('User') private userModel: Model<IUser>,
     @InjectModel('Conversation') private conversationModel: Model<any>,
+    @InjectModel('FileAttachment') private fileAttachmentModel: Model<any>,
   ) {}
 
   /**
@@ -54,6 +57,7 @@ export class IntelligentUserRegistrationService {
     userId?: string,
     includeHistory: boolean = true,
     isAuthenticated: boolean = false,
+    attachments: any[] = [],
   ): Promise<IntelligentRegistrationResult> {
     try {
       let messages: any[] = [];
@@ -83,6 +87,27 @@ export class IntelligentUserRegistrationService {
       // Preparar mensagens para o Gemini
       const geminiMessages: Array<{ text: string; sender: string }> = [];
 
+      // Buscar arquivos da conversa com signed URLs temporárias para IA
+      const conversationFiles = await this.uploadsService.getFilesWithAISignedUrls(conversationId);
+
+      // Preparar contexto dos anexos com URLs temporárias
+      let attachmentsContext = '';
+      if (conversationFiles.length > 0) {
+        attachmentsContext = '\n\n📎 DOCUMENTOS ANEXADOS NA CONVERSA:\n';
+        conversationFiles.forEach((file, index) => {
+          attachmentsContext += `${index + 1}. **${file.originalName}**\n`;
+          attachmentsContext += `   - Tipo: ${file.mimeType}\n`;
+          attachmentsContext += `   - Tamanho: ${file.size} bytes\n`;
+          attachmentsContext += `   - URL temporária: ${file.aiSignedUrl}\n`;
+          if (file.extractedText) {
+            attachmentsContext += `   - Conteúdo extraído: ${file.extractedText.substring(0, 500)}${file.extractedText.length > 500 ? '...' : ''}\n`;
+          }
+          attachmentsContext += '\n';
+        });
+        attachmentsContext += '**IMPORTANTE:** Considere estes documentos ao analisar a consulta do usuário.\n\n';
+        console.log(`📎 ${conversationFiles.length} arquivos incluídos no contexto da IA`);
+      }
+
       if (includeHistory && userId) {
         // Usar histórico completo (a mensagem atual já foi salva antes de chamar este método)
         messages.forEach((msg) => {
@@ -91,6 +116,19 @@ export class IntelligentUserRegistrationService {
             sender: msg.sender,
           });
         });
+
+        // Adicionar contexto dos anexos à última mensagem do usuário (se houver)
+        if (attachmentsContext && geminiMessages.length > 0) {
+          const lastUserMessageIndex = geminiMessages
+            .map((msg, index) => ({ msg, index }))
+            .reverse()
+            .find(({ msg }) => msg.sender === 'user')?.index;
+
+          if (lastUserMessageIndex !== undefined) {
+            geminiMessages[lastUserMessageIndex].text += attachmentsContext;
+          }
+        }
+
         // NÃO adicionar a mensagem atual novamente - ela já está no histórico
 
         console.log(`🤖 GEMINI CONTEXT - Conversação ${conversationId}:`);
@@ -107,7 +145,7 @@ export class IntelligentUserRegistrationService {
       } else {
         // Para usuários anônimos, usar apenas a mensagem atual
         geminiMessages.push({
-          text: message,
+          text: message + attachmentsContext,
           sender: 'user',
         });
       }
