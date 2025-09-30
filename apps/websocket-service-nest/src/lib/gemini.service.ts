@@ -444,13 +444,19 @@ export class GeminiService {
       }
     });
 
-    // Log do objeto completo sendo enviado para Gemini
-    this.log(`🚀 OBJETO COMPLETO ENVIADO PARA GEMINI API:`);
-    this.log(JSON.stringify({
-      parts: lastMessageParts,
-      message: lastMessage,
-      historyLength: messages.slice(0, -1).length
-    }, null, 2));
+    // Log do objeto sendo enviado (sanitizado para produção)
+    if (process.env.NODE_ENV !== 'production') {
+      this.log(`🚀 RESUMO DO OBJETO ENVIADO PARA GEMINI API:`);
+      this.log(
+        `Parts: ${lastMessageParts.length}, ` +
+        `Types: [${lastMessageParts.map(p => ('text' in p ? 'text' : ('fileData' in p ? 'fileData' : 'unknown'))).join(', ')}], ` +
+        `Mensagem (preview): "${lastMessage ? String(lastMessage).substring(0, 100) + (String(lastMessage).length > 100 ? '...' : '') : '[empty]'}", ` +
+        `Histórico: ${messages.slice(0, -1).length} mensagens`
+      );
+    } else {
+      // Log sanitizado para produção
+      this.log(`🚀 Enviando para Gemini: ${lastMessageParts.length} parts, ${messages.slice(0, -1).length} mensagens de histórico`);
+    }
 
     const result = await chat.sendMessage(lastMessageParts);
 

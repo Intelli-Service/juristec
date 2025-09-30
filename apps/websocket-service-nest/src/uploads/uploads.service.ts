@@ -14,6 +14,9 @@ export class UploadsService implements OnModuleInit {
   private bucket: string;
   private genAI: GoogleGenAI;
 
+  // Constants for transaction timing
+  private readonly TRANSACTION_COMMIT_DELAY_MS = 100; // Delay to ensure previous transaction is committed
+
   constructor(
     @InjectModel(FileAttachment.name)
     private fileAttachmentModel: Model<FileAttachmentDocument>,
@@ -23,7 +26,20 @@ export class UploadsService implements OnModuleInit {
     // Initialize Google GenAI client
     const apiKey = process.env.GOOGLE_API_KEY;
     if (apiKey) {
-      this.genAI = new GoogleGenAI({ apiKey });
+      try {
+        // Validate API key format (basic validation)
+        if (!apiKey.startsWith('AIza') || apiKey.length < 20) {
+          console.warn('⚠️ GOOGLE_API_KEY format appears invalid, Gemini integration may not work');
+        }
+        this.genAI = new GoogleGenAI({ apiKey });
+        console.log('✅ GoogleGenAI client initialized successfully');
+      } catch (error) {
+        console.error('❌ Failed to initialize GoogleGenAI client:', error);
+        this.genAI = null as any;
+      }
+    } else {
+      console.warn('⚠️ GOOGLE_API_KEY not provided, Gemini file upload will be disabled');
+      this.genAI = null as any;
     }
 
     // Validate GCS credentials (skip in test environment)
@@ -408,7 +424,7 @@ export class UploadsService implements OnModuleInit {
         `📤 Starting Gemini upload for file: ${displayName} (${file.size} bytes, ${file.mimetype})`,
       );
 
-      // Convert buffer to Blob for the SDK (Node.js Buffer to Uint8Array)
+      // Convert buffer to Blob for the SDK (Node.js Buffer to Uint8Array for compatibility)
       const fileBlob = new Blob([new Uint8Array(file.buffer)], {
         type: file.mimetype,
       });
@@ -605,7 +621,7 @@ export class UploadsService implements OnModuleInit {
       });
 
       // Aguardar um pouco para garantir que a transação anterior foi commitada
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, this.TRANSACTION_COMMIT_DELAY_MS));
 
       // Primeiro, vamos listar todos os arquivos da conversa para debug
       const allFiles = await this.fileAttachmentModel.find({ 
