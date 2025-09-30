@@ -421,7 +421,7 @@ export default function Chat() {
     // Create message for UI
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: input,
+      text: input.trim() || (uploadedFile ? uploadedFile.originalName : ''),
       sender: 'user',
       attachments: uploadedFile ? [uploadedFile] : [],
       conversationId: activeConversationId || undefined,
@@ -432,7 +432,7 @@ export default function Chat() {
       return newMsgs;
     });
 
-    const messageToSend = input; // Store input before clearing
+    const messageToSend = input.trim() || (uploadedFile ? uploadedFile.originalName : ''); // Use filename if no text provided
     const attachmentsToSend = uploadedFile ? [uploadedFile] : [];
 
     setInput('');
