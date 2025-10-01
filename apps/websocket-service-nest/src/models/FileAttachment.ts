@@ -3,6 +3,12 @@ import { Document } from 'mongoose';
 
 export type FileAttachmentDocument = FileAttachment & Document;
 
+// Interface for processed file with all required fields
+export interface ProcessedFileAttachment extends FileAttachment {
+  id: string;
+  aiSignedUrl?: string | null;
+}
+
 @Schema({ timestamps: true })
 export class FileAttachment {
   @Prop({ required: true })

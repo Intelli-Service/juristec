@@ -6,6 +6,7 @@ import { GoogleGenAI } from '@google/genai';
 import {
   FileAttachment,
   FileAttachmentDocument,
+  ProcessedFileAttachment,
 } from '../models/FileAttachment';
 
 @Injectable()
@@ -417,7 +418,10 @@ export class UploadsService implements OnModuleInit {
   }
 
   // Generate signed URL valid for 5 minutes (for user download)
-  async generateDownloadSignedUrl(fileId: string, userId: string): Promise<string> {
+  async generateDownloadSignedUrl(
+    fileId: string,
+    userId: string,
+  ): Promise<string> {
     try {
       // Validate fileId is a valid ObjectId
       if (!Types.ObjectId.isValid(fileId)) {
@@ -444,10 +448,48 @@ export class UploadsService implements OnModuleInit {
           expires: Date.now() + 5 * 60 * 1000, // 5 minutes
         });
 
-      console.log(`🔗 Generated download signed URL for ${file.filename}: ${signedUrl}`);
+      console.log(
+        `🔗 Generated download signed URL for ${file.filename}: ${signedUrl}`,
+      );
       return signedUrl;
     } catch (error) {
-      console.error(`❌ Error generating download signed URL for file ${fileId}:`, error);
+      console.error(
+        `❌ Error generating download signed URL for file ${fileId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  // Download file directly from GCS and return as stream
+  async downloadFileDirectly(
+    fileId: string,
+    userId: string,
+  ): Promise<{ stream: NodeJS.ReadableStream; file: any }> {
+    try {
+      // Validate fileId is a valid ObjectId
+      if (!Types.ObjectId.isValid(fileId)) {
+        throw new Error('Invalid file ID format');
+      }
+
+      // Find the file and verify ownership
+      const file = await this.fileAttachmentModel.findOne({
+        _id: new Types.ObjectId(fileId),
+        userId: userId,
+      });
+
+      if (!file) {
+        throw new Error('File not found or access denied');
+      }
+
+      // Get file from GCS
+      const fileRef = this.storage.bucket(this.bucket).file(file.gcsPath);
+      const stream = fileRef.createReadStream();
+
+      console.log(`📥 Streaming file ${file.filename} for user ${userId}`);
+      return { stream, file };
+    } catch (error) {
+      console.error(`❌ Error downloading file ${fileId}:`, error);
       throw error;
     }
   }
@@ -529,7 +571,7 @@ export class UploadsService implements OnModuleInit {
   // Get files with Gemini URIs for AI processing (returns Gemini URIs instead of signed URLs)
   async getFilesWithAISignedUrls(
     conversationId: string,
-  ): Promise<FileAttachment[]> {
+  ): Promise<ProcessedFileAttachment[]> {
     try {
       console.log(
         `🔍 Getting files with AI URIs for conversation: ${conversationId}`,
@@ -545,7 +587,7 @@ export class UploadsService implements OnModuleInit {
 
       // Process each file to include Gemini URI for AI processing
       const processedFiles = await Promise.all(
-        files.map(async (file) => {
+        files.map(async (file: FileAttachmentDocument) => {
           try {
             console.log(
               `🔗 Processing file: ${file.originalName} (${String(file._id)})`,
@@ -562,24 +604,14 @@ export class UploadsService implements OnModuleInit {
               aiUri = await this.generateSignedUrlForAI(file.gcsPath);
             }
 
-            return {
-              ...file.toObject(),
-              aiSignedUrl: aiUri, // This will be the Gemini URI or fallback GCS URL
-              mimeType: file.mimeType,
-              originalName: file.originalName,
-            };
+            return this.createProcessedFileAttachment(file, aiUri);
           } catch (error) {
             console.error(
               `❌ Error processing file ${file.originalName}:`,
               error,
             );
             // Return file with basic info if processing fails
-            return {
-              ...file.toObject(),
-              aiSignedUrl: null,
-              mimeType: file.mimeType,
-              originalName: file.originalName,
-            };
+            return this.createProcessedFileAttachment(file, null);
           }
         }),
       );
@@ -595,7 +627,9 @@ export class UploadsService implements OnModuleInit {
     }
   }
 
-  async getFilesByMessageId(messageId: string): Promise<FileAttachment[]> {
+  async getFilesByMessageId(
+    messageId: string,
+  ): Promise<ProcessedFileAttachment[]> {
     try {
       console.log(`🔍 Getting files for message: ${messageId}`);
 
@@ -607,7 +641,7 @@ export class UploadsService implements OnModuleInit {
 
       // Process each file to include Gemini URI for AI processing
       const processedFiles = await Promise.all(
-        files.map(async (file) => {
+        files.map(async (file: FileAttachmentDocument) => {
           try {
             console.log(
               `🔗 Processing file: ${file.originalName} (${String(file._id)})`,
@@ -624,24 +658,14 @@ export class UploadsService implements OnModuleInit {
               aiUri = await this.generateSignedUrlForAI(file.gcsPath);
             }
 
-            return {
-              ...file.toObject(),
-              aiSignedUrl: aiUri, // This will be the Gemini URI or fallback GCS URL
-              mimeType: file.mimeType,
-              originalName: file.originalName,
-            };
+            return this.createProcessedFileAttachment(file, aiUri);
           } catch (error) {
             console.error(
               `❌ Error processing file ${file.originalName}:`,
               error,
             );
             // Return file with basic info if processing fails
-            return {
-              ...file.toObject(),
-              aiSignedUrl: null,
-              mimeType: file.mimeType,
-              originalName: file.originalName,
-            };
+            return this.createProcessedFileAttachment(file, null);
           }
         }),
       );
@@ -733,5 +757,19 @@ export class UploadsService implements OnModuleInit {
       console.error(`❌ Error reassigning file ${originalName}:`, error);
       return false;
     }
+  }
+
+  // Helper method to create processed file attachment
+  private createProcessedFileAttachment(
+    file: FileAttachmentDocument,
+    aiSignedUrl?: string | null,
+  ): ProcessedFileAttachment {
+    return {
+      id: String(file._id), // Type-safe ID conversion
+      ...file.toObject(),
+      aiSignedUrl,
+      mimeType: file.mimeType,
+      originalName: file.originalName,
+    } as ProcessedFileAttachment;
   }
 }

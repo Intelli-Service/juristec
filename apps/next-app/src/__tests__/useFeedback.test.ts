@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useFeedback } from '../hooks/useFeedback';
-import FeedbackModal, { FeedbackData } from '../components/feedback/FeedbackModal';
+import { FeedbackData } from '../components/feedback/FeedbackModal';
 
 // Mock do fetch global
 const mockFetch = jest.fn();

@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
-import { getSession } from 'next-auth/react';
 import FileUpload from './FileUpload';
 import MessageAttachments from './MessageAttachments';
 import { useNotifications } from '../hooks/useNotifications';
@@ -58,7 +57,7 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
   const [socket, setSocket] = useState<Socket | null>(null);
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isInitialized] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [caseAssigned, setCaseAssigned] = useState<{
@@ -157,43 +156,36 @@ export default function Chat() {
     ));
   };
 
-  const handleAttachmentDownload = async (attachment: FileAttachment) => {
+    const handleAttachmentDownload = async (attachment: FileAttachment) => {
     try {
-      // Gerar signed URL para download
+      // Fazer download direto através da nossa API (proxy)
       const response = await fetch(`/api/uploads/download/${attachment.id}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao gerar URL de download');
-      }
-
-      const data = await response.json();
-      const signedUrl = data.signedUrl;
-
-      // Fazer download usando a signed URL
-      const downloadResponse = await fetch(signedUrl);
-      if (!downloadResponse.ok) {
         throw new Error('Erro ao fazer download do arquivo');
       }
 
-      const blob = await downloadResponse.blob();
+      // Obter o blob diretamente da resposta
+      const blob = await response.blob();
+      
+      // Criar URL temporária e fazer download
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = attachment.originalName;
       document.body.appendChild(a);
       a.click();
+      
+      // Limpeza
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      notifications.success('Download concluído', `${attachment.originalName} foi baixado com sucesso.`);
+      notifications.success('Download concluído', `Arquivo ${attachment.originalName} baixado com sucesso`);
     } catch (error) {
-      console.error('Erro ao fazer download:', error);
-      notifications.error('Erro no download', 'Não foi possível baixar o arquivo. Tente novamente.');
+      console.error('Erro no download:', error);
+      notifications.error('Erro no download', 'Não foi possível baixar o arquivo');
     }
   };
 
@@ -218,7 +210,7 @@ export default function Chat() {
         throw new Error('Erro ao criar cobrança');
       }
 
-      const result = await response.json();
+      await response.json();
 
       // Reset form and close modal
       setChargeForm({
@@ -913,6 +905,7 @@ export default function Chat() {
                   {message.text}
                   {message.attachments && message.attachments.length > 0 && (
                     <MessageAttachments
+                      key={`attachments-${message.id}`}
                       attachments={message.attachments}
                       onDownload={handleAttachmentDownload}
                     />

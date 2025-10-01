@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { jest } from '@jest/globals'
-import { ToastProvider, useToast } from '../components/ToastProvider'
+import { ToastProvider } from '../components/ToastProvider'
 import { useNotifications } from '../hooks/useNotifications'
 
 // Componente de teste para usar o hook
@@ -101,8 +101,6 @@ describe('useNotifications Hook', () => {
   })
 
   it('handles notifications with actions correctly', async () => {
-    const mockAction = jest.fn()
-
     render(
       <ToastProvider>
         <TestComponent />

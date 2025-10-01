@@ -61,7 +61,7 @@ test.describe('File Upload in Chat - Advanced Tests with MCP', () => {
           console.log(`Found file indicator: ${indicator}`);
           break;
         }
-      } catch (e) {
+      } catch (_e) {
         // Continue checking other indicators
       }
     }

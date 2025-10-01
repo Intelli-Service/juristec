@@ -1,7 +1,6 @@
 'use client';
 
 import { useToast } from '../components/ToastProvider';
-import { ToastType } from '../components/Toast';
 
 // Duration constants for better maintainability
 const DEFAULT_SUCCESS_DURATION = 4000;

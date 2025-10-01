@@ -1084,12 +1084,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Emit conversation switched event
       client.emit('conversation-switched', {
         conversationId,
-        messages: messages.map((msg) => ({
-          id: msg._id.toString(),
-          text: msg.text,
-          sender: msg.sender,
-          timestamp: msg.createdAt,
-        })),
+        messages: await Promise.all(
+          messages.map(async (msg) => {
+            // Buscar anexos da mensagem
+            let attachments: any[] = [];
+            try {
+              attachments = await this.uploadsService.getFilesByMessageId(
+                msg._id.toString(),
+              );
+            } catch (error) {
+              console.warn(
+                `Não foi possível carregar anexos para mensagem ${msg._id}:`,
+                error,
+              );
+            }
+
+            return {
+              id: msg._id.toString(),
+              text: msg.text,
+              sender: msg.sender,
+              timestamp: msg.createdAt,
+              attachments: attachments,
+            };
+          }),
+        ),
         conversations: conversations.map((conv) => ({
           id: (conv._id as any).toString(),
           roomId: conv.roomId || (conv._id as any).toString(),

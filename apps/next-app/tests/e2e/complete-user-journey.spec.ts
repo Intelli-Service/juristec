@@ -37,7 +37,7 @@ test.describe('Juristec Platform - Complete User Journey E2E', () => {
         await page.locator('a[href="/chat"], button').first().click();
         await page.waitForURL('**/chat', { timeout: 5000 });
         expect(page.url()).toContain('/chat');
-      } catch (error) {
+      } catch (_error) {
         // Fallback: navegar diretamente
         await page.goto('http://localhost:8080/chat');
         expect(page.url()).toContain('/chat');
@@ -156,7 +156,7 @@ test.describe('Juristec Platform - Complete User Journey E2E', () => {
         const hasDashboard = await page.locator('h1, h2').filter({ hasText: /dashboard|admin/i }).isVisible().catch(() => false);
 
         expect(currentUrl.includes('/admin') && hasDashboard).toBe(true);
-      } catch (error) {
+      } catch (_error) {
         console.log('Login test skipped - login form not found or different implementation');
       }
     });
@@ -178,7 +178,7 @@ test.describe('Juristec Platform - Complete User Journey E2E', () => {
         const tables = await page.locator('table, .table').all();
         expect(tables.length).toBeGreaterThan(0);
 
-      } catch (error) {
+      } catch (_error) {
         console.log('Dashboard test - elements not found, might require authentication');
       }
     });
@@ -209,7 +209,7 @@ test.describe('Juristec Platform - Complete User Journey E2E', () => {
       try {
         const response = await request.get('http://localhost:4000/chat/messages');
         expect([200, 401, 403]).toContain(response.status()); // Pode requerer auth
-      } catch (error) {
+      } catch (_error) {
         console.log('Chat API test - endpoint might require authentication');
       }
     });
@@ -219,7 +219,7 @@ test.describe('Juristec Platform - Complete User Journey E2E', () => {
       try {
         const response = await request.get('http://localhost:4000/admin/stats');
         expect([200, 401, 403]).toContain(response.status());
-      } catch (error) {
+      } catch (_error) {
         console.log('Database test - API might require authentication');
       }
     });
@@ -228,7 +228,7 @@ test.describe('Juristec Platform - Complete User Journey E2E', () => {
   // 📱 TESTE 6: Responsividade Mobile
   test.describe('Mobile Responsiveness', () => {
 
-    test('Interface funciona em mobile', async ({ page, browser }) => {
+    test('Interface funciona em mobile', async ({ page: _page, browser }) => {
       const mobileContext = await browser.newContext({
         viewport: { width: 375, height: 667 },
         userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15'

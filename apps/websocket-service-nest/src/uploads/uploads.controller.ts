@@ -10,6 +10,7 @@ import {
   Body,
   BadRequestException,
   Request,
+  Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
@@ -125,17 +126,32 @@ export class UploadsController {
   }
 
   @Get('download/:fileId')
-  async generateDownloadUrl(@Param('fileId') fileId: string, @Request() req: any) {
+  async downloadFile(
+    @Param('fileId') fileId: string,
+    @Request() req: any,
+    @Res() res: any,
+  ) {
     const userId = req.user.userId; // Extract from JWT token
 
     try {
-      const signedUrl = await this.uploadsService.generateDownloadSignedUrl(fileId, userId);
-      return {
-        success: true,
-        signedUrl,
-      };
+      const { stream, file } = await this.uploadsService.downloadFileDirectly(
+        fileId,
+        userId,
+      );
+
+      // Set appropriate headers
+      res.setHeader('Content-Type', file.mimeType);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${file.originalName}"`,
+      );
+      res.setHeader('Content-Length', file.size);
+
+      // Pipe the stream directly to response
+      stream.pipe(res);
     } catch (error) {
-      throw new BadRequestException(error.message);
+      console.error('Error downloading file:', error);
+      res.status(400).json({ success: false, message: error.message });
     }
   }
 }

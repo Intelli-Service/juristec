@@ -3,7 +3,7 @@ import { jest } from '@jest/globals'
 import Toast, { ToastProps } from '../components/Toast'
 
 // Mock das animações CSS para testes
-const mockAnimation = jest.fn()
+jest.fn()
 Object.defineProperty(window, 'requestAnimationFrame', {
   value: (cb: (time: number) => void) => setTimeout(cb, 16),
 })
@@ -13,7 +13,7 @@ global.ResizeObserver = jest.fn().mockImplementation(() => ({
   observe: jest.fn(),
   unobserve: jest.fn(),
   disconnect: jest.fn(),
-})) as jest.MockedClass<{ observe: jest.Mock; unobserve: jest.Mock; disconnect: jest.Mock }>
+})) as unknown as typeof ResizeObserver;
 
 describe('Toast Component', () => {
   const defaultProps: ToastProps = {

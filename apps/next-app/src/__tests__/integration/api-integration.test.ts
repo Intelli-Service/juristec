@@ -21,7 +21,7 @@ async function isServiceAvailable(url: string, timeout = 5000): Promise<boolean>
 
     clearTimeout(timeoutId)
     return response.ok
-  } catch (error) {
+  } catch (_error) {
     return false
   }
 }

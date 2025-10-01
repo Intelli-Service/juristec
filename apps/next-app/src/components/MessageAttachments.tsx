@@ -63,9 +63,9 @@ export default function MessageAttachments({ attachments, onDownload }: MessageA
 
   return (
     <div className="mt-2 space-y-2">
-      {attachments.map((attachment) => (
+      {attachments.map((attachment, index) => (
         <div
-          key={attachment.id}
+          key={attachment.id || `attachment-${index}`}
           className="flex items-center space-x-3 p-3 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
         >
           <div className="flex-shrink-0">

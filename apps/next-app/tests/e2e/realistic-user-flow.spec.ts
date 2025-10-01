@@ -22,7 +22,7 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
       console.log('✅ Aplicação está acessível (pelo menos HTML carrega)');
     } catch (error) {
       console.log('⚠️ Aplicação não está totalmente acessível, mas isso é esperado se há bugs');
-      console.log('Erro:', error.message);
+      console.log('Erro:', (error as Error).message);
 
       // Para debugging, vamos verificar se pelo menos o servidor responde
       try {
@@ -56,12 +56,12 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
       try {
         const title = await page.title();
         console.log('📄 Título da página:', title || 'Nenhum título definido');
-      } catch (e) {
+      } catch (_e) {
         console.log('⚠️ Título da página não definido');
       }
 
     } catch (error) {
-      console.log('⚠️ Erro ao verificar estrutura:', error.message);
+      console.log('⚠️ Erro ao verificar aplicação:', (error as Error).message);
       // Não falhar - queremos continuar investigando
     }
 
@@ -103,7 +103,7 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
             foundChatElements = true;
             break;
           }
-        } catch (e) {
+        } catch (_e) {
           // Continuar procurando
         }
       }
@@ -152,7 +152,7 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
             console.log('✅ Elemento de login encontrado:', selector);
             foundLoginElements = true;
           }
-        } catch (e) {
+        } catch (_e) {
           // Continuar procurando
         }
       }

@@ -70,7 +70,20 @@ describe('UploadsService', () => {
       const invalidFileId = 'invalid-id';
       const userId = 'user123';
 
-      await expect(service.generateDownloadSignedUrl(invalidFileId, userId)).rejects.toThrow('Invalid file ID format');
+      await expect(
+        service.generateDownloadSignedUrl(invalidFileId, userId),
+      ).rejects.toThrow('Invalid file ID format');
+    });
+  });
+
+  describe('downloadFileDirectly', () => {
+    it('should throw error for invalid ObjectId', async () => {
+      const invalidFileId = 'invalid-id';
+      const userId = 'user123';
+
+      await expect(
+        service.downloadFileDirectly(invalidFileId, userId),
+      ).rejects.toThrow('Invalid file ID format');
     });
   });
 });

@@ -495,7 +495,7 @@ export default function AdminDashboard() {
                   <div className="bg-white rounded-lg shadow-md p-6">
                     <h3 className="text-lg font-semibold text-slate-800 mb-4">Receita Mensal</h3>
                     <div className="h-64 flex items-end justify-between space-x-2">
-                      {billingReport.monthlyRevenue.map((month, index) => (
+                      {billingReport.monthlyRevenue.map((month, _index) => (
                         <div key={month.month} className="flex-1 flex flex-col items-center">
                           <div
                             className="w-full bg-emerald-600 rounded-t"
@@ -526,7 +526,7 @@ export default function AdminDashboard() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
-                          {billingReport.topLawyers.map((lawyer, index) => (
+                          {billingReport.topLawyers.map((lawyer, _index) => (
                             <tr key={lawyer.lawyerId} className="hover:bg-slate-50">
                               <td className="px-4 py-3 whitespace-nowrap">
                                 <div className="flex items-center">

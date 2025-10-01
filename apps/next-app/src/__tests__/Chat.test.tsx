@@ -41,16 +41,16 @@ jest.mock('socket.io-client', () => ({
 
 // Mock do Sheet component
 jest.mock('@/components/ui/sheet', () => ({
-  Sheet: ({ children, open, onOpenChange }: any) => open ? <div data-testid="sheet">{children}</div> : null,
-  SheetContent: ({ children }: any) => <div data-testid="sheet-content">{children}</div>,
-  SheetTrigger: ({ children }: any) => <div data-testid="sheet-trigger">{children}</div>,
+  Sheet: ({ children, open, onOpenChange: _onOpenChange }: { children: React.ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) => open ? <div data-testid="sheet">{children}</div> : null,
+  SheetContent: ({ children }: { children: React.ReactNode }) => <div data-testid="sheet-content">{children}</div>,
+  SheetTrigger: ({ children }: { children: React.ReactNode }) => <div data-testid="sheet-trigger">{children}</div>,
 }));
 
 // Mock do Collapsible component
 jest.mock('@/components/ui/collapsible', () => ({
-  Collapsible: ({ children, open }: any) => <div data-testid="collapsible" data-open={open}>{children}</div>,
-  CollapsibleContent: ({ children }: any) => <div data-testid="collapsible-content">{children}</div>,
-  CollapsibleTrigger: ({ children }: any) => <div data-testid="collapsible-trigger">{children}</div>,
+  Collapsible: ({ children, open }: { children: React.ReactNode; open?: boolean }) => <div data-testid="collapsible" data-open={open}>{children}</div>,
+  CollapsibleContent: ({ children }: { children: React.ReactNode }) => <div data-testid="collapsible-content">{children}</div>,
+  CollapsibleTrigger: ({ children }: { children: React.ReactNode }) => <div data-testid="collapsible-trigger">{children}</div>,
 }));
 
 // Mock do Separator component
@@ -60,7 +60,7 @@ jest.mock('@/components/ui/separator', () => ({
 
 // Mock do Button component
 jest.mock('@/components/ui/button', () => ({
-  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode }) => <button {...props}>{children}</button>,
 }));
 
 jest.mock('../components/FileUpload', () => {
@@ -297,9 +297,9 @@ describe('Chat Component', () => {
       data: { user: { id: 'test-user-id' }, expires: '2025-12-31', status: 'authenticated' },
       status: 'authenticated',
       update: jest.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useSession>);
 
-    const { rerender } = render(<Chat />);
+    render(<Chat />);
 
     // Wait for component to mount and socket to connect
     await waitFor(() => {
