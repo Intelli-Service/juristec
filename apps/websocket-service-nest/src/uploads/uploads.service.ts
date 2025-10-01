@@ -237,7 +237,7 @@ export class UploadsService implements OnModuleInit {
 
         // Wait before retry (exponential backoff)
         if (attempt < maxRetries) {
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
@@ -511,7 +511,7 @@ export class UploadsService implements OnModuleInit {
         `📤 Starting Gemini upload for file: ${displayName} (${file.size} bytes, ${file.mimetype})`,
       );
 
-      // Convert buffer to Blob for the SDK (Node.js Buffer to Uint8Array for compatibility)
+      // Convert buffer to Blob for the SDK (Node.js Buffer to Uint8Array for Blob compatibility)
       const fileBlob = new Blob([new Uint8Array(file.buffer)], {
         type: file.mimetype,
       });
@@ -698,7 +698,9 @@ export class UploadsService implements OnModuleInit {
         },
       });
 
-      // Aguardar um pouco para garantir que a transação anterior foi commitada
+      // TODO: Replace with proper transaction handling - this delay prevents race conditions
+      // when reassociating files from temp message IDs to real message IDs.
+      // Consider implementing event-driven approach or database transactions for better reliability.
       await new Promise((resolve) =>
         setTimeout(resolve, this.TRANSACTION_COMMIT_DELAY_MS),
       );
