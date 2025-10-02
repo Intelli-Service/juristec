@@ -15,6 +15,8 @@ interface MessageAttachmentsProps {
 }
 
 export default function MessageAttachments({ attachments, onDownload }: MessageAttachmentsProps) {
+  console.log('🖇️ MessageAttachments - attachments recebidos:', attachments);
+  
   const getFileIcon = (mimeType: string) => {
     if (mimeType.startsWith('image/')) {
       return <Image className="w-5 h-5 text-blue-600" />;
@@ -34,6 +36,9 @@ export default function MessageAttachments({ attachments, onDownload }: MessageA
   };
 
   const handleDownload = async (attachment: FileAttachment) => {
+    console.log('⬇️ MessageAttachments handleDownload - attachment:', attachment);
+    console.log('⬇️ MessageAttachments handleDownload - attachment.id:', attachment?.id);
+    
     if (onDownload) {
       await onDownload(attachment);
     } else {
