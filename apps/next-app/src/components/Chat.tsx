@@ -25,11 +25,9 @@ interface Message {
 
 interface FileAttachment {
   id: string;
-  filename: string;
   originalName: string;
   mimeType: string;
   size: number;
-  url: string;
 }
 
 interface Conversation {

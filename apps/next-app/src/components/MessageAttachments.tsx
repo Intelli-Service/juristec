@@ -11,7 +11,7 @@ interface FileAttachment {
 
 interface MessageAttachmentsProps {
   attachments: FileAttachment[];
-  onDownload?: (attachment: FileAttachment) => void;
+  onDownload?: (attachment: FileAttachment) => void | Promise<void>;
 }
 
 export default function MessageAttachments({ attachments, onDownload }: MessageAttachmentsProps) {
@@ -35,7 +35,7 @@ export default function MessageAttachments({ attachments, onDownload }: MessageA
 
   const handleDownload = async (attachment: FileAttachment) => {
     if (onDownload) {
-      onDownload(attachment);
+      await onDownload(attachment);
     } else {
       // Fallback: tentar download direto (não recomendado para produção)
       try {
