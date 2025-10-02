@@ -86,7 +86,6 @@ export default function Chat() {
   const { createNewConversation, switchToConversation, markAsRead } = useConversations({
     socket,
     activeConversationId,
-    isLoading,
     setActiveConversationId,
     setMessages,
     setHasStartedConversation,

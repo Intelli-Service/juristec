@@ -1,13 +1,12 @@
 import { useCallback } from 'react';
 import type { Socket } from 'socket.io-client';
-import { Conversation } from '@/types/chat.types';
+import { Conversation, Message } from '@/types/chat.types';
 
 interface UseConversationsProps {
   socket: Socket | null;
   activeConversationId: string | null;
-  isLoading: Record<string, boolean>;
   setActiveConversationId: React.Dispatch<React.SetStateAction<string | null>>;
-  setMessages: React.Dispatch<React.SetStateAction<any[]>>;
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   setHasStartedConversation: React.Dispatch<React.SetStateAction<boolean>>;
   setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
 }
@@ -15,7 +14,6 @@ interface UseConversationsProps {
 export const useConversations = ({
   socket,
   activeConversationId,
-  isLoading,
   setActiveConversationId,
   setMessages,
   setHasStartedConversation,
