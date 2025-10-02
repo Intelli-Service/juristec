@@ -1,7 +1,6 @@
 import { NextAuthOptions } from 'next-auth'
 import type { JWT } from 'next-auth/jwt'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import { MongoDBAdapter } from '@auth/mongodb-adapter'
 import { MongoClient } from 'mongodb'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
@@ -30,16 +29,6 @@ declare module 'next-auth/jwt' {
 
 // MongoDB client for NextAuth adapter
 const client = new MongoClient(process.env.MONGODB_URI!)
-
-// Interface para o usuário autenticado
-interface AuthUser {
-  id: string
-  email: string
-  name: string
-  role: 'super_admin' | 'lawyer' | 'moderator' | 'client'
-  permissions: string[]
-  isAnonymous?: boolean
-}
 
 export const authOptions: NextAuthOptions = {
   // adapter: MongoDBAdapter(client), // Temporariamente removido para testar JWT puro

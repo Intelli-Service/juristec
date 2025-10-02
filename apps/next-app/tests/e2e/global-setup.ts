@@ -1,5 +1,3 @@
-import { chromium } from '@playwright/test';
-
 // Setup global executado antes de todos os testes
 async function globalSetup() {
   console.log('🚀 Configurando ambiente de testes E2E...');

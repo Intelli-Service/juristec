@@ -3,6 +3,12 @@ import { Document } from 'mongoose';
 
 export type FileAttachmentDocument = FileAttachment & Document;
 
+// Interface for processed file with all required fields
+export interface ProcessedFileAttachment extends FileAttachment {
+  id: string;
+  aiSignedUrl?: string | null;
+}
+
 @Schema({ timestamps: true })
 export class FileAttachment {
   @Prop({ required: true })
@@ -29,8 +35,31 @@ export class FileAttachment {
   @Prop({ required: true })
   userId: string;
 
+  @Prop({ required: true })
+  messageId: string; // ID da mensagem associada ao arquivo
+
   @Prop({ default: false })
   isDeleted: boolean;
+
+  // Campos para processamento de conteúdo
+  @Prop()
+  extractedText?: string; // Texto extraído do arquivo (PDF, DOC, etc.)
+
+  @Prop()
+  textExtractionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+
+  @Prop()
+  textExtractionError?: string;
+
+  // Campos para integração com Gemini AI
+  @Prop()
+  geminiFileUri?: string; // URI do arquivo na API do Gemini
+
+  @Prop()
+  geminiUploadStatus?: 'pending' | 'uploading' | 'completed' | 'failed';
+
+  @Prop()
+  geminiUploadError?: string;
 }
 
 export const FileAttachmentSchema =

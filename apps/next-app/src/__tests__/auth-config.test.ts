@@ -120,7 +120,7 @@ describe('Authentication Configuration', () => {
         )
 
         if (user) {
-          const { password, ...userWithoutPassword } = user
+          const { password: _password, ...userWithoutPassword } = user
           return userWithoutPassword
         }
 

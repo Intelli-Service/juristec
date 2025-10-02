@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import {
+  GoogleGenerativeAI,
+  SchemaType,
+  Part,
+  FileDataPart,
+  TextPart,
+} from '@google/generative-ai';
 import { AIService } from './ai.service';
 
 export interface RegisterUserFunctionCall {
@@ -46,6 +52,18 @@ export type FunctionCall =
   | UpdateConversationStatusFunctionCall
   | DetectConversationCompletionFunctionCall;
 
+export interface GeminiAttachment {
+  fileUri: string;
+  mimeType: string;
+  displayName?: string;
+}
+
+export interface MessageWithAttachments {
+  text: string;
+  sender: string;
+  attachments?: GeminiAttachment[];
+}
+
 @Injectable()
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
@@ -58,11 +76,45 @@ export class GeminiService {
   private log(message: string, data?: any) {
     if (this.isDevelopment) {
       if (data) {
-        console.log(message, data);
+        console.log(`🤖 ${message}`, data);
       } else {
-        console.log(message);
+        console.log(`🤖 ${message}`);
       }
     }
+  }
+
+  /**
+   * Converte uma mensagem com anexos em Parts do Gemini
+   */
+  private buildMessageParts(message: MessageWithAttachments): Part[] {
+    const parts: Part[] = [];
+
+    // Adicionar texto da mensagem se existir
+    if (message.text && message.text.trim()) {
+      parts.push({
+        text: message.text,
+      } as TextPart);
+    }
+
+    // Adicionar arquivos como FileDataParts
+    if (message.attachments && message.attachments.length > 0) {
+      message.attachments.forEach((attachment) => {
+        console.log(`📎 Adding file to Gemini parts:`, {
+          fileUri: attachment.fileUri,
+          mimeType: attachment.mimeType,
+          displayName: attachment.displayName,
+        });
+
+        parts.push({
+          fileData: {
+            fileUri: attachment.fileUri,
+            mimeType: attachment.mimeType,
+          },
+        } as FileDataPart);
+      });
+    }
+
+    return parts;
   }
 
   async getModel() {
@@ -217,41 +269,37 @@ export class GeminiService {
   }
 
   async generateAIResponseWithFunctions(
-    messages: { text: string; sender: string }[],
+    messages: MessageWithAttachments[],
   ): Promise<{ response: string; functionCalls?: FunctionCall[] }> {
     const model = await this.getModel();
     const config = await this.aiService.getCurrentConfig();
 
-    this.log('🤖 GEMINI SERVICE - Iniciando processamento');
-    this.log(`📨 Total de mensagens recebidas: ${messages.length}`);
-    this.log(
-      '📝 Mensagens recebidas:',
-      messages.map((msg, idx) => ({
-        index: idx,
-        sender: msg.sender,
-        text: msg.text.substring(0, 100) + (msg.text.length > 100 ? '...' : ''),
-      })),
-    );
+    this.log('GEMINI SERVICE - Iniciando processamento com suporte a arquivos');
+    this.log(`Total de mensagens recebidas: ${messages.length}`);
+
+    // Log detalhado dos anexos
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.attachments && lastMessage.attachments.length > 0) {
+      this.log(`📎 ANEXOS ENCONTRADOS: ${lastMessage.attachments.length}`);
+      lastMessage.attachments.forEach((attachment, idx) => {
+        this.log(
+          `  ${idx + 1}. ${attachment.displayName || 'Arquivo sem nome'}`,
+        );
+        this.log(`     Tipo: ${attachment.mimeType}`);
+        this.log(`     URL: ${attachment.fileUri}`);
+      });
+    }
 
     // Preparar histórico para chat session
-    const history = messages.slice(0, -1).map((msg) => ({
-      role: msg.sender === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.text }],
-    }));
+    const history = messages
+      .slice(0, -1)
+      .filter((msg) => msg.sender === 'user' || msg.sender === 'ai')
+      .map((msg) => ({
+        role: msg.sender === 'user' ? 'user' : 'model',
+        parts: this.buildMessageParts(msg),
+      }));
 
-    this.log('📚 Histórico preparado para Gemini:');
-    this.log(`   - Total de mensagens no histórico: ${history.length}`);
-    history.forEach((item, idx) => {
-      this.log(`   [${idx}] Role: ${item.role}, Parts:`, item.parts);
-    });
-
-    // Última mensagem do usuário
-    const lastMessage = messages[messages.length - 1];
-    this.log('�� Última mensagem a ser enviada:', {
-      role: 'user',
-      message: lastMessage.text,
-      timestamp: new Date().toISOString(),
-    }); // Iniciar chat com histórico
+    // Iniciar chat com histórico
     const chat = model.startChat({
       history,
       generationConfig: {
@@ -373,16 +421,58 @@ export class GeminiService {
       ],
     });
 
-    this.log('🚀 Enviando mensagem para Gemini...');
-    const result = await chat.sendMessage(lastMessage.text);
+    this.log('Enviando mensagem para Gemini...');
+    const lastMessageParts = this.buildMessageParts(lastMessage);
 
-    this.log('✅ Resposta recebida do Gemini');
+    // Log detalhado completo dos parts sendo enviados
+    this.log(`🔍 GEMINI API REQUEST DETAILS:`);
+    this.log(`📊 Total Parts da mensagem: ${lastMessageParts.length}`);
+
+    // Log detalhado de cada part
+    lastMessageParts.forEach((part, idx) => {
+      if ('text' in part) {
+        this.log(`  📝 Part ${idx}: TEXTO`);
+        this.log(
+          `     Conteúdo: "${part.text?.substring(0, 200)}${part.text && part.text.length > 200 ? '...' : ''}"`,
+        );
+      } else if ('fileData' in part) {
+        this.log(`  📎 Part ${idx}: ARQUIVO`);
+        this.log(`     URI: ${part.fileData?.fileUri}`);
+        this.log(`     MimeType: ${part.fileData?.mimeType}`);
+        this.log(
+          `     Objeto completo:`,
+          JSON.stringify(part.fileData, null, 2),
+        );
+      } else {
+        this.log(`  ❓ Part ${idx}: TIPO DESCONHECIDO`);
+        this.log(`     Objeto completo:`, JSON.stringify(part, null, 2));
+      }
+    });
+
+    // Log do objeto sendo enviado (sanitizado para produção)
+    if (process.env.NODE_ENV !== 'production') {
+      this.log(`🚀 RESUMO DO OBJETO ENVIADO PARA GEMINI API:`);
+      this.log(
+        `Parts: ${lastMessageParts.length}, ` +
+          `Types: [${lastMessageParts.map((p) => ('text' in p ? 'text' : 'fileData' in p ? 'fileData' : 'unknown')).join(', ')}], ` +
+          `Mensagem (preview): "${lastMessage ? JSON.stringify(lastMessage).substring(0, 100) + (JSON.stringify(lastMessage).length > 100 ? '...' : '') : '[empty]'}", ` +
+          `Histórico: ${messages.slice(0, -1).length} mensagens`,
+      );
+    } else {
+      // Log sanitizado para produção
+      this.log(
+        `🚀 Enviando para Gemini: ${lastMessageParts.length} parts, ${messages.slice(0, -1).length} mensagens de histórico`,
+      );
+    }
+
+    const result = await chat.sendMessage(lastMessageParts);
+
+    this.log('Resposta recebida do Gemini');
     const response = result.response;
     this.log(
-      '📄 Texto da resposta:',
-      response.text().substring(0, 300) +
-        (response.text().length > 300 ? '...' : ''),
+      `Texto da resposta: ${response.text().substring(0, 200)}${response.text().length > 200 ? '...' : ''}`,
     );
+
     const functionCalls: FunctionCall[] = [];
 
     // Verificar function calls na resposta
@@ -407,14 +497,31 @@ export class GeminiService {
           });
         }
       }
-    } else {
-      // Nenhuma function call na resposta
     }
 
     return {
       response: response.text(),
       functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
     };
+  }
+
+  /**
+   * Método legado para compatibilidade - usa apenas texto
+   * @deprecated Use generateAIResponseWithFunctions com MessageWithAttachments
+   */
+  async generateAIResponseWithFunctionsLegacy(
+    messages: { text: string; sender: string }[],
+  ): Promise<{ response: string; functionCalls?: FunctionCall[] }> {
+    // Converter mensagens legadas para o novo formato
+    const messagesWithAttachments: MessageWithAttachments[] = messages.map(
+      (msg) => ({
+        text: msg.text,
+        sender: msg.sender,
+        attachments: [],
+      }),
+    );
+
+    return this.generateAIResponseWithFunctions(messagesWithAttachments);
   }
 
   // Método para atualizar o prompt do sistema (para administração)

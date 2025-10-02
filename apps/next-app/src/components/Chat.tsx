@@ -4,10 +4,16 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
 import FileUpload from './FileUpload';
+import MessageAttachments from './MessageAttachments';
 import { useNotifications } from '../hooks/useNotifications';
 import FeedbackModal, { FeedbackData } from './feedback/FeedbackModal';
 import { useFeedback } from '../hooks/useFeedback';
 import { useAutoSession } from '../hooks/useAutoSession';
+import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
+import { Button } from './ui/button';
+import { Menu, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
+import { Separator } from './ui/separator';
 
 interface Message {
   id: string;
@@ -51,7 +57,7 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
   const [socket, setSocket] = useState<Socket | null>(null);
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isInitialized] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [caseAssigned, setCaseAssigned] = useState<{
@@ -71,6 +77,9 @@ export default function Chat() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [clearFileTrigger, setClearFileTrigger] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Refs para evitar dependências desnecessárias no useEffect
   const feedbackSubmittedRef = useRef(feedbackSubmitted);
@@ -147,6 +156,39 @@ export default function Chat() {
     ));
   };
 
+    const handleAttachmentDownload = async (attachment: FileAttachment) => {
+    try {
+      // Fazer download direto através da nossa API (proxy)
+      const response = await fetch(`/api/uploads/download/${attachment.id}`, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao fazer download do arquivo');
+      }
+
+      // Obter o blob diretamente da resposta
+      const blob = await response.blob();
+      
+      // Criar URL temporária e fazer download
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachment.originalName;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Limpeza
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      notifications.success('Download concluído', `Arquivo ${attachment.originalName} baixado com sucesso`);
+    } catch (error) {
+      console.error('Erro no download:', error);
+      notifications.error('Erro no download', 'Não foi possível baixar o arquivo');
+    }
+  };
+
   const handleCreateCharge = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -168,7 +210,7 @@ export default function Chat() {
         throw new Error('Erro ao criar cobrança');
       }
 
-      const result = await response.json();
+      await response.json();
 
       // Reset form and close modal
       setChargeForm({
@@ -363,21 +405,34 @@ export default function Chat() {
     };
   };
 
-  const uploadFile = async (file: File): Promise<FileAttachment | null> => {
+  const uploadFile = async (file: File, messageId?: string): Promise<FileAttachment | null> => {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('conversationId', userId || '');
-      // userId will be extracted from JWT token in backend
+      // CORREÇÃO: Usar activeConversationId em vez de userId
+      formData.append('conversationId', activeConversationId || '');
+      if (messageId) {
+        formData.append('messageId', messageId);
+      }
 
+      console.log(`📤 UPLOAD DEBUG - Frontend:`, {
+        file: file.name,
+        activeConversationId,
+        userId,
+        messageId,
+        usingConversationId: activeConversationId || ''
+      });
+
+      // Use Next.js API route that handles authentication server-side
       const response = await fetch('/api/uploads', {
         method: 'POST',
         body: formData,
-        credentials: 'include', // ✅ Ensure NextAuth cookies are sent
+        credentials: 'include', // Include cookies for NextAuth session
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao fazer upload do arquivo');
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(errorData.error || 'Erro ao fazer upload do arquivo');
       }
 
       const result = await response.json();
@@ -388,22 +443,13 @@ export default function Chat() {
     }
   };
 
-  const sendMessage = async () => {
-    if ((!input.trim() && !selectedFile) || !socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
+  const sendMessageInternal = async (text: string, attachments: FileAttachment[] = []) => {
+    if (!socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
 
-    let attachments: FileAttachment[] = [];
-
-    // Upload file if selected
-    if (selectedFile) {
-      const uploadedFile = await uploadFile(selectedFile);
-      if (uploadedFile) {
-        attachments = [uploadedFile];
-      }
-    }
-
+    // Create message for UI
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: input,
+      text,
       sender: 'user',
       attachments,
       conversationId: activeConversationId || undefined,
@@ -414,26 +460,62 @@ export default function Chat() {
       return newMsgs;
     });
 
-    const messageToSend = input; // Store input before clearing
+    // Clear input and file
     setInput('');
     setSelectedFile(null);
-    
+    setClearFileTrigger(prev => prev + 1); // Trigger file clearing in FileUpload component
+
     // Start loading for active conversation
     if (activeConversationId) {
       setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
     }
 
-    // Marcar que a conversa começou após o primeiro envio
-    if (!hasStartedConversation) {
+    // Marcar que a conversa começou apenas se há conteúdo real
+    if (!hasStartedConversation && (text.trim() || attachments.length > 0)) {
       setHasStartedConversation(true);
     }
 
     // Send message via WebSocket
     socket.emit('send-message', {
-      text: messageToSend,
+      text,
       attachments,
-      conversationId: activeConversationId, // Adicionar ID da conversa ativa
+      conversationId: activeConversationId,
     });
+  };
+
+  const sendMessage = async () => {
+    if ((!input.trim() && !selectedFile) || !socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
+
+    // Para arquivos, fazer upload primeiro para obter informações
+    let uploadedFile: FileAttachment | null = null;
+    if (selectedFile) {
+      // Usar um ID temporário para upload - será associado à mensagem real no backend
+      const tempMessageId = `temp-${Date.now()}`;
+      uploadedFile = await uploadFile(selectedFile, tempMessageId);
+      if (!uploadedFile) {
+        notifications.error('Erro no upload', 'Não foi possível fazer upload do arquivo');
+        return;
+      }
+    }
+
+    const messageToSend = input.trim() || (uploadedFile ? uploadedFile.originalName : ''); // Use filename if no text provided
+    const attachmentsToSend = uploadedFile ? [uploadedFile] : [];
+
+    await sendMessageInternal(messageToSend, attachmentsToSend);
+  };
+
+  const sendFileMessage = async (file: File) => {
+    if (!socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
+
+    // Fazer upload do arquivo
+    const tempMessageId = `temp-${Date.now()}`;
+    const uploadedFile = await uploadFile(file, tempMessageId);
+    if (!uploadedFile) {
+      notifications.error('Erro no upload', 'Não foi possível fazer upload do arquivo');
+      return;
+    }
+
+    await sendMessageInternal(uploadedFile.originalName, [uploadedFile]);
   };
 
   const handleFeedbackSubmit = async (feedbackData: FeedbackData) => {
@@ -454,84 +536,234 @@ export default function Chat() {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      {/* Sidebar - Lista de Conversas */}
-      <div className="w-80 bg-white border-r border-slate-200 flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-slate-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-slate-900">Conversas</h2>
-            {conversations.reduce((total, conv) => total + conv.unreadCount, 0) > 0 && (
-              <span className="bg-emerald-500 text-white text-xs px-2 py-1 rounded-full">
-                {conversations.reduce((total, conv) => total + conv.unreadCount, 0)}
-              </span>
+      {/* Desktop Sidebar */}
+      <Collapsible open={!sidebarCollapsed} onOpenChange={(open) => setSidebarCollapsed(!open)}>
+        <div className={`hidden md:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ${
+          sidebarCollapsed ? 'w-16' : 'w-72'
+        }`}>
+          {/* Sidebar Header */}
+          <div className="p-4 border-b border-slate-200">
+            <div className="flex items-center justify-between">
+              {!sidebarCollapsed && (
+                <h2 className="text-lg font-semibold text-slate-900">Conversas</h2>
+              )}
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-slate-500 hover:text-slate-700"
+                >
+                  {sidebarCollapsed ? (
+                    <ChevronRight className="h-4 w-4" />
+                  ) : (
+                    <ChevronLeft className="h-4 w-4" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+
+            {!sidebarCollapsed && conversations.reduce((total, conv) => total + conv.unreadCount, 0) > 0 && (
+              <div className="mt-2">
+                <span className="bg-emerald-500 text-white text-xs px-2 py-1 rounded-full">
+                  {conversations.reduce((total, conv) => total + conv.unreadCount, 0)} não lidas
+                </span>
+              </div>
             )}
           </div>
 
-          <button
-            onClick={createNewConversation}
-            disabled={activeConversationId ? isLoading[activeConversationId] : false}
-            className="w-full bg-emerald-600 text-white py-2 px-4 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {(activeConversationId && isLoading[activeConversationId]) ? 'Criando...' : '+ Nova Conversa'}
-          </button>
-        </div>
-
-        {/* Lista de Conversas */}
-        <div className="flex-1 overflow-y-auto">
-          {conversations.length === 0 ? (
-            <div className="p-4 text-center text-slate-500">
-              <p>Nenhuma conversa ainda</p>
-              <p className="text-sm">Clique em &quot;Nova Conversa&quot; para começar</p>
-            </div>
-          ) : (
-            conversations.map((conversation) => (
-              <div
-                key={conversation.id}
-                onClick={() => {
-                  switchToConversation(conversation.id);
-                  markAsRead(conversation.id);
-                }}
-                className={`p-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors ${
-                  conversation.id === activeConversationId
-                    ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
-                    : ''
-                }`}
+          {/* New Conversation Button */}
+          {!sidebarCollapsed && (
+            <div className="p-4">
+              <button
+                onClick={createNewConversation}
+                disabled={activeConversationId ? isLoading[activeConversationId] : false}
+                className="w-full bg-emerald-600 text-white py-2 px-4 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-slate-900 truncate">
-                      {conversation.title}
-                    </h3>
-                    <p className="text-sm text-slate-600 mt-1">
-                      {conversation.classification?.category || 'Não classificado'}
-                    </p>
-                  </div>
+                {(activeConversationId && isLoading[activeConversationId]) ? 'Criando...' : '+ Nova Conversa'}
+              </button>
+            </div>
+          )}
 
-                  <div className="flex flex-col items-end gap-2">
-                    {/* Status Badge */}
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      conversation.status === 'open'
-                        ? 'bg-green-100 text-green-800'
-                        : conversation.status === 'assigned'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {conversation.status}
-                    </span>
+          <Separator />
 
-                    {/* Unread Count */}
-                    {conversation.unreadCount > 0 && (
-                      <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full min-w-[20px] text-center">
-                        {conversation.unreadCount}
-                      </span>
-                    )}
+          {/* Conversations List */}
+          <CollapsibleContent className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto">
+              {conversations.length === 0 ? (
+                <div className="p-4 text-center text-slate-500">
+                  <div className="flex flex-col items-center space-y-2">
+                    <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    <p className="text-sm">Nenhuma conversa</p>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
+              ) : (
+                conversations.map((conversation) => (
+                  <div
+                    key={conversation.id}
+                    onClick={() => {
+                      switchToConversation(conversation.id);
+                      markAsRead(conversation.id);
+                    }}
+                    className={`p-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors ${
+                      conversation.id === activeConversationId
+                        ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
+                        : ''
+                    }`}
+                    title={sidebarCollapsed ? conversation.title : undefined}
+                  >
+                    {sidebarCollapsed ? (
+                      // Collapsed view - just icon and unread indicator
+                      <div className="flex flex-col items-center space-y-2">
+                        <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center">
+                          <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                        </div>
+                        {conversation.unreadCount > 0 && (
+                          <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[16px] text-center">
+                            {conversation.unreadCount > 9 ? '9+' : conversation.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      // Expanded view
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-slate-900 truncate text-sm">
+                            {conversation.title}
+                          </h3>
+                          <p className="text-xs text-slate-600 mt-1">
+                            {conversation.classification?.category || 'Não classificado'}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1">
+                          {/* Status Badge */}
+                          <span className={`px-1.5 py-0.5 text-xs rounded-full ${
+                            conversation.status === 'open'
+                              ? 'bg-green-100 text-green-800'
+                              : conversation.status === 'assigned'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {conversation.status === 'open' ? 'Aberto' :
+                             conversation.status === 'assigned' ? 'Atribuído' : 'Fechado'}
+                          </span>
+
+                          {/* Unread Count */}
+                          {conversation.unreadCount > 0 && (
+                            <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[16px] text-center">
+                              {conversation.unreadCount > 9 ? '9+' : conversation.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </CollapsibleContent>
         </div>
-      </div>
+      </Collapsible>
+
+      {/* Mobile Sidebar - Sheet */}
+      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+        <SheetTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="md:hidden text-slate-400 hover:text-white hover:bg-slate-800"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu className="w-5 h-5" />
+            <span className="sr-only">Abrir menu de conversas</span>
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="w-72 p-0">
+          {/* Sidebar Content */}
+          <div className="h-full bg-white flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-200">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-900">Conversas</h2>
+                {conversations.reduce((total, conv) => total + conv.unreadCount, 0) > 0 && (
+                  <span className="bg-emerald-500 text-white text-xs px-2 py-1 rounded-full">
+                    {conversations.reduce((total, conv) => total + conv.unreadCount, 0)}
+                  </span>
+                )}
+              </div>
+
+              <button
+                onClick={createNewConversation}
+                disabled={activeConversationId ? isLoading[activeConversationId] : false}
+                className="w-full bg-emerald-600 text-white py-2 px-4 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {(activeConversationId && isLoading[activeConversationId]) ? 'Criando...' : '+ Nova Conversa'}
+              </button>
+            </div>
+
+            {/* Lista de Conversas */}
+            <div className="flex-1 overflow-y-auto">
+              {conversations.length === 0 ? (
+                <div className="p-4 text-center text-slate-500">
+                  <p>Nenhuma conversa ainda</p>
+                  <p className="text-sm">Clique em &quot;Nova Conversa&quot; para começar</p>
+                </div>
+              ) : (
+                conversations.map((conversation) => (
+                  <div
+                    key={conversation.id}
+                    onClick={() => {
+                      switchToConversation(conversation.id);
+                      markAsRead(conversation.id);
+                      setSidebarOpen(false); // Close sidebar on mobile after selection
+                    }}
+                    className={`p-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors ${
+                      conversation.id === activeConversationId
+                        ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-slate-900 truncate">
+                          {conversation.title}
+                        </h3>
+                        <p className="text-sm text-slate-600 mt-1">
+                          {conversation.classification?.category || 'Não classificado'}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-2">
+                        {/* Status Badge */}
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          conversation.status === 'open'
+                            ? 'bg-green-100 text-green-800'
+                            : conversation.status === 'assigned'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {conversation.status}
+                        </span>
+
+                        {/* Unread Count */}
+                        {conversation.unreadCount > 0 && (
+                          <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full min-w-[20px] text-center">
+                            {conversation.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
@@ -539,6 +771,22 @@ export default function Chat() {
         <header className="bg-slate-900 shadow-lg border-b border-slate-800 px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
+              {/* Mobile Menu Button - Now inside Sheet component */}
+              {/* Desktop Sidebar Toggle */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="hidden md:flex text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                {sidebarCollapsed ? (
+                  <ChevronRight className="w-5 h-5" />
+                ) : (
+                  <ChevronLeft className="w-5 h-5" />
+                )}
+                <span className="sr-only">Alternar sidebar</span>
+              </Button>
+
               <Link href="/" className="flex items-center space-x-2">
                 <div className="text-2xl font-bold text-white">Juristec<span className="text-emerald-400">.com.br</span></div>
               </Link>
@@ -629,6 +877,13 @@ export default function Chat() {
                   data-testid={`message-${message.sender}`}
                 >
                   {message.text}
+                  {message.attachments && message.attachments.length > 0 && (
+                    <MessageAttachments
+                      key={`attachments-${message.id}`}
+                      attachments={message.attachments}
+                      onDownload={handleAttachmentDownload}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -663,13 +918,7 @@ export default function Chat() {
         )}
 
         {/* Input Container */}
-        <div className="p-4 bg-white border-t border-slate-200 space-y-3">
-          {/* File Upload */}
-          <FileUpload
-            onFileSelect={setSelectedFile}
-            disabled={activeConversationId ? isLoading[activeConversationId] : false}
-          />
-
+        <div className="p-4 bg-white border-t border-slate-200">
           {/* Text Input and Send Button */}
           <div className="flex space-x-2">
             <input
@@ -681,6 +930,13 @@ export default function Chat() {
               className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-slate-800 placeholder-slate-500"
               disabled={activeConversationId ? isLoading[activeConversationId] : false}
               data-testid="chat-input"
+            />
+            <FileUpload
+              onFileSelect={setSelectedFile}
+              onFileSend={sendFileMessage}
+              disabled={activeConversationId ? isLoading[activeConversationId] : false}
+              clearTrigger={clearFileTrigger}
+              inline={true}
             />
             <button
               onClick={sendMessage}

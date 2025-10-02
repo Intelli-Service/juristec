@@ -152,29 +152,7 @@ export default function LawyerDashboard() {
     }
   };
 
-  const transferCase = async (roomId: string, targetLawyerId: string, reason: string) => {
-    try {
-      const response = await fetch(`/api/lawyer/cases/${roomId}/transfer`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetLawyerId, reason }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      loadCases(); // Recarregar lista
-      setShowTransferModal(false);
-      setSelectedCase(null);
-      setTransferReason('');
-      notifications.success('Caso transferido!', 'O caso foi transferido para outro advogado.');
-    } catch (error) {
-      console.error('Erro ao transferir caso:', error);
-      notifications.error('Erro ao transferir caso', 'Tente novamente.');
-    }
-  };
+
 
   const assignCase = async (roomId: string) => {
     try {

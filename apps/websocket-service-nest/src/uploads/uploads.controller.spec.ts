@@ -56,7 +56,12 @@ describe('UploadsController', () => {
 
       mockUploadsService.uploadFile.mockResolvedValue(mockResult);
 
-      const result = await controller.uploadFile(mockFile, 'conv-123', mockReq);
+      const result = await controller.uploadFile(
+        mockFile,
+        'conv-123',
+        mockReq,
+        undefined,
+      );
 
       expect(result).toEqual({
         success: true,
@@ -66,6 +71,7 @@ describe('UploadsController', () => {
         mockFile,
         'conv-123',
         'user-123',
+        undefined, // messageId is optional
       );
     });
 
@@ -75,7 +81,7 @@ describe('UploadsController', () => {
       };
 
       await expect(
-        controller.uploadFile(null as any, 'conv-123', mockReq),
+        controller.uploadFile(null as any, 'conv-123', mockReq, undefined),
       ).rejects.toThrow('No file uploaded');
     });
 
@@ -86,7 +92,7 @@ describe('UploadsController', () => {
       };
 
       await expect(
-        controller.uploadFile(mockFile, '', mockReq),
+        controller.uploadFile(mockFile, '', mockReq, undefined),
       ).rejects.toThrow('conversationId is required');
     });
   });

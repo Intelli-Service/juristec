@@ -39,7 +39,7 @@ function SignInForm() {
           router.push(callbackUrl)
         }
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Erro ao fazer login')
     } finally {
       setLoading(false)

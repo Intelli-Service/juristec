@@ -17,6 +17,7 @@ import { MessageService } from '../lib/message.service';
 import { IntelligentUserRegistrationService } from '../lib/intelligent-user-registration.service';
 import { FluidRegistrationService } from '../lib/fluid-registration.service';
 import { VerificationService } from '../lib/verification.service';
+import { UploadsService } from '../uploads/uploads.service';
 import { BillingService } from '../lib/billing.service';
 import Conversation from '../models/Conversation';
 import { CaseStatus } from '../models/User';
@@ -42,6 +43,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly intelligentRegistrationService: IntelligentUserRegistrationService,
     private readonly fluidRegistrationService: FluidRegistrationService,
     private readonly verificationService: VerificationService,
+    private readonly uploadsService: UploadsService,
     private readonly billingService: BillingService,
   ) {}
 
@@ -360,7 +362,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`   userId: ${userId}`);
     console.log(`   conversationId: ${conversationId}`);
     console.log(`   message: "${message}"`);
-    console.log(`   message length: ${message.length}`);
+    console.log(`   message length: ${message?.length || 0}`);
+    console.log(`   attachments count: ${_attachments?.length || 0}`);
 
     if (!userId) {
       client.emit('error', { message: 'UserId não encontrado' });
@@ -371,6 +374,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('error', { message: 'ConversationId é obrigatório' });
       return;
     }
+
+    // Validar se há pelo menos texto ou anexos
+    const hasText = message && message.trim().length > 0;
+    const hasAttachments = _attachments && _attachments.length > 0;
+
+    if (!hasText && !hasAttachments) {
+      client.emit('error', { message: 'Mensagem deve conter texto ou anexos' });
+      return;
+    }
+
+    // Se não há texto mas há anexos, enviar apenas os anexos sem texto adicional
+    const finalMessage = hasText ? message : '';
 
     // Buscar a conversa específica
     const conversation = await Conversation.findOne({
@@ -392,17 +407,50 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       try {
         userMessage = await this.messageService.createMessage({
           conversationId: conversation._id.toString(),
-          text: message,
+          text: finalMessage,
           sender: 'user',
           senderId: client.data.user?.userId, // Pode ser null para usuários anônimos
         });
+
+        // Se há anexos, reassociar arquivos temporários com o messageId real
+        if (_attachments && _attachments.length > 0) {
+          console.log(
+            `🔄 Reassociando ${_attachments.length} anexos com messageId real: ${userMessage._id}`,
+          );
+
+          for (const attachment of _attachments) {
+            try {
+              const reassigned =
+                await this.uploadsService.reassignFileMessageId(
+                  attachment.originalName,
+                  conversation._id.toString(),
+                  userMessage._id.toString(),
+                );
+
+              if (reassigned) {
+                console.log(
+                  `✅ Arquivo ${attachment.originalName} reassociado com messageId ${userMessage._id}`,
+                );
+              } else {
+                console.warn(
+                  `⚠️ Arquivo ${attachment.originalName} não encontrado para reassociação`,
+                );
+              }
+            } catch (reassociateError) {
+              console.error(
+                `❌ Erro ao reassociar arquivo ${attachment.originalName}:`,
+                reassociateError,
+              );
+            }
+          }
+        }
       } catch (_dbError) {
         console.warn(
           'Erro ao salvar mensagem do usuário, continuando sem persistência',
         );
         userMessage = {
           _id: `temp-msg-${Date.now()}`,
-          text: message,
+          text: finalMessage,
           sender: 'user',
         };
       }
@@ -481,7 +529,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       try {
         registrationResult =
           await this.intelligentRegistrationService.processUserMessage(
-            message,
+            finalMessage,
             conversation._id.toString(),
             client.data.userId, // Usar userId consistente (sempre existe, mesmo para usuários anônimos)
             true, // Sempre incluir histórico quando há conversationId (todas as mensagens são salvas no banco)
@@ -1036,12 +1084,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Emit conversation switched event
       client.emit('conversation-switched', {
         conversationId,
-        messages: messages.map((msg) => ({
-          id: msg._id.toString(),
-          text: msg.text,
-          sender: msg.sender,
-          timestamp: msg.createdAt,
-        })),
+        messages: await Promise.all(
+          messages.map(async (msg) => {
+            // Buscar anexos da mensagem
+            let attachments: any[] = [];
+            try {
+              attachments = await this.uploadsService.getFilesByMessageId(
+                msg._id.toString(),
+              );
+            } catch (error) {
+              console.warn(
+                `Não foi possível carregar anexos para mensagem ${msg._id}:`,
+                error,
+              );
+            }
+
+            return {
+              id: msg._id.toString(),
+              text: msg.text,
+              sender: msg.sender,
+              timestamp: msg.createdAt,
+              attachments: attachments,
+            };
+          }),
+        ),
         conversations: conversations.map((conv) => ({
           id: (conv._id as any).toString(),
           roomId: conv.roomId || (conv._id as any).toString(),
