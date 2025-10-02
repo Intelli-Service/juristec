@@ -4,11 +4,9 @@ import { FileText, Image, Download, File } from 'lucide-react';
 
 interface FileAttachment {
   id: string;
-  filename: string;
   originalName: string;
   mimeType: string;
   size: number;
-  url: string;
 }
 
 interface MessageAttachmentsProps {
