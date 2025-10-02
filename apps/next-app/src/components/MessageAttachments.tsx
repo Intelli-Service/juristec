@@ -4,16 +4,14 @@ import { FileText, Image, Download, File } from 'lucide-react';
 
 interface FileAttachment {
   id: string;
-  filename: string;
   originalName: string;
   mimeType: string;
   size: number;
-  url: string;
 }
 
 interface MessageAttachmentsProps {
   attachments: FileAttachment[];
-  onDownload?: (attachment: FileAttachment) => void;
+  onDownload?: (attachment: FileAttachment) => void | Promise<void>;
 }
 
 export default function MessageAttachments({ attachments, onDownload }: MessageAttachmentsProps) {
@@ -37,7 +35,7 @@ export default function MessageAttachments({ attachments, onDownload }: MessageA
 
   const handleDownload = async (attachment: FileAttachment) => {
     if (onDownload) {
-      onDownload(attachment);
+      await onDownload(attachment);
     } else {
       // Fallback: tentar download direto (não recomendado para produção)
       try {

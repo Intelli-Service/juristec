@@ -290,6 +290,7 @@ export default function FileUpload({
                   <Button
                     onClick={() => {
                       if (selectedFile) {
+                        onFileSelect(selectedFile);
                         if (onFileSend) {
                           onFileSend(selectedFile);
                         }

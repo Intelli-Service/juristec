@@ -25,11 +25,9 @@ interface Message {
 
 interface FileAttachment {
   id: string;
-  filename: string;
   originalName: string;
   mimeType: string;
   size: number;
-  url: string;
 }
 
 interface Conversation {
@@ -443,46 +441,6 @@ export default function Chat() {
     }
   };
 
-  const sendMessageInternal = async (text: string, attachments: FileAttachment[] = []) => {
-    if (!socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
-
-    // Create message for UI
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text,
-      sender: 'user',
-      attachments,
-      conversationId: activeConversationId || undefined,
-    };
-
-    setMessages((prev) => {
-      const newMsgs = [...prev, userMessage];
-      return newMsgs;
-    });
-
-    // Clear input and file
-    setInput('');
-    setSelectedFile(null);
-    setClearFileTrigger(prev => prev + 1); // Trigger file clearing in FileUpload component
-
-    // Start loading for active conversation
-    if (activeConversationId) {
-      setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
-    }
-
-    // Marcar que a conversa começou apenas se há conteúdo real
-    if (!hasStartedConversation && (text.trim() || attachments.length > 0)) {
-      setHasStartedConversation(true);
-    }
-
-    // Send message via WebSocket
-    socket.emit('send-message', {
-      text,
-      attachments,
-      conversationId: activeConversationId,
-    });
-  };
-
   const sendMessage = async () => {
     if ((!input.trim() && !selectedFile) || !socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
 
@@ -498,10 +456,43 @@ export default function Chat() {
       }
     }
 
+    // Create message for UI
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: input.trim() || (uploadedFile ? uploadedFile.originalName : ''),
+      sender: 'user',
+      attachments: uploadedFile ? [uploadedFile] : [],
+      conversationId: activeConversationId || undefined,
+    };
+
+    setMessages((prev) => {
+      const newMsgs = [...prev, userMessage];
+      return newMsgs;
+    });
+
     const messageToSend = input.trim() || (uploadedFile ? uploadedFile.originalName : ''); // Use filename if no text provided
     const attachmentsToSend = uploadedFile ? [uploadedFile] : [];
 
-    await sendMessageInternal(messageToSend, attachmentsToSend);
+    setInput('');
+    setSelectedFile(null);
+    setClearFileTrigger(prev => prev + 1); // Trigger file clearing in FileUpload component
+
+    // Start loading for active conversation
+    if (activeConversationId) {
+      setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
+    }
+
+    // Marcar que a conversa começou apenas se há conteúdo real
+    if (!hasStartedConversation && (input.trim() || selectedFile)) {
+      setHasStartedConversation(true);
+    }
+
+    // Send message via WebSocket
+    socket.emit('send-message', {
+      text: messageToSend,
+      attachments: attachmentsToSend,
+      conversationId: activeConversationId,
+    });
   };
 
   const sendFileMessage = async (file: File) => {
@@ -515,7 +506,40 @@ export default function Chat() {
       return;
     }
 
-    await sendMessageInternal(uploadedFile.originalName, [uploadedFile]);
+    // Create message for UI
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: uploadedFile.originalName,
+      sender: 'user',
+      attachments: [uploadedFile],
+      conversationId: activeConversationId || undefined,
+    };
+
+    setMessages((prev) => {
+      const newMsgs = [...prev, userMessage];
+      return newMsgs;
+    });
+
+    // Limpar arquivo selecionado imediatamente após envio
+    setSelectedFile(null);
+    setClearFileTrigger(prev => prev + 1); // Trigger file clearing in FileUpload component
+
+    // Start loading for active conversation
+    if (activeConversationId) {
+      setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
+    }
+
+    // Marcar que a conversa começou
+    if (!hasStartedConversation) {
+      setHasStartedConversation(true);
+    }
+
+    // Send message via WebSocket
+    socket.emit('send-message', {
+      text: uploadedFile.originalName,
+      attachments: [uploadedFile],
+      conversationId: activeConversationId,
+    });
   };
 
   const handleFeedbackSubmit = async (feedbackData: FeedbackData) => {

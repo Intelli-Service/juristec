@@ -24,9 +24,8 @@ export interface Message {
   timestamp: Date;
   attachments?: {
     id: string;
-    name: string;
-    url: string;
-    type: string;
+    originalName: string;
+    mimeType: string;
     size: number;
   }[];
 }
