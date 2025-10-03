@@ -137,3 +137,6 @@ export {
   SheetTitle,
   SheetDescription,
 }
+
+// Export VisuallyHidden from the same module for convenience
+export { VisuallyHidden } from "./visually-hidden"

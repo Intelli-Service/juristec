@@ -62,9 +62,22 @@ export class UploadsController {
         resultKeys: Object.keys(result),
       });
 
+      // Transform the result to ensure 'id' is always present as a string
+      const response = {
+        id: String((result as any)._id || (result as any).id),
+        originalName: result.originalName,
+        mimeType: result.mimeType,
+        size: result.size,
+        url: result.url,
+        conversationId: result.conversationId,
+        messageId: result.messageId,
+      };
+
+      console.log(`📦 TRANSFORMED UPLOAD RESPONSE:`, response);
+
       return {
         success: true,
-        data: result,
+        data: response,
       };
     } catch (error) {
       console.error('[UPLOAD ERROR] Detailed error:', {

@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, Image, Download, File } from 'lucide-react';
+import { FileText, Image as ImageIcon, Download, File } from 'lucide-react';
 
 interface FileAttachment {
   id: string;
@@ -15,13 +15,15 @@ interface MessageAttachmentsProps {
 }
 
 export default function MessageAttachments({ attachments, onDownload }: MessageAttachmentsProps) {
+  console.log('🖇️ MessageAttachments - attachments recebidos:', attachments);
+  
   const getFileIcon = (mimeType: string) => {
     if (mimeType.startsWith('image/')) {
-      return <Image className="w-5 h-5 text-blue-600" />;
+      return <ImageIcon aria-hidden="true" className="w-5 h-5 text-blue-600" />;
     } else if (mimeType === 'application/pdf') {
-      return <FileText className="w-5 h-5 text-red-600" />;
+      return <FileText aria-hidden="true" className="w-5 h-5 text-red-600" />;
     } else {
-      return <File className="w-5 h-5 text-slate-600" />;
+      return <File aria-hidden="true" className="w-5 h-5 text-slate-600" />;
     }
   };
 
@@ -34,6 +36,9 @@ export default function MessageAttachments({ attachments, onDownload }: MessageA
   };
 
   const handleDownload = async (attachment: FileAttachment) => {
+    console.log('⬇️ MessageAttachments handleDownload - attachment:', attachment);
+    console.log('⬇️ MessageAttachments handleDownload - attachment.id:', attachment?.id);
+    
     if (onDownload) {
       await onDownload(attachment);
     } else {

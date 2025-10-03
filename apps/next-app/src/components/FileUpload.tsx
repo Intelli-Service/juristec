@@ -2,15 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useNotifications } from '../hooks/useNotifications';
-import { AlertCircle, CheckCircle, Upload, X, File, FileText, Image, Video, Archive } from 'lucide-react';
+import { AlertCircle, Upload, X, File, FileText, Image as ImageIcon, Video, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface FileUploadProps {
-  onFileSelect: (file: File) => void;
-  onFileSend?: (file: File) => void; // New callback for when file is sent
+  onFileSelect: (file: File | null) => void;
   disabled?: boolean;
-  showHelp?: boolean;
   onShowHelp?: () => void;
   clearTrigger?: number;
   inline?: boolean; // New prop for inline mode (button next to send button)
@@ -18,9 +16,7 @@ interface FileUploadProps {
 
 export default function FileUpload({
   onFileSelect,
-  onFileSend,
   disabled = false,
-  showHelp = false,
   onShowHelp,
   clearTrigger = 0,
   inline = false
@@ -28,30 +24,25 @@ export default function FileUpload({
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Cleanup interval on unmount
-  useEffect(() => {
-    return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
-    };
-  }, []);
 
   // Clear file when clearTrigger changes (increments)
   useEffect(() => {
     if (clearTrigger > 0) {
-      clearFile();
+      setSelectedFile(null);
+      setError(null);
+      if (inline) {
+        setIsExpanded(false);
+      }
+      onFileSelect(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
-  }, [clearTrigger]);
+  }, [clearTrigger, inline, onFileSelect]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { error: showErrorToast, success: showSuccessToast } = useNotifications();
+  const { error: showErrorToast } = useNotifications();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -80,9 +71,7 @@ export default function FileUpload({
   const handleFileSelect = (file: File) => {
     // Reset states
     setError(null);
-    setUploadSuccess(false);
-    setUploadProgress(0);
-
+    
     // Validate file type
     const allowedTypes = [
       'application/pdf',
@@ -115,25 +104,13 @@ export default function FileUpload({
     }
 
     setSelectedFile(file);
-
-    // Simulate upload progress for better UX
-    setIsUploading(true);
-    let progress = 0;
-    progressIntervalRef.current = setInterval(() => {
-      progress += Math.random() * 15;
-      if (progress >= 100) {
-        progress = 100;
-        if (progressIntervalRef.current) {
-          clearInterval(progressIntervalRef.current);
-          progressIntervalRef.current = null;
-        }
-        setIsUploading(false);
-        setUploadSuccess(true);
-        showSuccessToast('Arquivo selecionado', `${file.name} está pronto para envio.`);
-        onFileSelect(file);
-      }
-      setUploadProgress(progress);
-    }, 100);
+    onFileSelect(file);
+    if (inline) {
+      setIsExpanded(false);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,14 +120,14 @@ export default function FileUpload({
     }
   };
 
-  const clearFile = () => {
+  const clearFile = (notifyParent: boolean = true) => {
     setSelectedFile(null);
     setError(null);
-    setIsUploading(false);
-    setUploadProgress(0);
-    setUploadSuccess(false);
     if (inline) {
       setIsExpanded(false);
+    }
+    if (notifyParent) {
+      onFileSelect(null);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -167,12 +144,12 @@ export default function FileUpload({
 
   const getFileIcon = (file: File) => {
     const type = file.type;
-    if (type.startsWith('image/')) return <Image className="w-6 h-6 text-blue-500" />;
-    if (type.startsWith('video/')) return <Video className="w-6 h-6 text-red-500" />;
-    if (type.includes('pdf')) return <FileText className="w-6 h-6 text-red-600" />;
-    if (type.includes('document') || type.includes('word')) return <FileText className="w-6 h-6 text-blue-600" />;
-    if (type.includes('zip') || type.includes('rar')) return <Archive className="w-6 h-6 text-yellow-500" />;
-    return <File className="w-6 h-6 text-gray-500" />;
+  if (type.startsWith('image/')) return <ImageIcon aria-hidden="true" className="w-6 h-6 text-blue-500" />;
+  if (type.startsWith('video/')) return <Video aria-hidden="true" className="w-6 h-6 text-red-500" />;
+  if (type.includes('pdf')) return <FileText aria-hidden="true" className="w-6 h-6 text-red-600" />;
+  if (type.includes('document') || type.includes('word')) return <FileText aria-hidden="true" className="w-6 h-6 text-blue-600" />;
+  if (type.includes('zip') || type.includes('rar')) return <Archive aria-hidden="true" className="w-6 h-6 text-yellow-500" />;
+  return <File aria-hidden="true" className="w-6 h-6 text-gray-500" />;
   };
 
   return (
@@ -268,9 +245,9 @@ export default function FileUpload({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={clearFile}
+                        onClick={() => clearFile()}
                         className="h-6 w-6 p-0 text-slate-500 hover:text-slate-700"
-                        disabled={disabled || isUploading}
+                        disabled={disabled}
                       >
                         <X className="w-4 h-4" />
                       </Button>
@@ -279,28 +256,15 @@ export default function FileUpload({
                 )}
 
                 {/* Action Buttons */}
-                <div className="flex justify-end space-x-2">
+                <div className="flex justify-end">
                   <Button
                     variant="outline"
-                    onClick={() => setIsExpanded(false)}
-                    disabled={isUploading}
+                    onClick={() => {
+                      clearFile(false);
+                      setIsExpanded(false);
+                    }}
                   >
                     Cancelar
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      if (selectedFile) {
-                        onFileSelect(selectedFile);
-                        if (onFileSend) {
-                          onFileSend(selectedFile);
-                        }
-                        setIsExpanded(false);
-                      }
-                    }}
-                    disabled={!selectedFile || isUploading}
-                    className="bg-emerald-600 hover:bg-emerald-700"
-                  >
-                    {isUploading ? 'Enviando...' : 'Enviar Arquivo'}
                   </Button>
                 </div>
               </div>
@@ -343,39 +307,19 @@ export default function FileUpload({
             </div>
           ) : (
             <div className={`border rounded-lg p-3 transition-all duration-200 ${
-              uploadSuccess
-                ? 'border-emerald-300 bg-emerald-50'
-                : error
+              error
                 ? 'border-red-300 bg-red-50'
                 : 'border-slate-300 bg-slate-50'
             }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    uploadSuccess
-                      ? 'bg-emerald-100'
-                      : error
-                      ? 'bg-red-100'
-                      : 'bg-slate-100'
+                    error ? 'bg-red-100' : 'bg-emerald-100'
                   }`}>
-                    {uploadSuccess ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    ) : error ? (
+                    {error ? (
                       <AlertCircle className="w-4 h-4 text-red-600" />
                     ) : (
-                      <svg
-                        className="w-4 h-4 text-slate-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
+                      <Upload className="w-4 h-4 text-emerald-600" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -387,25 +331,12 @@ export default function FileUpload({
                     <div className="text-xs text-slate-500">
                       {formatFileSize(selectedFile.size)}
                     </div>
-                    {isUploading && (
-                      <div className="mt-2">
-                        <div className="w-full bg-slate-200 rounded-full h-1.5">
-                          <div
-                            className="bg-emerald-600 h-1.5 rounded-full transition-all duration-300"
-                            style={{ width: `${uploadProgress}%` }}
-                          />
-                        </div>
-                        <div className="text-xs text-slate-600 mt-1">
-                          Processando... {Math.round(uploadProgress)}%
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
                 <button
-                  onClick={clearFile}
+                  onClick={() => clearFile()}
                   className="text-slate-400 hover:text-slate-600 transition-colors ml-2"
-                  disabled={disabled || isUploading}
+                  disabled={disabled}
                   aria-label="Remover arquivo"
                 >
                   <X className="w-5 h-5" />
