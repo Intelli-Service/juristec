@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import io, { Socket } from 'socket.io-client';
 import { useAutoSession } from '@/hooks/useAutoSession';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -39,6 +39,8 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   
   // Case assignment state
   const [caseAssigned, setCaseAssigned] = useState<CaseAssignment>({ assigned: false });
@@ -92,7 +94,7 @@ export default function Chat() {
     setConversations,
   });
 
-  const { sendMessage, sendFileMessage, handleAttachmentDownload } = useMessages({
+  const { sendMessage, handleAttachmentDownload } = useMessages({
     socket,
     activeConversationId,
     isLoading,
@@ -105,6 +107,8 @@ export default function Chat() {
     setClearFileTrigger,
     setIsLoading,
     setHasStartedConversation,
+    setIsSendingMessage,
+    setIsUploadingAttachment,
   });
 
   const {
@@ -115,6 +119,11 @@ export default function Chat() {
     setChargeForm,
     handleCreateCharge,
   } = useChargeModal({ userId });
+
+  const handleClearSelectedFile = useCallback(() => {
+    setSelectedFile(null);
+    setClearFileTrigger((prev) => prev + 1);
+  }, [setSelectedFile, setClearFileTrigger]);
 
   // WebSocket connection effect - MANTÉM A LÓGICA ORIGINAL
   useEffect(() => {
@@ -345,12 +354,13 @@ export default function Chat() {
           input={input}
           setInput={setInput}
           sendMessage={sendMessage}
-          sendFileMessage={sendFileMessage}
           setSelectedFile={setSelectedFile}
-          isLoading={currentIsLoading}
           isConnected={isConnected}
           selectedFile={selectedFile}
           clearFileTrigger={clearFileTrigger}
+          isSendingMessage={isSendingMessage}
+          isUploadingAttachment={isUploadingAttachment}
+          onClearSelectedFile={handleClearSelectedFile}
         />
       </div>
 

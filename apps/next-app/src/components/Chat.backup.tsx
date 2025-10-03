@@ -495,53 +495,6 @@ export default function Chat() {
     });
   };
 
-  const sendFileMessage = async (file: File) => {
-    if (!socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
-
-    // Fazer upload do arquivo
-    const tempMessageId = `temp-${Date.now()}`;
-    const uploadedFile = await uploadFile(file, tempMessageId);
-    if (!uploadedFile) {
-      notifications.error('Erro no upload', 'Não foi possível fazer upload do arquivo');
-      return;
-    }
-
-    // Create message for UI
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: uploadedFile.originalName,
-      sender: 'user',
-      attachments: [uploadedFile],
-      conversationId: activeConversationId || undefined,
-    };
-
-    setMessages((prev) => {
-      const newMsgs = [...prev, userMessage];
-      return newMsgs;
-    });
-
-    // Limpar arquivo selecionado imediatamente após envio
-    setSelectedFile(null);
-    setClearFileTrigger(prev => prev + 1); // Trigger file clearing in FileUpload component
-
-    // Start loading for active conversation
-    if (activeConversationId) {
-      setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
-    }
-
-    // Marcar que a conversa começou
-    if (!hasStartedConversation) {
-      setHasStartedConversation(true);
-    }
-
-    // Send message via WebSocket
-    socket.emit('send-message', {
-      text: uploadedFile.originalName,
-      attachments: [uploadedFile],
-      conversationId: activeConversationId,
-    });
-  };
-
   const handleFeedbackSubmit = async (feedbackData: FeedbackData) => {
     await feedbackHook.submitFeedback(feedbackData);
   };
@@ -960,7 +913,6 @@ export default function Chat() {
             />
             <FileUpload
               onFileSelect={setSelectedFile}
-              onFileSend={sendFileMessage}
               disabled={activeConversationId ? isLoading[activeConversationId] : false}
               clearTrigger={clearFileTrigger}
               inline={true}

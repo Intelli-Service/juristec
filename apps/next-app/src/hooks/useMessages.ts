@@ -16,6 +16,8 @@ interface UseMessagesProps {
   setClearFileTrigger: React.Dispatch<React.SetStateAction<number>>;
   setIsLoading: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   setHasStartedConversation: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsSendingMessage: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsUploadingAttachment: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const useMessages = ({
@@ -31,6 +33,8 @@ export const useMessages = ({
   setClearFileTrigger,
   setIsLoading,
   setHasStartedConversation,
+  setIsSendingMessage,
+  setIsUploadingAttachment,
 }: UseMessagesProps) => {
   const notifications = useNotifications();
 
@@ -112,46 +116,58 @@ export const useMessages = ({
   const sendMessage = useCallback(async () => {
     if ((!input.trim() && !selectedFile) || !socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
 
+    setIsSendingMessage(true);
     let uploadedFile: FileAttachment | null = null;
-    if (selectedFile) {
-      const tempMessageId = `temp-${Date.now()}`;
-      uploadedFile = await uploadFile(selectedFile, tempMessageId);
-      if (!uploadedFile) {
-        notifications.error('Erro no upload', 'Não foi possível fazer upload do arquivo');
-        return;
+
+    try {
+      if (selectedFile) {
+        setIsUploadingAttachment(true);
+        const tempMessageId = `temp-${Date.now()}`;
+        try {
+          uploadedFile = await uploadFile(selectedFile, tempMessageId);
+        } finally {
+          setIsUploadingAttachment(false);
+        }
+
+        if (!uploadedFile) {
+          notifications.error('Erro no upload', 'Não foi possível fazer upload do arquivo');
+          return;
+        }
       }
+
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        text: input.trim() || (uploadedFile ? uploadedFile.originalName : ''),
+        sender: 'user',
+        attachments: uploadedFile ? [uploadedFile] : [],
+        conversationId: activeConversationId || undefined,
+      };
+
+      setMessages((prev) => [...prev, userMessage]);
+
+      const messageToSend = input.trim() || (uploadedFile ? uploadedFile.originalName : '');
+      const attachmentsToSend = uploadedFile ? [uploadedFile] : [];
+
+      setInput('');
+      setSelectedFile(null);
+      setClearFileTrigger(prev => prev + 1);
+
+      if (activeConversationId) {
+        setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
+      }
+
+      if (!hasStartedConversation && (input.trim() || selectedFile)) {
+        setHasStartedConversation(true);
+      }
+
+      socket.emit('send-message', {
+        text: messageToSend,
+        attachments: attachmentsToSend,
+        conversationId: activeConversationId,
+      });
+    } finally {
+      setIsSendingMessage(false);
     }
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: input.trim() || (uploadedFile ? uploadedFile.originalName : ''),
-      sender: 'user',
-      attachments: uploadedFile ? [uploadedFile] : [],
-      conversationId: activeConversationId || undefined,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-
-    const messageToSend = input.trim() || (uploadedFile ? uploadedFile.originalName : '');
-    const attachmentsToSend = uploadedFile ? [uploadedFile] : [];
-
-    setInput('');
-    setSelectedFile(null);
-    setClearFileTrigger(prev => prev + 1);
-
-    if (activeConversationId) {
-      setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
-    }
-
-    if (!hasStartedConversation && (input.trim() || selectedFile)) {
-      setHasStartedConversation(true);
-    }
-
-    socket.emit('send-message', {
-      text: messageToSend,
-      attachments: attachmentsToSend,
-      conversationId: activeConversationId,
-    });
   }, [
     input,
     selectedFile,
@@ -166,62 +182,13 @@ export const useMessages = ({
     setClearFileTrigger,
     setIsLoading,
     setHasStartedConversation,
-    notifications,
-  ]);
-
-  const sendFileMessage = useCallback(async (file: File) => {
-    if (!socket || !activeConversationId || (activeConversationId && isLoading[activeConversationId])) return;
-
-    const tempMessageId = `temp-${Date.now()}`;
-    const uploadedFile = await uploadFile(file, tempMessageId);
-    if (!uploadedFile) {
-      notifications.error('Erro no upload', 'Não foi possível fazer upload do arquivo');
-      return;
-    }
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: uploadedFile.originalName,
-      sender: 'user',
-      attachments: [uploadedFile],
-      conversationId: activeConversationId || undefined,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-
-    setSelectedFile(null);
-    setClearFileTrigger(prev => prev + 1);
-
-    if (activeConversationId) {
-      setIsLoading(prev => ({ ...prev, [activeConversationId]: true }));
-    }
-
-    if (!hasStartedConversation) {
-      setHasStartedConversation(true);
-    }
-
-    socket.emit('send-message', {
-      text: uploadedFile.originalName,
-      attachments: [uploadedFile],
-      conversationId: activeConversationId,
-    });
-  }, [
-    socket,
-    activeConversationId,
-    isLoading,
-    hasStartedConversation,
-    uploadFile,
-    setMessages,
-    setSelectedFile,
-    setClearFileTrigger,
-    setIsLoading,
-    setHasStartedConversation,
+    setIsSendingMessage,
+    setIsUploadingAttachment,
     notifications,
   ]);
 
   return {
     sendMessage,
-    sendFileMessage,
     handleAttachmentDownload,
   };
 };
