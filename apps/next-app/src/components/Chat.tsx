@@ -294,7 +294,7 @@ export default function Chat() {
   const currentIsLoading = activeConversationId ? isLoading[activeConversationId] || false : false;
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
       {/* Desktop Sidebar */}
       <ChatSidebar
         conversations={conversations}
@@ -307,24 +307,24 @@ export default function Chat() {
         isLoading={currentIsLoading}
       />
 
-      {/* Mobile Sidebar */}
-      <MobileSidebar
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        conversations={conversations}
-        activeConversationId={activeConversationId}
-        createNewConversation={createNewConversation}
-        switchToConversation={switchToConversation}
-        markAsRead={markAsRead}
-        isLoading={currentIsLoading}
-      />
-
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+  <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         <ChatHeader
           isConnected={isConnected}
           sidebarCollapsed={sidebarCollapsed}
           setSidebarCollapsed={setSidebarCollapsed}
+          mobileSidebarTrigger={
+            <MobileSidebar
+              sidebarOpen={sidebarOpen}
+              setSidebarOpen={setSidebarOpen}
+              conversations={conversations}
+              activeConversationId={activeConversationId}
+              createNewConversation={createNewConversation}
+              switchToConversation={switchToConversation}
+              markAsRead={markAsRead}
+              isLoading={currentIsLoading}
+            />
+          }
         />
 
         <MessageList

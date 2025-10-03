@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import MessageAttachments from '@/components/MessageAttachments';
 import { Message, FileAttachment, CaseAssignment } from '@/types/chat.types';
 import { getRespondentInfo } from '@/lib/chat.utils';
@@ -22,8 +22,32 @@ export const MessageList: React.FC<MessageListProps> = ({
   caseAssigned,
   onAttachmentDownload,
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const previousConversationRef = useRef<string | null>(null);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior, block: 'end' });
+    } else if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, []);
+
+  useEffect(() => {
+    const behavior = previousConversationRef.current === activeConversationId ? 'smooth' : 'auto';
+    scrollToBottom(behavior);
+    previousConversationRef.current = activeConversationId;
+  }, [messages, activeConversationId, scrollToBottom]);
+
+  useEffect(() => {
+    if (isLoading) {
+      scrollToBottom('smooth');
+    }
+  }, [isLoading, scrollToBottom]);
+
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 scroll-smooth">
       {!hasStartedConversation && messages.length === 0 && isInitialized && (
         <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
           <div className="max-w-md">
@@ -117,6 +141,8 @@ export const MessageList: React.FC<MessageListProps> = ({
           </div>
         </div>
       )}
+
+      <div ref={bottomRef} aria-hidden="true" />
     </div>
   );
 };

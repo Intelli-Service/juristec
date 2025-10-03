@@ -7,17 +7,24 @@ interface ChatHeaderProps {
   isConnected: boolean;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  mobileSidebarTrigger?: React.ReactNode;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   isConnected,
   sidebarCollapsed,
   setSidebarCollapsed,
+  mobileSidebarTrigger,
 }) => {
   return (
     <header className="bg-slate-900 shadow-lg border-b border-slate-800 px-4 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
+          {mobileSidebarTrigger && (
+            <div className="md:hidden">
+              {mobileSidebarTrigger}
+            </div>
+          )}
           <Button
             variant="ghost"
             size="sm"
