@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -48,6 +48,7 @@ export default function LawyerChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -184,6 +185,17 @@ export default function LawyerChatPage() {
       notifications.error('Erro de Conexão', error.message);
     });
 
+    // Adicionar listeners de typing para comunicação com cliente
+    newSocket.on('typing-start', (data: { conversationId: string }) => {
+      console.log('🎧 Cliente começou a digitar:', data);
+      setIsTyping(true);
+    });
+
+    newSocket.on('typing-stop', (data: { conversationId: string }) => {
+      console.log('🎧 Cliente parou de digitar:', data);
+      setIsTyping(false);
+    });
+
     return () => {
       newSocket.disconnect();
     };
@@ -206,6 +218,15 @@ export default function LawyerChatPage() {
       console.error('Erro ao enviar mensagem:', error);
       notifications.error('Erro ao Enviar', 'Não foi possível enviar sua mensagem. Tente novamente.');
       setIsLoading(false);
+    }
+  };
+
+  const handleInputChange = (value: string) => {
+    setInput(value);
+    
+    if (socket && value.trim()) {
+      // Emitir typing-start se não estiver digitando
+      socket.emit('typing-start', { conversationId: roomId });
     }
   };
 
@@ -361,7 +382,21 @@ export default function LawyerChatPage() {
                       <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
                       <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                     </div>
-                    <span>Digitando...</span>
+                    <span>Enviando...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-blue-50 text-slate-800 px-4 py-3 rounded-lg shadow-sm border border-blue-200">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                    </div>
+                    <span>Cliente digitando...</span>
                   </div>
                 </div>
               </div>
@@ -374,7 +409,7 @@ export default function LawyerChatPage() {
               <input
                 type="text"
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => handleInputChange(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                 placeholder="Digite sua mensagem para o cliente..."
                 className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors text-slate-800 placeholder-slate-500"
