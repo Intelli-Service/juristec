@@ -255,9 +255,9 @@ export default function Chat() {
 
       setMessages((prev) => [...prev, newMessage]);
 
-      // Só definir isLoading como false quando a mensagem for da IA
-      // Para mensagens do usuário, manter isLoading true até a IA responder
-      if ((data.sender === 'ai' || data.sender === 'lawyer') && data.conversationId) {
+      // Reset isLoading apenas para liberar o envio de novas mensagens
+      // O indicador de digitação é controlado pelos eventos typing-start/typing-stop
+      if (data.conversationId) {
         setIsLoading(prev => ({ ...prev, [data.conversationId as string]: false }));
       }
 
@@ -378,7 +378,7 @@ export default function Chat() {
         <MessageList
           messages={messages}
           activeConversationId={activeConversationId}
-          isLoading={shouldShowTyping}
+          isTyping={shouldShowTyping}
           hasStartedConversation={hasStartedConversation}
           isInitialized={isInitialized}
           caseAssigned={caseAssigned}

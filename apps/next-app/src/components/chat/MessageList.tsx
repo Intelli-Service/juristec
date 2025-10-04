@@ -6,7 +6,7 @@ import { getRespondentInfo } from '@/lib/chat.utils';
 interface MessageListProps {
   messages: Message[];
   activeConversationId: string | null;
-  isLoading: boolean;
+  isTyping: boolean;
   hasStartedConversation: boolean;
   isInitialized: boolean;
   caseAssigned: CaseAssignment;
@@ -16,7 +16,7 @@ interface MessageListProps {
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
   activeConversationId,
-  isLoading,
+  isTyping,
   hasStartedConversation,
   isInitialized,
   caseAssigned,
@@ -41,10 +41,10 @@ export const MessageList: React.FC<MessageListProps> = ({
   }, [messages, activeConversationId, scrollToBottom]);
 
   useEffect(() => {
-    if (isLoading) {
+    if (isTyping) {
       scrollToBottom('smooth');
     }
-  }, [isLoading, scrollToBottom]);
+  }, [isTyping, scrollToBottom]);
 
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 scroll-smooth">
@@ -127,7 +127,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           </div>
         ))}
       
-      {isLoading && (
+      {isTyping && (
         <div className="flex justify-start">
           <div className="bg-white text-slate-800 shadow-md border border-slate-200 px-4 py-2 rounded-lg">
             <div className="flex items-center space-x-2">
