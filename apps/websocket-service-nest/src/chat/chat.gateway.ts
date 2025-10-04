@@ -562,6 +562,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Emitir evento de início de digitação APÓS verificar deferência para advogado e códigos
+      console.log('✍️ Emitting typing-start for conversation:', conversation._id.toString());
       this.server.to(roomId).emit('typing-start', {
         conversationId: conversation._id.toString(),
         sender: 'ai'
@@ -659,6 +660,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       console.log('Depois de emitir mensagem da IA');
 
       // Emitir evento de fim de digitação
+      console.log('🛑 Emitting typing-stop for conversation:', conversation._id.toString());
       this.server.to(roomId).emit('typing-stop', {
         conversationId: conversation._id.toString(),
         sender: 'ai'
@@ -744,6 +746,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       // Emitir evento de fim de digitação em caso de erro
+      console.log('🛑 Emitting typing-stop (error) for conversation:', conversation._id.toString());
       this.server.to(roomId).emit('typing-stop', {
         conversationId: conversation._id.toString(),
         sender: 'ai'

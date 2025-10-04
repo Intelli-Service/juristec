@@ -289,15 +289,25 @@ export default function Chat() {
 
     newSocket.on('typing-start', (data: { conversationId: string }) => {
       console.log('✍️ Typing start received:', data);
+      console.log('📊 Current isTyping state before:', isTyping);
       if (data.conversationId) {
-        setIsTyping(prev => ({ ...prev, [data.conversationId]: true }));
+        setIsTyping(prev => {
+          const newState = { ...prev, [data.conversationId]: true };
+          console.log('📊 New isTyping state:', newState);
+          return newState;
+        });
       }
     });
 
     newSocket.on('typing-stop', (data: { conversationId: string }) => {
       console.log('🛑 Typing stop received:', data);
+      console.log('📊 Current isTyping state before:', isTyping);
       if (data.conversationId) {
-        setIsTyping(prev => ({ ...prev, [data.conversationId]: false }));
+        setIsTyping(prev => {
+          const newState = { ...prev, [data.conversationId]: false };
+          console.log('📊 New isTyping state:', newState);
+          return newState;
+        });
       }
     });
 
