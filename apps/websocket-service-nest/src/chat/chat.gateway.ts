@@ -518,11 +518,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       let aiResponseText =
         'Olá! Sou o assistente jurídico da Juristec. Como posso ajudar você hoje com suas questões legais?';
 
-      // Emitir evento de início de digitação APÓS verificar deferência para advogado
-      this.server.to(roomId).emit('typing-start', {
-        conversationId: conversation._id.toString(),
-        sender: 'ai'
-      });      // Verificar se a mensagem é um código de verificação (6 dígitos)
+      // Verificar se a mensagem é um código de verificação (6 dígitos)
       const codeMatch = message.match(/^\d{6}$/);
       if (codeMatch && !client.data.isAuthenticated) {
         // Tentar verificar código para a conversa atual
@@ -564,6 +560,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
         return; // Não processar como mensagem normal da IA
       }
+
+      // Emitir evento de início de digitação APÓS verificar deferência para advogado e códigos
+      this.server.to(roomId).emit('typing-start', {
+        conversationId: conversation._id.toString(),
+        sender: 'ai'
+      });
 
       // Processar mensagem com cadastro inteligente
       try {
