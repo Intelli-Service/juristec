@@ -240,8 +240,14 @@ export default function Chat() {
         size: number;
       }>;
     }) => {
-      console.log(`📨 Mensagem recebida:`, data);
-      console.log(`📎 Attachments recebidos:`, data.attachments);
+      console.log(`📨 CLIENTE recebeu receive-message:`, data);
+      console.log(`� Detalhes da mensagem:`, {
+        sender: data.sender,
+        messageId: data.messageId,
+        conversationId: data.conversationId,
+        activeConversationId: activeConversationId,
+        text: data.text?.substring(0, 50) + '...'
+      });
 
       const newMessage: Message = {
         id: data.messageId || Date.now().toString(),
@@ -251,9 +257,20 @@ export default function Chat() {
         attachments: data.attachments,
       };
 
-      console.log(`💾 Mensagem processada para state:`, newMessage);
+      console.log(`💾 CLIENTE processando mensagem para state:`, newMessage);
 
-      setMessages((prev) => [...prev, newMessage]);
+      // TEMPORARIAMENTE REMOVIDO: Verificar se a mensagem é para a conversa ativa
+      // if (data.conversationId && data.conversationId !== activeConversationId) {
+      //   console.log(`⚠️ CLIENTE ignorando mensagem - conversa ${data.conversationId} não é ativa (${activeConversationId})`);
+      //   return;
+      // }
+
+      setMessages((prev) => {
+        console.log(`📝 CLIENTE adicionando mensagem ao state. Total anterior: ${prev.length}`);
+        const updated = [...prev, newMessage];
+        console.log(`📝 CLIENTE state atualizado. Total atual: ${updated.length}`);
+        return updated;
+      });
 
       // Reset isLoading apenas para liberar o envio de novas mensagens
       // O indicador de digitação é controlado pelos eventos typing-start/typing-stop
@@ -262,6 +279,7 @@ export default function Chat() {
       }
 
       if (data.sender === 'lawyer') {
+        console.log(`👨‍⚖️ CLIENTE detectou mensagem de advogado, atualizando caseAssigned`);
         setCaseAssigned({
           assigned: true,
           lawyerName: 'Advogado',

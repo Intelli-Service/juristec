@@ -113,28 +113,20 @@ export default function LawyerChatPage() {
   };
 
   const initializeSocket = async () => {
-    // Obter token JWT da API
-    let token = '';
-    try {
-      const tokenResponse = await fetch('/api/auth/token', {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      if (tokenResponse.ok) {
-        const tokenData = await tokenResponse.json();
-        token = tokenData.token;
-      }
-    } catch (error) {
-      console.error('Erro ao obter token:', error);
-    }
-
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080';
     const newSocket = io(socketUrl, {
-      auth: {
-        token: token,
-      },
+      withCredentials: true, // Cookies são enviados automaticamente pelo navegador
+      transports: ['websocket'], // Forçar apenas WebSocket, sem polling HTTP
+      forceNew: true, // Sempre criar nova conexão
+      timeout: 5000, // Timeout de 5 segundos
+      reconnection: true, // Permitir reconexão automática
+      reconnectionAttempts: 5, // Máximo 5 tentativas de reconexão
+      reconnectionDelay: 1000, // Delay de 1 segundo entre tentativas
+      // Configurações para evitar requisições HTTP automáticas
+      autoConnect: true, // Conectar automaticamente
+      multiplex: false, // Não multiplexar conexões
+      // Desabilitar polling que pode causar requisições HTTP
+      upgrade: false, // Não tentar upgrade para WebSocket
     });
 
     setSocket(newSocket);
@@ -146,6 +138,7 @@ export default function LawyerChatPage() {
     });
 
     newSocket.on('receive-lawyer-message', (data: { text: string; sender: string; messageId: string; createdAt?: string }) => {
+      console.log('📨 Advogado recebeu receive-lawyer-message:', data);
       const newMessage: Message = {
         id: data.messageId,
         text: data.text,
@@ -158,11 +151,12 @@ export default function LawyerChatPage() {
         if (exists) return prev;
         return [...prev, newMessage];
       });
-      setIsLoading(false); // Reset loading state when message is received
+      console.log('💾 Mensagem adicionada ao state do advogado');
     });
 
     // Também escutar mensagens regulares do cliente e IA
     newSocket.on('receive-message', (data: { text: string; sender: string; messageId: string; createdAt?: string }) => {
+      console.log('📨 Advogado recebeu receive-message:', data);
       // Só processar mensagens de cliente e IA
       if (data.sender === 'user' || data.sender === 'ai' || data.sender === 'system') {
         const newMessage: Message = {
@@ -177,6 +171,7 @@ export default function LawyerChatPage() {
           if (exists) return prev;
           return [...prev, newMessage];
         });
+        console.log('💾 Mensagem do cliente/IA adicionada ao state do advogado');
       }
     });
 
@@ -187,12 +182,12 @@ export default function LawyerChatPage() {
 
     // Adicionar listeners de typing para comunicação com cliente
     newSocket.on('typing-start', (data: { conversationId: string }) => {
-      console.log('🎧 Cliente começou a digitar:', data);
+      console.log('🎧 Cliente começou a digitar (recebido pelo advogado):', data);
       setIsTyping(true);
     });
 
     newSocket.on('typing-stop', (data: { conversationId: string }) => {
-      console.log('🎧 Cliente parou de digitar:', data);
+      console.log('🎧 Cliente parou de digitar (recebido pelo advogado):', data);
       setIsTyping(false);
     });
 
@@ -209,11 +204,16 @@ export default function LawyerChatPage() {
     setIsLoading(true);
 
     try {
+      console.log('📤 Enviando mensagem do advogado:', { roomId, message: messageText });
       socket.emit('send-lawyer-message', {
         roomId,
         message: messageText,
         lawyerId: session?.user?.id,
       });
+      
+      // Reset loading imediatamente após enviar - mais responsivo
+      setIsLoading(false);
+      console.log('✅ Mensagem enviada, loading resetado');
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
       notifications.error('Erro ao Enviar', 'Não foi possível enviar sua mensagem. Tente novamente.');

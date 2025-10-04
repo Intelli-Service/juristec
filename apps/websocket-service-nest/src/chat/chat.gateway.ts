@@ -827,35 +827,52 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const { roomId, message } = data;
 
+    console.log(`🎯 ADVOGADO enviando mensagem:`);
+    console.log(`   roomId: ${roomId}`);
+    console.log(`   message: "${message}"`);
+    console.log(`   lawyer: ${client.data.user?.userId} (${client.data.user?.role})`);
+
     try {
       // Verificar se o usuário é advogado
       if (
         !client.data.user ||
         !['lawyer', 'super_admin'].includes(client.data.user.role)
       ) {
+        console.log(`❌ Acesso negado - usuário não é advogado`);
         client.emit('error', {
           message: 'Acesso negado - apenas advogados podem enviar mensagens',
         });
         return;
       }
 
+      console.log(`🔍 Buscando conversa com roomId: ${roomId}`);
       const conversation = await Conversation.findOne({ roomId });
       if (!conversation) {
+        console.log(`❌ Conversa não encontrada para roomId: ${roomId}`);
         client.emit('error', { message: 'Caso não encontrado' });
         return;
       }
+
+      console.log(`✅ Conversa encontrada:`, {
+        id: conversation._id,
+        roomId: conversation.roomId,
+        userId: conversation.userId,
+        assignedTo: conversation.assignedTo
+      });
 
       // Verificar permissão para o caso
       if (
         client.data.user.role !== 'super_admin' &&
         conversation.assignedTo !== client.data.user.userId
       ) {
+        console.log(`❌ Permissão negada - caso atribuído a: ${conversation.assignedTo}, advogado: ${client.data.user.userId}`);
         client.emit('error', {
           message: 'Acesso negado - caso não atribuído a você',
         });
         return;
       }
 
+      console.log(`💾 Salvando mensagem do advogado no banco...`);
       // Criar mensagem do advogado usando o MessageService
       const lawyerMessage = await this.messageService.createMessage({
         conversationId: conversation._id.toString(),
@@ -864,6 +881,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         senderId: client.data.user?.userId,
         metadata: { lawyerRole: client.data.user?.role },
       });
+
+      console.log(`✅ Mensagem salva com ID: ${lawyerMessage._id}`);
 
       const messageTimestamp =
         lawyerMessage.createdAt instanceof Date
@@ -886,8 +905,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         $set: updatePayload,
       });
 
+      console.log(`🔄 Emitindo mensagem para sala: ${roomId}`);
+      console.log(`📊 Clientes na sala ${roomId}:`, this.server.sockets.adapter.rooms.get(roomId)?.size || 0);
+      console.log(`📊 Todos os rooms:`, Array.from(this.server.sockets.adapter.rooms.keys()));
+
       // Enviar para todos na sala do cliente (sala principal)
-      this.server.to(roomId).emit('receive-message', {
+      const emitResult = this.server.to(roomId).emit('receive-message', {
         text: message,
         sender: 'lawyer', // Cliente verá como mensagem do advogado
         messageId: lawyerMessage._id.toString(),
@@ -895,15 +918,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         conversationId: conversation._id.toString(),
       });
 
+      console.log(`📤 Mensagem emitida para sala ${roomId}, resultado:`, emitResult);
+
       // Também enviar confirmação para todos os advogados na sala específica
-      this.server.to(`lawyer-${roomId}`).emit('receive-lawyer-message', {
+      const lawyerRoom = `lawyer-${roomId}`;
+      console.log(`🔄 Emitindo para advogados na sala: ${lawyerRoom}`);
+      console.log(`📊 Advogados na sala ${lawyerRoom}:`, this.server.sockets.adapter.rooms.get(lawyerRoom)?.size || 0);
+
+      this.server.to(lawyerRoom).emit('receive-lawyer-message', {
         text: message,
         sender: 'lawyer',
         messageId: lawyerMessage._id.toString(),
         createdAt: lawyerMessage.createdAt,
       });
+
+      console.log(`✅ Mensagem do advogado enviada com sucesso`);
     } catch (error) {
-      console.error('Erro ao enviar mensagem do advogado:', error);
+      console.error('❌ Erro ao enviar mensagem do advogado:', error);
       client.emit('error', {
         message: 'Erro ao enviar mensagem',
       });
