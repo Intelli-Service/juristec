@@ -135,16 +135,6 @@ export const useMessages = ({
         }
       }
 
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        text: input.trim() || (uploadedFile ? uploadedFile.originalName : ''),
-        sender: 'user',
-        attachments: uploadedFile ? [uploadedFile] : [],
-        conversationId: activeConversationId || undefined,
-      };
-
-      setMessages((prev) => [...prev, userMessage]);
-
       const messageToSend = input.trim() || (uploadedFile ? uploadedFile.originalName : '');
       const attachmentsToSend = uploadedFile ? [uploadedFile] : [];
 
@@ -176,7 +166,6 @@ export const useMessages = ({
     isLoading,
     hasStartedConversation,
     uploadFile,
-    setMessages,
     setInput,
     setSelectedFile,
     setClearFileTrigger,
