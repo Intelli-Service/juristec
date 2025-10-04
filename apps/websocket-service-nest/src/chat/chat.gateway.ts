@@ -479,12 +479,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       this.server.to(roomId).emit('receive-message', userMessagePayload);
 
+      // Só deferir para advogado se um advogado específico foi atribuído ao caso
+      // lawyerNeeded = true significa apenas que o caso precisa de advogado, mas a IA ainda pode responder
       const shouldDeferToLawyer =
         Boolean(conversation.assignedTo) ||
-        conversation.status === CaseStatus.ASSIGNED ||
-        conversation.lawyerNeeded;
+        conversation.status === CaseStatus.ASSIGNED;
 
       if (shouldDeferToLawyer) {
+        console.log(`🔄 Caso deferido para advogado: assignedTo=${conversation.assignedTo}, status=${conversation.status}`);
         return;
       }
 
