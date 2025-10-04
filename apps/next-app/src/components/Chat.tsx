@@ -26,6 +26,7 @@ export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
+  const [isTyping, setIsTyping] = useState<Record<string, boolean>>({});
   
   // WebSocket state
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -227,7 +228,9 @@ export default function Chat() {
       
       setMessages((prev) => [...prev, newMessage]);
       
-      if (data.conversationId) {
+      // Só definir isLoading como false quando a mensagem for da IA
+      // Para mensagens do usuário, manter isLoading true até a IA responder
+      if (data.sender === 'ai' && data.conversationId) {
         setIsLoading(prev => ({ ...prev, [data.conversationId as string]: false }));
       }
 
@@ -240,7 +243,21 @@ export default function Chat() {
       }
     });
 
-    newSocket.on('case-updated', (data: { status: string; assignedTo?: string; lawyerName?: string }) => {
+    newSocket.on('case-updated', (data: { status: string; assignedTo?: string; lawyerName?: string; conversationId?: string }) => {
+      // Atualizar status da conversa
+      if (data.conversationId) {
+        setConversations(prev => prev.map(conv => 
+          conv.id === data.conversationId 
+            ? { ...conv, status: data.status }
+            : conv
+        ));
+        
+        // Se o status mudou para algo diferente de 'active', parar o indicador de digitando
+        if (data.status !== 'active' && data.conversationId) {
+          setIsLoading(prev => ({ ...prev, [data.conversationId!]: false }));
+        }
+      }
+      
       if (data.status === 'assigned' && data.assignedTo) {
         setCaseAssigned({
           assigned: true,
@@ -270,6 +287,20 @@ export default function Chat() {
       }
     });
 
+    newSocket.on('typing-start', (data: { conversationId: string }) => {
+      console.log('✍️ Typing start received:', data);
+      if (data.conversationId) {
+        setIsTyping(prev => ({ ...prev, [data.conversationId]: true }));
+      }
+    });
+
+    newSocket.on('typing-stop', (data: { conversationId: string }) => {
+      console.log('🛑 Typing stop received:', data);
+      if (data.conversationId) {
+        setIsTyping(prev => ({ ...prev, [data.conversationId]: false }));
+      }
+    });
+
     return () => {
       newSocket.disconnect();
     };
@@ -292,6 +323,10 @@ export default function Chat() {
   }
 
   const currentIsLoading = activeConversationId ? isLoading[activeConversationId] || false : false;
+  
+  // Mostrar "digitando" baseado nos eventos de WebSocket
+  const currentIsTyping = activeConversationId ? isTyping[activeConversationId] || false : false;
+  const shouldShowTyping = currentIsTyping;
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -330,7 +365,7 @@ export default function Chat() {
         <MessageList
           messages={messages}
           activeConversationId={activeConversationId}
-          isLoading={currentIsLoading}
+          isLoading={shouldShowTyping}
           hasStartedConversation={hasStartedConversation}
           isInitialized={isInitialized}
           caseAssigned={caseAssigned}
