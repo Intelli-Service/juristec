@@ -257,7 +257,7 @@ export default function Chat() {
 
       // Só definir isLoading como false quando a mensagem for da IA
       // Para mensagens do usuário, manter isLoading true até a IA responder
-      if (data.sender === 'ai' && data.conversationId) {
+      if ((data.sender === 'ai' || data.sender === 'lawyer') && data.conversationId) {
         setIsLoading(prev => ({ ...prev, [data.conversationId as string]: false }));
       }
 
