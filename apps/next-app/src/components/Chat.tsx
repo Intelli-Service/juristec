@@ -181,112 +181,7 @@ export default function Chat() {
       console.log(`Conectado a ${data.activeRooms.length} conversas`);
     });
 
-    newSocket.on('new-conversation-created', (newConversation: Conversation) => {
-      setConversations(prev => [newConversation, ...prev]);
-      setActiveConversationId(newConversation.id);
-      setMessages([]);
-      setHasStartedConversation(false);
-    });
-
-    newSocket.on('conversation-switched', (data: {
-      conversationId: string,
-      roomId: string,
-      messages: Message[]
-    }) => {
-      console.log(`📜 Carregando histórico para conversa ${data.conversationId}: ${data.messages.length} mensagens`);
-      setMessages(data.messages);
-      setHasStartedConversation(data.messages.length > 0);
-    });
-
-    newSocket.on('receive-message', (data: { 
-      text: string; 
-      sender: string; 
-      messageId?: string; 
-      isError?: boolean; 
-      shouldRetry?: boolean; 
-      createdAt?: string; 
-      conversationId?: string;
-      attachments?: Array<{
-        id: string;
-        originalName: string;
-        mimeType: string;
-        size: number;
-      }>;
-    }) => {
-      console.log(`📨 Mensagem recebida:`, data);
-      console.log(`📎 Attachments recebidos:`, data.attachments);
-      
-      const newMessage: Message = {
-        id: data.messageId || Date.now().toString(),
-        text: data.text,
-        sender: data.sender as 'user' | 'ai' | 'system',
-        conversationId: data.conversationId,
-        attachments: data.attachments,
-      };
-      
-      console.log(`💾 Mensagem processada para state:`, newMessage);
-      
-      setMessages((prev) => [...prev, newMessage]);
-      
-      // Só definir isLoading como false quando a mensagem for da IA
-      // Para mensagens do usuário, manter isLoading true até a IA responder
-      if (data.sender === 'ai' && data.conversationId) {
-        setIsLoading(prev => ({ ...prev, [data.conversationId as string]: false }));
-      }
-
-      if (data.sender === 'lawyer') {
-        setCaseAssigned({
-          assigned: true,
-          lawyerName: 'Advogado',
-          lawyerId: 'lawyer'
-        });
-      }
-    });
-
-    newSocket.on('case-updated', (data: { status: string; assignedTo?: string; lawyerName?: string; conversationId?: string }) => {
-      // Atualizar status da conversa
-      if (data.conversationId) {
-        setConversations(prev => prev.map(conv => 
-          conv.id === data.conversationId 
-            ? { ...conv, status: data.status }
-            : conv
-        ));
-        
-        // Se o status mudou para algo diferente de 'active', parar o indicador de digitando
-        if (data.status !== 'active' && data.conversationId) {
-          setIsLoading(prev => ({ ...prev, [data.conversationId!]: false }));
-        }
-      }
-      
-      if (data.status === 'assigned' && data.assignedTo) {
-        setCaseAssigned({
-          assigned: true,
-          lawyerName: data.lawyerName || 'Advogado',
-          lawyerId: data.assignedTo,
-        });
-      } else if (data.status === 'open') {
-        setCaseAssigned({ assigned: false });
-      }
-    });
-
-    newSocket.on('show-feedback-modal', (data: { reason: string; context: string }) => {
-      console.log('🎯 FEEDBACK MODAL TRIGGER recebido:', data);
-      console.log('📊 Estado atual:', {
-        feedbackSubmitted: feedbackSubmittedRef.current,
-        showFeedbackModal: showFeedbackModalRef.current,
-      });
-      
-      if (!feedbackSubmittedRef.current && !showFeedbackModalRef.current) {
-        console.log('✅ Agendando exibição do modal de feedback em 2s');
-        setTimeout(() => {
-          console.log('🎯 Exibindo modal de feedback');
-          setShowFeedbackModal(true);
-        }, 2000);
-      } else {
-        console.log('⏭️ Modal de feedback cancelado (já submetido ou já exibindo)');
-      }
-    });
-
+    console.log('🎧 Registrando listener typing-start...');
     newSocket.on('typing-start', (data: { conversationId: string }) => {
       console.log('✍️ Typing start received:', data);
       console.log('📊 Current isTyping state before:', isTyping);
@@ -299,6 +194,7 @@ export default function Chat() {
       }
     });
 
+    console.log('🎧 Registrando listener typing-stop...');
     newSocket.on('typing-stop', (data: { conversationId: string }) => {
       console.log('🛑 Typing stop received:', data);
       console.log('📊 Current isTyping state before:', isTyping);
