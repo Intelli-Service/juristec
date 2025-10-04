@@ -26,9 +26,11 @@ export interface IConversation extends Document {
   };
   assignedTo?: string; // User ID do advogado
   assignedAt?: Date;
+  lawyerNeeded?: boolean; // Indica se o caso precisa de intervenção de advogado
   closedAt?: Date;
   closedBy?: string;
   resolution?: string;
+  notes?: string; // Notas adicionais sobre o caso
   transferHistory?: Array<{
     from: string;
     to: string;
@@ -80,9 +82,11 @@ const ConversationSchema = new Schema<IConversation>({
   },
   assignedTo: { type: String },
   assignedAt: { type: Date },
+  lawyerNeeded: { type: Boolean, default: false }, // Indica se o caso precisa de intervenção de advogado
   closedAt: { type: Date },
   closedBy: { type: String },
   resolution: { type: String },
+  notes: { type: String }, // Notas adicionais sobre o caso
   transferHistory: [
     {
       from: { type: String, required: true },
@@ -117,6 +121,7 @@ ConversationSchema.index(
 
 // Índices existentes mantidos
 ConversationSchema.index({ status: 1, assignedTo: 1 });
+ConversationSchema.index({ lawyerNeeded: 1, assignedTo: 1 }); // Para buscar casos que precisam de advogado e não estão atribuídos
 ConversationSchema.index({ 'classification.category': 1 });
 ConversationSchema.index({ 'classification.complexity': 1 });
 ConversationSchema.index({ priority: 1 });
