@@ -11,6 +11,7 @@ import { CaseStatus } from '../models/User';
 // Mock classes
 const mockGeminiService = {
   generateAIResponseWithFunctions: jest.fn(),
+  generateAIResponseWithFunctionsLegacy: jest.fn(),
   generateAIResponse: jest.fn(),
 };
 
@@ -148,14 +149,6 @@ describe('IntelligentUserRegistrationService', () => {
             'Fico feliz em ajudar! Sua questão foi resolvida com sucesso.',
           functionCalls: [
             {
-              name: 'update_conversation_status',
-              parameters: {
-                status: 'resolved_by_ai' as CaseStatus,
-                lawyer_needed: false,
-                notes: 'Usuário satisfeito com solução da IA',
-              },
-            },
-            {
               name: 'detect_conversation_completion',
               parameters: {
                 should_show_feedback: true,
@@ -192,29 +185,14 @@ describe('IntelligentUserRegistrationService', () => {
         // Assert
         expect(result).toEqual({
           response: mockAIResponse.response,
-          statusUpdated: true,
-          newStatus: 'resolved_by_ai',
-          lawyerNeeded: false,
           shouldShowFeedback: true,
           feedbackReason: 'resolved_by_ai',
-          specializationRequired: undefined,
           userRegistered: false,
         });
 
         expect(
           mockGeminiService.generateAIResponseWithFunctions,
         ).toHaveBeenCalled();
-        expect(mockConversationModel.findByIdAndUpdate).toHaveBeenCalledWith(
-          mockConversationId,
-          expect.objectContaining({
-            $set: expect.objectContaining({
-              status: 'resolved_by_ai',
-              lawyerNeeded: false,
-              'summary.text': 'Usuário satisfeito com solução da IA',
-              'summary.generatedBy': 'ai',
-            }),
-          }),
-        );
       });
 
       it('should classify conversation as needing lawyer and trigger feedback', async () => {
@@ -226,12 +204,11 @@ describe('IntelligentUserRegistrationService', () => {
             'Entendo que seu caso é complexo e necessita de um advogado especialista. Vou encaminhá-lo para nossa equipe jurídica.',
           functionCalls: [
             {
-              name: 'update_conversation_status',
+              name: 'require_lawyer_assistance',
               parameters: {
-                status: 'active' as CaseStatus,
-                lawyer_needed: true,
                 specialization_required: 'direito_trabalhista',
-                notes: 'Caso complexo requerendo advogado especialista',
+                case_summary: 'Caso complexo de direito trabalhista envolvendo demissão injusta e reivindicação de direitos',
+                required_specialties: 'Direito trabalhista avançado, processo civil',
               },
             },
             {
@@ -271,8 +248,6 @@ describe('IntelligentUserRegistrationService', () => {
         // Assert
         expect(result).toEqual({
           response: mockAIResponse.response,
-          statusUpdated: true,
-          newStatus: 'active',
           lawyerNeeded: true,
           specializationRequired: 'direito_trabalhista',
           shouldShowFeedback: true,
@@ -284,11 +259,11 @@ describe('IntelligentUserRegistrationService', () => {
           mockConversationId,
           expect.objectContaining({
             $set: expect.objectContaining({
-              status: 'active',
               lawyerNeeded: true,
               'classification.legalArea': 'direito_trabalhista',
-              'summary.text': 'Caso complexo requerendo advogado especialista',
+              'summary.text': 'Caso complexo de direito trabalhista envolvendo demissão injusta e reivindicação de direitos',
               'summary.generatedBy': 'ai',
+              notes: 'Direito trabalhista avançado, processo civil',
             }),
           }),
         );
@@ -338,11 +313,7 @@ describe('IntelligentUserRegistrationService', () => {
         expect(result).toEqual({
           response: mockAIResponse.response,
           userRegistered: true,
-          statusUpdated: false,
           shouldShowFeedback: false,
-          newStatus: undefined,
-          lawyerNeeded: undefined,
-          specializationRequired: undefined,
         });
 
         expect(
@@ -382,12 +353,8 @@ describe('IntelligentUserRegistrationService', () => {
         // Assert
         expect(result).toEqual({
           response: mockAIResponse.response,
-          statusUpdated: false,
           shouldShowFeedback: false,
           userRegistered: false,
-          newStatus: undefined,
-          lawyerNeeded: undefined,
-          specializationRequired: undefined,
         });
 
         expect(mockConversationModel.findByIdAndUpdate).not.toHaveBeenCalled();
@@ -426,12 +393,8 @@ describe('IntelligentUserRegistrationService', () => {
         // Assert
         expect(result).toEqual({
           response: mockAIResponse.response,
-          statusUpdated: false,
           shouldShowFeedback: false, // Should default to false for invalid parameters
           userRegistered: false,
-          newStatus: undefined,
-          lawyerNeeded: undefined,
-          specializationRequired: undefined,
           feedbackReason: undefined,
         });
       });
@@ -460,12 +423,8 @@ describe('IntelligentUserRegistrationService', () => {
         // Assert
         expect(result).toEqual({
           response: mockAIResponse.response,
-          statusUpdated: false,
           shouldShowFeedback: false,
           userRegistered: false,
-          newStatus: undefined,
-          lawyerNeeded: undefined,
-          specializationRequired: undefined,
         });
 
         // Should not try to fetch conversation history for anonymous users
@@ -480,7 +439,7 @@ describe('IntelligentUserRegistrationService', () => {
         mockGeminiService.generateAIResponseWithFunctions.mockRejectedValue(
           new Error('Gemini API error'),
         );
-        mockGeminiService.generateAIResponse.mockRejectedValue(
+        mockGeminiService.generateAIResponseWithFunctionsLegacy.mockRejectedValue(
           new Error('Fallback API error'),
         );
 

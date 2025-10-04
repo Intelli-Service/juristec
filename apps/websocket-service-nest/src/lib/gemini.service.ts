@@ -7,6 +7,11 @@ import {
   TextPart,
 } from '@google/generative-ai';
 import { AIService } from './ai.service';
+import {
+  registerUserFunction,
+  requireLawyerAssistanceFunction,
+  detectConversationCompletionFunction,
+} from './function-calling';
 
 export interface RegisterUserFunctionCall {
   name: 'register_user';
@@ -19,17 +24,12 @@ export interface RegisterUserFunctionCall {
   };
 }
 
-export interface UpdateConversationStatusFunctionCall {
-  name: 'update_conversation_status';
+export interface RequireLawyerAssistanceFunctionCall {
+  name: 'require_lawyer_assistance';
   parameters: {
-    status:
-      | 'active'
-      | 'resolved_by_ai'
-      | 'completed'
-      | 'abandoned';
-    lawyer_needed: boolean;
     specialization_required?: string;
-    notes?: string;
+    case_summary: string;
+    required_specialties?: string;
   };
 }
 
@@ -48,7 +48,7 @@ export interface DetectConversationCompletionFunctionCall {
 
 export type FunctionCall =
   | RegisterUserFunctionCall
-  | UpdateConversationStatusFunctionCall
+  | RequireLawyerAssistanceFunctionCall
   | DetectConversationCompletionFunctionCall;
 
 export interface GeminiAttachment {
@@ -191,150 +191,9 @@ export class GeminiService {
     });
   }
 
-  async generateAIResponse(
-    messages: { text: string; sender: string }[],
-  ): Promise<string> {
-    const model = await this.getModel();
-    const config = await this.aiService.getCurrentConfig();
-
-    // Preparar histórico para chat session
-    const history = messages.slice(0, -1).map((msg) => ({
-      role: msg.sender === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.text }],
-    }));
-
-    // Iniciar chat com histórico
-    const chat = model.startChat({
-      history,
-      generationConfig: {
-        maxOutputTokens: config?.behaviorSettings?.maxTokens || 1000,
-        temperature: config?.behaviorSettings?.temperature || 0.7,
-      },
-      tools: [
-        {
-          functionDeclarations: [
-            {
-              name: 'register_user',
-              description:
-                'Registra um novo usuário no sistema com dados coletados da conversa',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  name: {
-                    type: SchemaType.STRING,
-                    description: 'Nome completo do usuário',
-                  },
-                  email: {
-                    type: SchemaType.STRING,
-                    description: 'Email do usuário (opcional se não fornecido)',
-                  },
-                  phone: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Telefone/WhatsApp do usuário (opcional se não fornecido)',
-                  },
-                  problem_description: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Descrição resumida do problema jurídico relatado',
-                  },
-                  urgency_level: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: ['low', 'medium', 'high', 'urgent'],
-                    description:
-                      'Nível de urgência do caso baseado na descrição',
-                  },
-                },
-                required: ['name', 'problem_description', 'urgency_level'],
-              },
-            },
-            {
-              name: 'update_conversation_status',
-              description:
-                'Atualiza o status da conversa e determina próximos passos',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  status: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: [
-                      'open',
-                      'active',
-                      'resolved_by_ai',
-                      'assigned_to_lawyer',
-                      'completed',
-                      'abandoned',
-                    ],
-                    description:
-                      'Status atual da conversa para controle de feedback inteligente',
-                  },
-                  lawyer_needed: {
-                    type: SchemaType.BOOLEAN,
-                    description: 'Se é necessário conectar com um advogado',
-                  },
-                  specialization_required: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Especialização jurídica necessária (se lawyer_needed for true)',
-                  },
-                  notes: {
-                    type: SchemaType.STRING,
-                    description: 'Notas adicionais sobre a conversa ou decisão',
-                  },
-                },
-                required: ['status', 'lawyer_needed'],
-              },
-            },
-            {
-              name: 'detect_conversation_completion',
-              description:
-                'Detecta quando uma conversa deve mostrar feedback baseado no contexto e intenção do usuário',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  should_show_feedback: {
-                    type: SchemaType.BOOLEAN,
-                    description:
-                      'Se deve mostrar o modal de feedback para esta conversa',
-                  },
-                  completion_reason: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: [
-                      'resolved_by_ai',
-                      'assigned_to_lawyer',
-                      'user_satisfied',
-                      'user_abandoned',
-                    ],
-                    description:
-                      'Razão pela qual a conversa deve mostrar feedback',
-                  },
-                  feedback_context: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Contexto adicional sobre por que o feedback deve ser mostrado',
-                  },
-                },
-                required: ['should_show_feedback', 'completion_reason'],
-              },
-            },
-          ],
-        },
-      ],
-    });
-
-    // Última mensagem do usuário
-    const lastMessage = messages[messages.length - 1];
-    const result = await chat.sendMessage(lastMessage.text);
-
-    return result.response.text();
-  }
-
   async generateAIResponseWithFunctions(
     messages: MessageWithAttachments[],
-  ): Promise<{ response: string; functionCalls: FunctionCall[] }> {
+  ): Promise<{ response: string; functionCalls?: FunctionCall[] }> {
     const model = await this.getModel();
     const config = await this.aiService.getCurrentConfig();
 
@@ -373,129 +232,7 @@ export class GeminiService {
       parts: Part[];
     }[];
 
-    // Iniciar chat com histórico
-    const chat = model.startChat({
-      history,
-      generationConfig: {
-        maxOutputTokens: config?.behaviorSettings?.maxTokens || 1000,
-        temperature: config?.behaviorSettings?.temperature || 0.7,
-      },
-      tools: [
-        {
-          functionDeclarations: [
-            {
-              name: 'register_user',
-              description:
-                'Registra um novo usuário no sistema com dados coletados da conversa',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  name: {
-                    type: SchemaType.STRING,
-                    description: 'Nome completo do usuário',
-                  },
-                  email: {
-                    type: SchemaType.STRING,
-                    description: 'Email do usuário (opcional se não fornecido)',
-                  },
-                  phone: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Telefone/WhatsApp do usuário (opcional se não fornecido)',
-                  },
-                  problem_description: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Descrição resumida do problema jurídico relatado',
-                  },
-                  urgency_level: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: ['low', 'medium', 'high', 'urgent'],
-                    description:
-                      'Nível de urgência do caso baseado na descrição',
-                  },
-                },
-                required: ['name', 'problem_description', 'urgency_level'],
-              },
-            },
-            {
-              name: 'update_conversation_status',
-              description:
-                'Atualiza o status da conversa e determina próximos passos',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  status: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: [
-                      'open',
-                      'active',
-                      'resolved_by_ai',
-                      'assigned_to_lawyer',
-                      'completed',
-                      'abandoned',
-                    ],
-                    description:
-                      'Status atual da conversa para controle de feedback inteligente',
-                  },
-                  lawyer_needed: {
-                    type: SchemaType.BOOLEAN,
-                    description: 'Se é necessário conectar com um advogado',
-                  },
-                  specialization_required: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Especialização jurídica necessária (se lawyer_needed for true)',
-                  },
-                  notes: {
-                    type: SchemaType.STRING,
-                    description: 'Notas adicionais sobre a conversa ou decisão',
-                  },
-                },
-                required: ['status', 'lawyer_needed'],
-              },
-            },
-            {
-              name: 'detect_conversation_completion',
-              description:
-                'Detecta quando uma conversa deve mostrar feedback baseado no contexto e intenção do usuário',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  should_show_feedback: {
-                    type: SchemaType.BOOLEAN,
-                    description:
-                      'Se deve mostrar o modal de feedback para esta conversa',
-                  },
-                  completion_reason: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: [
-                      'resolved_by_ai',
-                      'assigned_to_lawyer',
-                      'user_satisfied',
-                      'user_abandoned',
-                    ],
-                    description:
-                      'Razão pela qual a conversa deve mostrar feedback',
-                  },
-                  feedback_context: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Contexto adicional sobre por que o feedback deve ser mostrado',
-                  },
-                },
-                required: ['should_show_feedback', 'completion_reason'],
-              },
-            },
-          ],
-        },
-      ],
-    });
-
-    this.log('Enviando mensagem para Gemini...');
+    // Preparar a última mensagem
     const lastMessageParts = this.buildMessageParts(lastMessage);
 
     // Log detalhado completo dos parts sendo enviados
@@ -521,6 +258,24 @@ export class GeminiService {
         this.log(`  ❓ Part ${idx}: TIPO DESCONHECIDO`);
         this.log(`     Objeto completo:`, JSON.stringify(part, null, 2));
       }
+    });
+
+    // Iniciar chat com histórico
+    const chat = model.startChat({
+      history,
+      generationConfig: {
+        maxOutputTokens: config?.behaviorSettings?.maxTokens || 1000,
+        temperature: config?.behaviorSettings?.temperature || 0.7,
+      },
+      tools: [
+        {
+          functionDeclarations: [
+            registerUserFunction as any,
+            requireLawyerAssistanceFunction as any,
+            detectConversationCompletionFunction as any,
+          ],
+        },
+      ],
     });
 
     // Log do objeto sendo enviado (sanitizado para produção)
@@ -670,11 +425,11 @@ export class GeminiService {
               normalizedArgs as RegisterUserFunctionCall['parameters'],
           });
           break;
-        case 'update_conversation_status':
+        case 'require_lawyer_assistance':
           collected.push({
-            name: 'update_conversation_status',
+            name: 'require_lawyer_assistance',
             parameters:
-              normalizedArgs as UpdateConversationStatusFunctionCall['parameters'],
+              normalizedArgs as RequireLawyerAssistanceFunctionCall['parameters'],
           });
           break;
         case 'detect_conversation_completion':

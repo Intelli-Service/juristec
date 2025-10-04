@@ -27,29 +27,33 @@ export const registerUserFunction = {
   },
 };
 
-export const updateConversationStatusFunction = {
-  name: 'update_conversation_status',
-  description: 'Atualiza o status de uma conversa',
+export const requireLawyerAssistanceFunction = {
+  name: 'require_lawyer_assistance',
+  description: 'Indica que a conversa requer assistência de um advogado especialista',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
-      conversationId: {
+      specialization_required: {
         type: SchemaType.STRING,
-        description: 'ID da conversa',
+        description: 'Especialização jurídica necessária (opcional)',
       },
-      status: {
+      case_summary: {
         type: SchemaType.STRING,
-        description: 'Novo status da conversa',
+        description: 'Resumo conciso do caso para o advogado avaliar rapidamente',
+      },
+      required_specialties: {
+        type: SchemaType.STRING,
+        description: 'Especialidades jurídicas específicas requeridas para o caso (opcional)',
       },
     },
-    required: ['conversationId', 'status'],
+    required: ['case_summary'],
   },
 };
 
 export const detectConversationCompletionFunction = {
   name: 'detect_conversation_completion',
   description:
-    'Detecta quando uma conversa deve ser finalizada e se deve mostrar feedback ao usuário',
+    'Detecta quando uma conversa deve ser finalizada e se deve solicitar feedback ao usuário',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {

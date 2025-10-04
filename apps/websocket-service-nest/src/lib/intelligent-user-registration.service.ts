@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   GeminiService,
   RegisterUserFunctionCall,
-  UpdateConversationStatusFunctionCall,
+  RequireLawyerAssistanceFunctionCall,
   GeminiAttachment,
   MessageWithAttachments,
   FunctionCall,
@@ -312,19 +312,17 @@ export class IntelligentUserRegistrationService {
             this.logger.log(
               `processUserMessage: register_user concluído para conversation=${conversationId}`,
             );
-          } else if (functionCall.name === 'update_conversation_status') {
-            const statusResult = await this.handleStatusUpdate(
+          } else if (functionCall.name === 'require_lawyer_assistance') {
+            const assistanceResult = await this.handleLawyerAssistanceRequest(
               functionCall.parameters,
               conversationId,
             );
-            statusUpdated = true;
-            newStatus = statusResult.newStatus;
-            lawyerNeeded = statusResult.lawyerNeeded;
-            specializationRequired = statusResult.specializationRequired;
-            functionExecutionResult = statusResult;
+            lawyerNeeded = assistanceResult.lawyerNeeded;
+            specializationRequired = assistanceResult.specializationRequired;
+            functionExecutionResult = assistanceResult;
             this.logger.log(
-              `processUserMessage: update_conversation_status aplicado para conversation=${conversationId} ` +
-                `status=${newStatus} lawyerNeeded=${lawyerNeeded} specialization=${specializationRequired}`,
+              `processUserMessage: require_lawyer_assistance aplicado para conversation=${conversationId} ` +
+                `lawyerNeeded=${lawyerNeeded} specialization=${specializationRequired}`,
             );
           } else if (functionCall.name === 'detect_conversation_completion') {
             // Validação de parâmetros para evitar erros de runtime
@@ -379,28 +377,40 @@ export class IntelligentUserRegistrationService {
           `statusUpdated=${statusUpdated} newStatus=${newStatus} lawyerNeeded=${lawyerNeeded} shouldShowFeedback=${shouldShowFeedback}`,
       );
 
-      return {
+      const response: IntelligentRegistrationResult = {
         response: result.response,
         userRegistered,
-        statusUpdated,
-        newStatus,
-        lawyerNeeded,
-        specializationRequired,
         shouldShowFeedback,
         feedbackReason,
       };
+
+      // Só incluir campos de status se foram realmente alterados
+      if (statusUpdated && newStatus) {
+        response.statusUpdated = statusUpdated;
+        response.newStatus = newStatus;
+      }
+
+      if (lawyerNeeded) {
+        response.lawyerNeeded = lawyerNeeded;
+      }
+
+      if (specializationRequired) {
+        response.specializationRequired = specializationRequired;
+      }
+
+      return response;
     } catch (error) {
       this.logger.error(
         `processUserMessage:error conversation=${conversationId}: ${error?.message || error}`,
         error?.stack,
       );
       // Fallback para resposta simples sem function calls
-      const fallbackResponse = await this.geminiService.generateAIResponse([
+      const fallbackResponse = await this.geminiService.generateAIResponseWithFunctionsLegacy([
         { text: message, sender: 'user' },
       ]);
 
       return {
-        response: fallbackResponse,
+        response: fallbackResponse.response,
       };
     }
   }
@@ -530,11 +540,8 @@ export class IntelligentUserRegistrationService {
     }
   }
 
-  /**
-   * Trata a atualização de status da conversa via function call
-   */
-  private async handleStatusUpdate(
-    params: UpdateConversationStatusFunctionCall['parameters'],
+  private async handleLawyerAssistanceRequest(
+    params: RequireLawyerAssistanceFunctionCall['parameters'],
     conversationId: string,
   ): Promise<{
     newStatus: CaseStatus;
@@ -543,45 +550,28 @@ export class IntelligentUserRegistrationService {
   }> {
     try {
       this.logger.debug(
-        `handleStatusUpdate:start conversation=${conversationId} payload=${this.formatLogPayload(
+        `handleLawyerAssistanceRequest:start conversation=${conversationId} payload=${this.formatLogPayload(
           params,
         )}`,
       );
-      const nextStatus = ((): CaseStatus => {
-        const mapped = Object.values(CaseStatus).find(
-          (status) => status === params.status,
-        );
-        if (mapped) {
-          return mapped;
-        }
-
-        const legacyMap: Record<string, CaseStatus> = {
-          assigned: CaseStatus.ASSIGNED,
-          closed: CaseStatus.COMPLETED,
-        };
-
-        return legacyMap[params.status] ?? CaseStatus.ACTIVE;
-      })();
 
       const updateData: Record<string, any> = {
-        status: nextStatus,
-        lawyerNeeded: params.lawyer_needed,
+        lawyerNeeded: true,
         updatedAt: new Date(),
       };
-
-      if (params.lawyer_needed) {
-        updateData.assignedTo = null;
-        updateData.assignedAt = null;
-      }
 
       if (params.specialization_required) {
         updateData['classification.legalArea'] = params.specialization_required;
       }
 
-      if (params.notes) {
-        updateData['summary.text'] = params.notes;
+      if (params.case_summary) {
+        updateData['summary.text'] = params.case_summary;
         updateData['summary.lastUpdated'] = new Date();
         updateData['summary.generatedBy'] = 'ai';
+      }
+
+      if (params.required_specialties) {
+        updateData['notes'] = params.required_specialties; // Armazena especialidades requeridas como notas
       }
 
       await this.conversationModel.findByIdAndUpdate(conversationId, {
@@ -589,17 +579,17 @@ export class IntelligentUserRegistrationService {
       });
 
       this.logger.log(
-        `handleStatusUpdate:concluded conversation=${conversationId} newStatus=${nextStatus} lawyerNeeded=${params.lawyer_needed} specialization=${params.specialization_required}`,
+        `handleLawyerAssistanceRequest:concluded conversation=${conversationId} lawyerNeeded=true specialization=${params.specialization_required}`,
       );
 
       return {
-        newStatus: nextStatus,
-        lawyerNeeded: params.lawyer_needed,
+        newStatus: CaseStatus.ACTIVE, // Mantém o status atual como ACTIVE
+        lawyerNeeded: true,
         specializationRequired: params.specialization_required,
       };
     } catch (error) {
       this.logger.error(
-        `handleStatusUpdate:error conversation=${conversationId}: ${error?.message || error}`,
+        `handleLawyerAssistanceRequest:error conversation=${conversationId}: ${error?.message || error}`,
         error?.stack,
       );
       throw error;
