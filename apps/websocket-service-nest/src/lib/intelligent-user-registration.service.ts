@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   GeminiService,
   RegisterUserFunctionCall,
   UpdateConversationStatusFunctionCall,
   GeminiAttachment,
   MessageWithAttachments,
+  FunctionCall,
 } from './gemini.service';
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
@@ -27,6 +28,14 @@ export interface IntelligentRegistrationResult {
   feedbackReason?: string;
 }
 
+interface RegistrationOutcome {
+  success: boolean;
+  mode: 'fluid' | 'fallback';
+  userId?: string | null;
+  createdUser?: boolean;
+  message?: string;
+}
+
 @Injectable()
 export class IntelligentUserRegistrationService {
   private readonly urgencyToPriorityMap: Record<
@@ -38,6 +47,7 @@ export class IntelligentUserRegistrationService {
     high: 'high',
     urgent: 'urgent',
   };
+  private readonly logger = new Logger(IntelligentUserRegistrationService.name);
 
   constructor(
     private readonly geminiService: GeminiService,
@@ -62,6 +72,10 @@ export class IntelligentUserRegistrationService {
     attachments: any[] = [],
   ): Promise<IntelligentRegistrationResult> {
     try {
+      this.logger.debug(
+        `processUserMessage:start conversation=${conversationId} user=${userId} includeHistory=${includeHistory} authenticated=${isAuthenticated} messageSize=${message?.length}`,
+      );
+
       let messages: any[] = [];
 
       if (includeHistory && userId) {
@@ -92,9 +106,12 @@ export class IntelligentUserRegistrationService {
       if (includeHistory && userId) {
         // Usar histórico completo com anexos de cada mensagem
         for (const msg of messages) {
-          // Buscar anexos específicos desta mensagem
-          const messageAttachments =
-            await this.uploadsService.getFilesByMessageId(msg._id.toString());
+          const isHiddenForClients = msg?.metadata?.hiddenFromClients === true;
+
+          // Buscar anexos específicos desta mensagem (pular para mensagens ocultas)
+          const messageAttachments = isHiddenForClients
+            ? []
+            : await this.uploadsService.getFilesByMessageId(msg._id.toString());
 
           // Converter anexos da mensagem para o formato GeminiAttachment
           const geminiAttachments: GeminiAttachment[] = messageAttachments
@@ -109,7 +126,7 @@ export class IntelligentUserRegistrationService {
             `📎 Mensagem ${msg._id}: ${geminiAttachments.length} anexos encontrados`,
           );
 
-          let messageText = msg.text;
+          let messageText = msg.text || '';
 
           // Adicionar contexto textual dos anexos apenas se houver anexos E houver texto na mensagem
           if (geminiAttachments.length > 0 && messageText.trim().length > 0) {
@@ -130,6 +147,7 @@ export class IntelligentUserRegistrationService {
             text: messageText,
             sender: msg.sender,
             attachments: geminiAttachments,
+            metadata: msg.metadata || undefined,
           });
         }
 
@@ -206,6 +224,7 @@ export class IntelligentUserRegistrationService {
           text: message + attachmentsContext,
           sender: 'user',
           attachments: geminiAttachments,
+          metadata: undefined,
         });
 
         console.log(`📤 ENVIANDO PARA GEMINI SERVICE - DETALHES COMPLETOS:`, {
@@ -248,6 +267,23 @@ export class IntelligentUserRegistrationService {
           geminiMessages,
         );
 
+      if (result.functionCalls?.length) {
+        this.logger.log(
+          `processUserMessage: função(ões) retornadas pelo Gemini (${result.functionCalls.length}) para conversation=${conversationId}`,
+        );
+      } else {
+        this.logger.warn(
+          `processUserMessage: GEMINI NÃO RETORNOU FUNCTION CALLS conversation=${conversationId} respostaPreview="${(
+            result.response || ''
+          )
+            .replace(/\s+/g, ' ')
+            .substring(
+              0,
+              200,
+            )}${(result.response || '').length > 200 ? '...' : ''}"`,
+        );
+      }
+
       let userRegistered = false;
       let statusUpdated = false;
       let newStatus: CaseStatus | undefined;
@@ -259,12 +295,23 @@ export class IntelligentUserRegistrationService {
       // Processar function calls se existirem
       if (result.functionCalls) {
         for (const functionCall of result.functionCalls) {
+          await this.recordFunctionCallMessage(conversationId, functionCall);
+
+          this.logger.debug(
+            `processUserMessage: executando function call "${functionCall.name}" ` +
+              `para conversation=${conversationId} payload=${this.formatLogPayload(functionCall.parameters)}`,
+          );
+          let functionExecutionResult: unknown = undefined;
           if (functionCall.name === 'register_user') {
-            await this.handleUserRegistration(
+            const registrationOutcome = await this.handleUserRegistration(
               functionCall.parameters,
               conversationId,
             );
-            userRegistered = true;
+            userRegistered = registrationOutcome.success;
+            functionExecutionResult = registrationOutcome;
+            this.logger.log(
+              `processUserMessage: register_user concluído para conversation=${conversationId}`,
+            );
           } else if (functionCall.name === 'update_conversation_status') {
             const statusResult = await this.handleStatusUpdate(
               functionCall.parameters,
@@ -274,6 +321,11 @@ export class IntelligentUserRegistrationService {
             newStatus = statusResult.newStatus;
             lawyerNeeded = statusResult.lawyerNeeded;
             specializationRequired = statusResult.specializationRequired;
+            functionExecutionResult = statusResult;
+            this.logger.log(
+              `processUserMessage: update_conversation_status aplicado para conversation=${conversationId} ` +
+                `status=${newStatus} lawyerNeeded=${lawyerNeeded} specialization=${specializationRequired}`,
+            );
           } else if (functionCall.name === 'detect_conversation_completion') {
             // Validação de parâmetros para evitar erros de runtime
             if (
@@ -307,9 +359,25 @@ export class IntelligentUserRegistrationService {
               shouldShowFeedback = false;
               feedbackReason = undefined;
             }
+
+            functionExecutionResult = {
+              shouldShowFeedback,
+              feedbackReason,
+            } satisfies Record<string, unknown>;
           }
+
+          await this.recordFunctionResultMessage(
+            conversationId,
+            functionCall.name,
+            functionExecutionResult ?? { acknowledged: true },
+          );
         }
       }
+
+      this.logger.debug(
+        `processUserMessage:final conversation=${conversationId} userRegistered=${userRegistered} ` +
+          `statusUpdated=${statusUpdated} newStatus=${newStatus} lawyerNeeded=${lawyerNeeded} shouldShowFeedback=${shouldShowFeedback}`,
+      );
 
       return {
         response: result.response,
@@ -322,7 +390,10 @@ export class IntelligentUserRegistrationService {
         feedbackReason,
       };
     } catch (error) {
-      console.error('Erro no processamento inteligente:', error);
+      this.logger.error(
+        `processUserMessage:error conversation=${conversationId}: ${error?.message || error}`,
+        error?.stack,
+      );
       // Fallback para resposta simples sem function calls
       const fallbackResponse = await this.geminiService.generateAIResponse([
         { text: message, sender: 'user' },
@@ -340,7 +411,7 @@ export class IntelligentUserRegistrationService {
   private async handleUserRegistration(
     params: RegisterUserFunctionCall['parameters'],
     conversationId: string,
-  ): Promise<void> {
+  ): Promise<RegistrationOutcome> {
     try {
       // Usar o FluidRegistrationService para cadastro fluido
       const contactInfo = {
@@ -369,10 +440,18 @@ export class IntelligentUserRegistrationService {
             priority: this.urgencyToPriorityMap[params.urgency_level] || 'low',
           });
         }
+
+        return {
+          success: true,
+          mode: 'fluid',
+          userId: fluidResult.userId,
+          createdUser: Boolean(fluidResult.userId),
+          message: fluidResult.message,
+        };
       } else {
         console.error(`❌ Erro no cadastro fluido: ${fluidResult.message}`);
         // Fallback para criação direta se o fluido falhar
-        await this.fallbackUserRegistration(params, conversationId);
+        return this.fallbackUserRegistration(params, conversationId);
       }
     } catch (error) {
       console.error('Erro ao registrar usuário:', error);
@@ -386,8 +465,13 @@ export class IntelligentUserRegistrationService {
   private async fallbackUserRegistration(
     params: RegisterUserFunctionCall['parameters'],
     conversationId: string,
-  ): Promise<void> {
+  ): Promise<RegistrationOutcome> {
     try {
+      this.logger.warn(
+        `fallbackUserRegistration: executando fallback para conversation=${conversationId} payload=${this.formatLogPayload(
+          params,
+        )}`,
+      );
       // Criar ou atualizar usuário diretamente
       const userData = {
         name: params.name,
@@ -403,6 +487,8 @@ export class IntelligentUserRegistrationService {
         user = await this.userModel.findOne({ email: params.email });
       }
 
+      let createdUser = false;
+
       if (user) {
         user.name = params.name;
         user.profile = {
@@ -412,6 +498,7 @@ export class IntelligentUserRegistrationService {
         await user.save();
       } else {
         user = await this.userModel.create(userData);
+        createdUser = true;
       }
 
       await this.conversationModel.findByIdAndUpdate(conversationId, {
@@ -424,8 +511,21 @@ export class IntelligentUserRegistrationService {
         },
         priority: this.urgencyToPriorityMap[params.urgency_level] || 'low',
       });
+      this.logger.log(
+        `fallbackUserRegistration: conclusão bem-sucedida para conversation=${conversationId} userId=${user._id}`,
+      );
+
+      return {
+        success: true,
+        mode: 'fallback',
+        userId: user._id?.toString?.() ?? user._id,
+        createdUser,
+      };
     } catch (error) {
-      console.error('Erro no fallback de registro:', error);
+      this.logger.error(
+        `fallbackUserRegistration:error conversation=${conversationId}: ${error?.message || error}`,
+        error?.stack,
+      );
       throw error;
     }
   }
@@ -442,39 +542,132 @@ export class IntelligentUserRegistrationService {
     specializationRequired?: string;
   }> {
     try {
-      const updateData: any = {
-        status: params.status,
+      this.logger.debug(
+        `handleStatusUpdate:start conversation=${conversationId} payload=${this.formatLogPayload(
+          params,
+        )}`,
+      );
+      const nextStatus = ((): CaseStatus => {
+        const mapped = Object.values(CaseStatus).find(
+          (status) => status === params.status,
+        );
+        if (mapped) {
+          return mapped;
+        }
+
+        const legacyMap: Record<string, CaseStatus> = {
+          assigned: CaseStatus.ASSIGNED,
+          closed: CaseStatus.COMPLETED,
+        };
+
+        return legacyMap[params.status] ?? CaseStatus.ACTIVE;
+      })();
+
+      const updateData: Record<string, any> = {
+        status: nextStatus,
         lawyerNeeded: params.lawyer_needed,
-        lastUpdated: new Date(),
+        updatedAt: new Date(),
       };
 
+      if (params.lawyer_needed) {
+        updateData.assignedTo = null;
+        updateData.assignedAt = null;
+      }
+
       if (params.specialization_required) {
-        updateData.classification = {
-          legalArea: params.specialization_required,
-        };
+        updateData['classification.legalArea'] = params.specialization_required;
       }
 
       if (params.notes) {
-        updateData.summary = {
-          text: params.notes,
-          lastUpdated: new Date(),
-          generatedBy: 'ai',
-        };
+        updateData['summary.text'] = params.notes;
+        updateData['summary.lastUpdated'] = new Date();
+        updateData['summary.generatedBy'] = 'ai';
       }
 
-      await this.conversationModel.findByIdAndUpdate(
-        conversationId,
-        updateData,
+      await this.conversationModel.findByIdAndUpdate(conversationId, {
+        $set: updateData,
+      });
+
+      this.logger.log(
+        `handleStatusUpdate:concluded conversation=${conversationId} newStatus=${nextStatus} lawyerNeeded=${params.lawyer_needed} specialization=${params.specialization_required}`,
       );
 
       return {
-        newStatus: params.status as CaseStatus,
+        newStatus: nextStatus,
         lawyerNeeded: params.lawyer_needed,
         specializationRequired: params.specialization_required,
       };
     } catch (error) {
-      console.error('Erro ao atualizar status da conversa:', error);
+      this.logger.error(
+        `handleStatusUpdate:error conversation=${conversationId}: ${error?.message || error}`,
+        error?.stack,
+      );
       throw error;
+    }
+  }
+
+  private async recordFunctionCallMessage(
+    conversationId: string,
+    functionCall: FunctionCall,
+  ): Promise<void> {
+    try {
+      await this.messageService.createMessage({
+        conversationId,
+        text: `Função IA executada: ${functionCall.name}`,
+        sender: 'ai',
+        senderId: 'ai-gemini',
+        metadata: {
+          type: 'function_call',
+          name: functionCall.name,
+          arguments: functionCall.parameters,
+          hiddenFromClients: true,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `recordFunctionCallMessage: falha ao registrar function call ${functionCall.name} para conversation=${conversationId}: ${error?.message || error}`,
+      );
+    }
+  }
+
+  private async recordFunctionResultMessage(
+    conversationId: string,
+    functionName: FunctionCall['name'],
+    result: unknown,
+  ): Promise<void> {
+    try {
+      const textSummary = `Resultado da função ${functionName}`;
+      await this.messageService.createMessage({
+        conversationId,
+        text: textSummary,
+        sender: 'system',
+        metadata: {
+          type: 'function_response',
+          name: functionName,
+          result,
+          hiddenFromClients: true,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `recordFunctionResultMessage: falha ao registrar resultado da função ${functionName} para conversation=${conversationId}: ${error?.message || error}`,
+      );
+    }
+  }
+
+  private formatLogPayload(payload: unknown): string {
+    try {
+      return JSON.stringify(payload, (key, value) => {
+        if (typeof value === 'string' && value.length > 200) {
+          return `${value.substring(0, 200)}…(${value.length} chars)`;
+        }
+        return value;
+      });
+    } catch (error) {
+      this.logger.warn(
+        `formatLogPayload: não foi possível serializar payload (${error?.message || error})`,
+      );
+      return '[unserializable-payload]';
     }
   }
 
@@ -505,7 +698,7 @@ export class IntelligentUserRegistrationService {
       [CaseStatus.OPEN]: 0,
       [CaseStatus.ACTIVE]: 0,
       [CaseStatus.RESOLVED_BY_AI]: 0,
-      [CaseStatus.ASSIGNED_TO_LAWYER]: 0,
+      [CaseStatus.ASSIGNED]: 0,
       [CaseStatus.COMPLETED]: 0,
       [CaseStatus.ABANDONED]: 0,
     };

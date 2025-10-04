@@ -1,9 +1,7 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import Message, { MessageSender } from '../models/Message';
 import Conversation from '../models/Conversation';
-
-// Valid conversation statuses for AI messages
-const AI_ALLOWED_STATUSES = ['open', 'active', 'assigned_to_lawyer'] as const;
+import { CaseStatus } from '../models/User';
 
 export interface CreateMessageData {
   conversationId: string;
@@ -39,14 +37,8 @@ export class MessageService {
       throw new Error('Conversa não encontrada');
     }
 
-    // Validação de permissões da IA baseada no status da conversa
-    if (data.sender === 'ai') {
-      if (!AI_ALLOWED_STATUSES.includes(conversation.status)) {
-        throw new ForbiddenException(
-          'IA não pode enviar mensagens para esta conversa',
-        );
-      }
-    }
+    // Validar permissões específicas por tipo de remetente
+    this.validateMessagePermissions(data, conversation);
 
     // Criar nova mensagem
     const message = new Message({
@@ -57,9 +49,12 @@ export class MessageService {
       metadata: data.metadata,
     });
 
-    const savedMessage = await message.save(); // Atualizar timestamp da conversa
+    const savedMessage = await message.save();
+
+    const timestamp = savedMessage.createdAt || new Date();
     await Conversation.findByIdAndUpdate(data.conversationId, {
-      updatedAt: new Date(),
+      updatedAt: timestamp,
+      lastMessageAt: timestamp,
     });
 
     return savedMessage;
@@ -145,7 +140,11 @@ export class MessageService {
     switch (data.sender) {
       case 'user':
         // Usuários podem enviar mensagens apenas se a conversa não estiver fechada
-        if (conversation.status === 'closed') {
+        if (
+          [CaseStatus.COMPLETED, CaseStatus.ABANDONED].includes(
+            conversation.status,
+          )
+        ) {
           throw new ForbiddenException(
             'Não é possível enviar mensagens para uma conversa fechada',
           );
@@ -153,12 +152,7 @@ export class MessageService {
         break;
 
       case 'ai':
-        // IA pode enviar mensagens em conversas ativas ou abertas
-        if (!AI_ALLOWED_STATUSES.includes(conversation.status)) {
-          throw new ForbiddenException(
-            'IA não pode enviar mensagens para esta conversa',
-          );
-        }
+        // IA pode enviar mensagens independentemente do status da conversa
         break;
 
       case 'lawyer':
@@ -168,7 +162,7 @@ export class MessageService {
             'Advogado não autorizado para esta conversa',
           );
         }
-        if (conversation.status !== 'assigned') {
+        if (conversation.status !== CaseStatus.ASSIGNED) {
           throw new ForbiddenException(
             'Caso deve estar atribuído para receber mensagens do advogado',
           );
@@ -177,7 +171,13 @@ export class MessageService {
 
       case 'moderator':
         // Moderadores podem enviar mensagens em qualquer conversa ativa
-        if (!['open', 'assigned'].includes(conversation.status)) {
+        if (
+          ![
+            CaseStatus.OPEN,
+            CaseStatus.ACTIVE,
+            CaseStatus.ASSIGNED,
+          ].includes(conversation.status)
+        ) {
           throw new ForbiddenException(
             'Moderador não pode enviar mensagens para esta conversa',
           );

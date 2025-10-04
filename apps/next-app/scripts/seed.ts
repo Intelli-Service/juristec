@@ -32,6 +32,45 @@ const users = [
   }
 ]
 
+const aiConfig = {
+  systemPrompt: 'Você é um assistente jurídico brasileiro. Sua principal função é realizar uma triagem inicial de casos, coletando informações essenciais do usuário de forma natural e conversacional. Com base nos dados, você deve classificar o caso, avaliar sua complexidade e, se necessário, encaminhá-lo para um advogado especialista. Use as funções disponíveis para registrar novos usuários e atualizar o status da conversa quando a coleta de dados for concluída.',
+  behaviorSettings: {
+    maxTokens: 2048,
+    temperature: 0.7,
+    ethicalGuidelines: [
+      'Sempre manter confidencialidade',
+      'Não dar aconselhamento jurídico definitivo',
+      'Orientar sobre direitos básicos apenas',
+      'Encaminhar casos complexos para advogados'
+    ],
+    specializationAreas: [
+      'Direito Civil',
+      'Direito Trabalhista',
+      'Direito Empresarial',
+      'Direito Penal',
+      'Direito Previdenciário',
+      'Direito Tributário'
+    ]
+  },
+  classificationSettings: {
+    enabled: true,
+    categories: [
+      'Direito Civil',
+      'Direito Trabalhista',
+      'Direito Penal',
+      'Direito Empresarial',
+      'Direito Previdenciário',
+      'Direito Tributário',
+      'Direito Família',
+      'Direito Consumidor'
+    ],
+    summaryTemplate: 'Caso [categoria]: [complexidade] - [urgência]'
+  },
+  updatedBy: 'system-seed',
+  updatedAt: new Date(),
+  createdAt: new Date()
+}
+
 async function seedUsers() {
   const client = new MongoClient(MONGODB_URI)
   
@@ -72,4 +111,44 @@ async function seedUsers() {
   }
 }
 
-seedUsers()
+async function seedAIConfig() {
+  const client = new MongoClient(MONGODB_URI)
+  
+  try {
+    await client.connect()
+    const db = client.db()
+    const collection = db.collection('aiconfigs')
+    
+    // Clear existing AI config
+    await collection.deleteMany({})
+    
+    // Insert AI configuration
+    await collection.insertOne(aiConfig)
+    
+    console.log('✓ Created AI configuration')
+    console.log('  - System prompt configured')
+    console.log('  - Behavior settings applied')
+    console.log('  - Classification settings enabled')
+    
+  } catch (error) {
+    console.error('Error seeding AI configuration:', error)
+  } finally {
+    await client.close()
+  }
+}
+
+async function main() {
+  console.log('🌱 Starting database seeding...\n')
+  
+  await seedUsers()
+  console.log('')
+  await seedAIConfig()
+  
+  console.log('\n🎉 All seeding completed successfully!')
+  console.log('\nNext steps:')
+  console.log('1. Start the application with: docker-compose up --build')
+  console.log('2. Access the platform at: http://localhost:8080')
+  console.log('3. Login with admin credentials to configure the system')
+}
+
+main()

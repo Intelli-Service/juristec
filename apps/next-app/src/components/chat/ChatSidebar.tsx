@@ -131,14 +131,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
                       <div className="flex flex-col items-end gap-1">
                         <span className={`px-1.5 py-0.5 text-xs rounded-full ${
-                          conversation.status === 'open'
+                          conversation.status === 'open' || conversation.status === 'active'
                             ? 'bg-green-100 text-green-800'
-                            : conversation.status === 'assigned'
+                            : conversation.status === 'assigned' || conversation.status === 'assigned_to_lawyer'
                             ? 'bg-blue-100 text-blue-800'
                             : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {conversation.status === 'open' ? 'Aberto' :
-                           conversation.status === 'assigned' ? 'Atribuído' : 'Fechado'}
+                          {conversation.status === 'open' || conversation.status === 'active' ? 'Aberto' :
+                           conversation.status === 'assigned' || conversation.status === 'assigned_to_lawyer' ? 'Atribuído' : 'Fechado'}
                         </span>
 
                         {conversation.unreadCount > 0 && (

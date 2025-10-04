@@ -220,7 +220,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           isAuthenticated: client.data.isAuthenticated,
           user: client.data.user,
           conversationNumber: 1,
-          status: CaseStatus.ACTIVE,
+          status: CaseStatus.OPEN,
           title: 'Nova Conversa #1',
         });
 
@@ -330,9 +330,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           permissions: client.data.user.permissions,
         },
       );
+      const visibleMessages = messages.filter(
+        (msg) => !msg?.metadata?.hiddenFromClients,
+      );
       client.emit(
         'lawyer-history-loaded',
-        messages.map((msg) => ({
+        visibleMessages.map((msg) => ({
           id: msg._id.toString(),
           text: msg.text,
           sender: msg.sender,
@@ -452,7 +455,37 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           _id: `temp-msg-${Date.now()}`,
           text: finalMessage,
           sender: 'user',
+          createdAt: new Date(),
         };
+      }
+
+      const messageId =
+        userMessage._id?.toString?.() ??
+        userMessage._id ??
+        `temp-${Date.now()}`;
+      const createdAtValue =
+        userMessage?.createdAt instanceof Date
+          ? userMessage.createdAt.toISOString()
+          : (userMessage?.createdAt ?? new Date().toISOString());
+
+      const userMessagePayload = {
+        text: finalMessage,
+        sender: 'user',
+        messageId,
+        conversationId: conversation._id.toString(),
+        createdAt: createdAtValue,
+        attachments: _attachments,
+      };
+
+      this.server.to(roomId).emit('receive-message', userMessagePayload);
+
+      const shouldDeferToLawyer =
+        Boolean(conversation.assignedTo) ||
+        conversation.status === CaseStatus.ASSIGNED ||
+        conversation.lawyerNeeded;
+
+      if (shouldDeferToLawyer) {
+        return;
       }
 
       // Buscar mensagens para contexto (se o DB estiver funcionando)
@@ -562,7 +595,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // Mapear feedbackReason para uma mensagem de contexto apropriada
         const feedbackContextMap: Record<string, string> = {
           resolved_by_ai: 'Conversa resolvida com sucesso pela IA',
-          assigned_to_lawyer: 'Caso encaminhado para advogado especializado',
+          assigned: 'Caso encaminhado para advogado especializado',
           user_satisfied: 'Usuário demonstrou satisfação com a solução',
           user_abandoned: 'Usuário abandonou a conversa',
         };
@@ -811,6 +844,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         metadata: { lawyerRole: client.data.user?.role },
       });
 
+      const messageTimestamp =
+        lawyerMessage.createdAt instanceof Date
+          ? lawyerMessage.createdAt
+          : new Date();
+
+      const updatePayload: Record<string, any> = {
+        status: CaseStatus.ASSIGNED,
+        lawyerNeeded: false,
+        updatedAt: messageTimestamp,
+        lastMessageAt: messageTimestamp,
+      };
+
+      if (!conversation.assignedTo) {
+        updatePayload.assignedTo = client.data.user.userId;
+        updatePayload.assignedAt = messageTimestamp;
+      }
+
+      await Conversation.findByIdAndUpdate(conversation._id, {
+        $set: updatePayload,
+      });
+
       // Enviar para todos na sala do cliente (sala principal)
       this.server.to(roomId).emit('receive-message', {
         text: message,
@@ -938,7 +992,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           userId,
           roomId,
           title: `Nova Conversa #${nextConversationNumber}`,
-          status: CaseStatus.ACTIVE, // Usar status válido do enum CaseStatus
+          status: CaseStatus.OPEN, // Usar status válido do enum CaseStatus
           conversationNumber: nextConversationNumber,
           isAnonymous: client.data.isAnonymous || false,
           metadata: {
@@ -1075,6 +1129,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         messages = [];
       }
 
+      const visibleMessages = messages.filter(
+        (msg) => !msg?.metadata?.hiddenFromClients,
+      );
+
       // Get all user conversations for sidebar
       const conversations = await Conversation.find({ userId })
         .sort({ createdAt: -1 })
@@ -1085,7 +1143,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('conversation-switched', {
         conversationId,
         messages: await Promise.all(
-          messages.map(async (msg) => {
+          visibleMessages.map(async (msg) => {
             // Buscar anexos da mensagem
             let attachments: any[] = [];
             try {

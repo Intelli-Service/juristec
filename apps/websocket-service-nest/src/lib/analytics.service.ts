@@ -582,7 +582,7 @@ export class AnalyticsService {
     const activeConversations = conversations.filter(
       (c) =>
         c.status === CaseStatus.OPEN ||
-        c.status === CaseStatus.ASSIGNED_TO_LAWYER,
+        c.status === CaseStatus.ACTIVE,
     ).length;
     const systemUptime = 99.9; // TODO: implementar monitoramento real
 

@@ -25,7 +25,6 @@ export interface UpdateConversationStatusFunctionCall {
     status:
       | 'active'
       | 'resolved_by_ai'
-      | 'assigned_to_lawyer'
       | 'completed'
       | 'abandoned';
     lawyer_needed: boolean;
@@ -40,7 +39,7 @@ export interface DetectConversationCompletionFunctionCall {
     should_show_feedback: boolean;
     completion_reason:
       | 'resolved_by_ai'
-      | 'assigned_to_lawyer'
+      | 'assigned'
       | 'user_satisfied'
       | 'user_abandoned';
     feedback_context?: string;
@@ -62,6 +61,7 @@ export interface MessageWithAttachments {
   text: string;
   sender: string;
   attachments?: GeminiAttachment[];
+  metadata?: Record<string, any>;
 }
 
 @Injectable()
@@ -89,6 +89,54 @@ export class GeminiService {
   private buildMessageParts(message: MessageWithAttachments): Part[] {
     const parts: Part[] = [];
 
+    const metadataType = message.metadata?.type;
+
+    if (metadataType === 'function_call') {
+      const functionName = message.metadata?.name;
+      if (functionName) {
+        const args =
+          message.metadata?.arguments ??
+          message.metadata?.params ??
+          message.metadata?.parameters ??
+          {};
+
+        this.log('🔁 Incluindo histórico de function call no Gemini', {
+          functionName,
+        });
+
+        parts.push({
+          functionCall: {
+            name: functionName,
+            args,
+          },
+        } as Part);
+        return parts;
+      }
+    }
+
+    if (metadataType === 'function_response') {
+      const functionName = message.metadata?.name;
+      if (functionName) {
+        const responsePayload =
+          message.metadata?.result ??
+          message.metadata?.response ??
+          message.metadata?.data ??
+          {};
+
+        this.log('🔁 Incluindo histórico de retorno de função no Gemini', {
+          functionName,
+        });
+
+        parts.push({
+          functionResponse: {
+            name: functionName,
+            response: responsePayload,
+          },
+        } as Part);
+        return parts;
+      }
+    }
+
     // Adicionar texto da mensagem se existir
     if (message.text && message.text.trim()) {
       parts.push({
@@ -115,6 +163,22 @@ export class GeminiService {
     }
 
     return parts;
+  }
+
+  private getMessageRole(
+    message: MessageWithAttachments,
+  ): 'user' | 'model' | 'function' {
+    const metadataType = message.metadata?.type;
+
+    if (metadataType === 'function_response') {
+      return 'function';
+    }
+
+    if (message.sender === 'user') {
+      return 'user';
+    }
+
+    return 'model';
   }
 
   async getModel() {
@@ -270,7 +334,7 @@ export class GeminiService {
 
   async generateAIResponseWithFunctions(
     messages: MessageWithAttachments[],
-  ): Promise<{ response: string; functionCalls?: FunctionCall[] }> {
+  ): Promise<{ response: string; functionCalls: FunctionCall[] }> {
     const model = await this.getModel();
     const config = await this.aiService.getCurrentConfig();
 
@@ -293,11 +357,21 @@ export class GeminiService {
     // Preparar histórico para chat session
     const history = messages
       .slice(0, -1)
-      .filter((msg) => msg.sender === 'user' || msg.sender === 'ai')
-      .map((msg) => ({
-        role: msg.sender === 'user' ? 'user' : 'model',
-        parts: this.buildMessageParts(msg),
-      }));
+      .map((msg) => {
+        const parts = this.buildMessageParts(msg);
+        if (!parts.length) {
+          return null;
+        }
+
+        return {
+          role: this.getMessageRole(msg),
+          parts,
+        };
+      })
+      .filter(Boolean) as {
+      role: 'user' | 'model' | 'function';
+      parts: Part[];
+    }[];
 
     // Iniciar chat com histórico
     const chat = model.startChat({
@@ -469,40 +543,154 @@ export class GeminiService {
 
     this.log('Resposta recebida do Gemini');
     const response = result.response;
+    const responseText = response.text();
     this.log(
-      `Texto da resposta: ${response.text().substring(0, 200)}${response.text().length > 200 ? '...' : ''}`,
+      `Texto da resposta: ${responseText.substring(0, 200)}${responseText.length > 200 ? '...' : ''}`,
     );
+
+    const rawFunctionCalls: unknown = (response as any)?.functionCalls;
+    if (Array.isArray(rawFunctionCalls) && rawFunctionCalls.length > 0) {
+      this.log(
+        `🔧 Function calls detectadas (nomes): ${rawFunctionCalls
+          .map((call: any) => call?.name || '[sem-nome]')
+          .join(', ')}`,
+      );
+    } else {
+      this.log('ℹ️ Nenhuma function call detectada no payload bruto.');
+    }
+
+    const firstCandidate = (response as any)?.candidates?.[0];
+    if (firstCandidate) {
+      try {
+        const candidatePreview = {
+          finishReason: firstCandidate.finishReason,
+          safetyRatings: firstCandidate.safetyRatings,
+          parts: Array.isArray(firstCandidate.content?.parts)
+            ? firstCandidate.content.parts.map((part: any, idx: number) => {
+                if (part.functionCall) {
+                  return {
+                    index: idx,
+                    type: 'functionCall',
+                    name: part.functionCall.name,
+                    hasArgs: Boolean(part.functionCall.args),
+                  };
+                }
+                if (part.text) {
+                  const textValue = String(part.text);
+                  return {
+                    index: idx,
+                    type: 'text',
+                    textPreview: `${textValue.substring(0, 120)}${
+                      textValue.length > 120 ? '...' : ''
+                    }`,
+                  };
+                }
+                return { index: idx, type: Object.keys(part)[0] ?? 'unknown' };
+              })
+            : [],
+        };
+        this.log('📄 Candidate[0] preview:', candidatePreview);
+      } catch (error) {
+        this.log('⚠️ Falha ao serializar candidate[0] para log:', error);
+      }
+    }
+
+    const promptFeedback = (response as any)?.promptFeedback;
+    if (promptFeedback) {
+      this.log('🛡️ Prompt feedback recebido:', promptFeedback);
+    }
+
+    if (!responseText?.trim()) {
+      this.log('⚠️ Resposta textual vazia recebida do Gemini.');
+    }
 
     const functionCalls: FunctionCall[] = [];
 
-    // Verificar function calls na resposta
-    if (response.functionCalls && Array.isArray(response.functionCalls)) {
-      for (const call of response.functionCalls) {
-        if (call.name === 'register_user') {
-          functionCalls.push({
-            name: 'register_user',
-            parameters: call.args as RegisterUserFunctionCall['parameters'],
-          });
-        } else if (call.name === 'update_conversation_status') {
-          functionCalls.push({
-            name: 'update_conversation_status',
-            parameters:
-              call.args as UpdateConversationStatusFunctionCall['parameters'],
-          });
-        } else if (call.name === 'detect_conversation_completion') {
-          functionCalls.push({
-            name: 'detect_conversation_completion',
-            parameters:
-              call.args as DetectConversationCompletionFunctionCall['parameters'],
-          });
+    const structuredCalls = this.extractFunctionCalls(response);
+    this.log(
+      `🧩 Function calls extraídas: ${structuredCalls.length}`,
+      structuredCalls.map((call) => ({
+        name: call.name,
+        hasParameters: Boolean(call.parameters),
+      })),
+    );
+    functionCalls.push(...structuredCalls);
+
+    return {
+      response: responseText,
+      functionCalls,
+    };
+  }
+
+  private extractFunctionCalls(response: any): FunctionCall[] {
+    const collected: FunctionCall[] = [];
+
+    if (!response) {
+      this.log('ℹ️ extractFunctionCalls: resposta vazia recebida.');
+      return collected;
+    }
+
+    let candidateCalls: any[] = [];
+
+    if (Array.isArray(response.functionCalls)) {
+      candidateCalls = response.functionCalls;
+    }
+
+    if (candidateCalls.length === 0) {
+      const parts = response.candidates?.[0]?.content?.parts;
+      if (Array.isArray(parts)) {
+        candidateCalls = parts
+          .filter((part: any) => Boolean(part?.functionCall))
+          .map((part: any) => part.functionCall);
+        if (candidateCalls.length > 0) {
+          this.log(
+            'ℹ️ extractFunctionCalls: function calls obtidas a partir de candidates[0].parts.',
+          );
         }
       }
     }
 
-    return {
-      response: response.text(),
-      functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
-    };
+    if (candidateCalls.length === 0) {
+      return collected;
+    }
+
+    for (const call of candidateCalls) {
+      if (!call?.name) {
+        this.log('⚠️ Function call sem nome ignorada:', call);
+        continue;
+      }
+
+      const normalizedArgs = call.args ?? call.arguments ?? {};
+
+      switch (call.name) {
+        case 'register_user':
+          collected.push({
+            name: 'register_user',
+            parameters:
+              normalizedArgs as RegisterUserFunctionCall['parameters'],
+          });
+          break;
+        case 'update_conversation_status':
+          collected.push({
+            name: 'update_conversation_status',
+            parameters:
+              normalizedArgs as UpdateConversationStatusFunctionCall['parameters'],
+          });
+          break;
+        case 'detect_conversation_completion':
+          collected.push({
+            name: 'detect_conversation_completion',
+            parameters:
+              normalizedArgs as DetectConversationCompletionFunctionCall['parameters'],
+          });
+          break;
+        default:
+          this.log(`ℹ️ Function call desconhecida ignorada: ${call.name}`);
+          break;
+      }
+    }
+
+    return collected;
   }
 
   /**

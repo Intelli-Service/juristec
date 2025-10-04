@@ -207,14 +207,18 @@ export class AIService {
     try {
       this.logger.log(`Getting cases for lawyer: ${lawyerId}`);
 
-      // Buscar conversas atribuídas ao advogado ou disponíveis
+      // Buscar conversas atribuídas ao advogado ou disponíveis (que precisam de advogado)
       const conversations = await Conversation.find({
         $or: [
           { assignedTo: lawyerId },
-          { status: 'open' }, // Casos disponíveis
+          {
+            lawyerNeeded: true, // Casos que precisam de advogado
+            assignedTo: { $exists: false } // Só casos não atribuídos ainda
+          },
         ],
       })
-        .select('roomId status assignedTo createdAt')
+        .select('roomId status assignedTo createdAt title classification priority lawyerNeeded')
+        .sort({ createdAt: -1 }) // Mais recentes primeiro
         .exec();
 
       return conversations.map((conv) => ({
@@ -222,6 +226,10 @@ export class AIService {
         status: conv.status,
         assignedTo: conv.assignedTo,
         createdAt: conv.createdAt,
+        title: conv.title,
+        classification: conv.classification,
+        priority: conv.priority,
+        lawyerNeeded: conv.lawyerNeeded,
       }));
     } catch (error) {
       this.logger.error('Error getting cases for lawyer:', error);
@@ -237,7 +245,14 @@ export class AIService {
       this.logger.log(`Assigning case ${roomId} to lawyer ${lawyerId}`);
 
       const result = await Conversation.findOneAndUpdate(
-        { roomId, status: 'open' }, // Só pode atribuir casos abertos
+        {
+          roomId,
+          lawyerNeeded: true, // Só pode atribuir casos que precisam de advogado
+          $or: [
+            { assignedTo: { $exists: false } },
+            { assignedTo: null }
+          ]
+        },
         {
           assignedTo: lawyerId,
           status: 'assigned',
@@ -247,7 +262,7 @@ export class AIService {
       ).exec();
 
       if (!result) {
-        throw new Error('Case not found or already assigned');
+        throw new Error('Case not found, already assigned, or does not need a lawyer');
       }
 
       return { success: true };

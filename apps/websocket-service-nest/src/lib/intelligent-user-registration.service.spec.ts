@@ -207,7 +207,12 @@ describe('IntelligentUserRegistrationService', () => {
         expect(mockConversationModel.findByIdAndUpdate).toHaveBeenCalledWith(
           mockConversationId,
           expect.objectContaining({
-            status: 'resolved_by_ai',
+            $set: expect.objectContaining({
+              status: 'resolved_by_ai',
+              lawyerNeeded: false,
+              'summary.text': 'Usuário satisfeito com solução da IA',
+              'summary.generatedBy': 'ai',
+            }),
           }),
         );
       });
@@ -223,7 +228,7 @@ describe('IntelligentUserRegistrationService', () => {
             {
               name: 'update_conversation_status',
               parameters: {
-                status: 'assigned_to_lawyer' as CaseStatus,
+                status: 'active' as CaseStatus,
                 lawyer_needed: true,
                 specialization_required: 'direito_trabalhista',
                 notes: 'Caso complexo requerendo advogado especialista',
@@ -233,7 +238,7 @@ describe('IntelligentUserRegistrationService', () => {
               name: 'detect_conversation_completion',
               parameters: {
                 should_show_feedback: true,
-                completion_reason: 'assigned_to_lawyer',
+                completion_reason: 'assigned',
                 feedback_context: 'Caso encaminhado para advogado especialista',
               },
             },
@@ -248,7 +253,7 @@ describe('IntelligentUserRegistrationService', () => {
         );
         mockConversationModel.findByIdAndUpdate.mockResolvedValue({
           _id: mockConversationId,
-          status: 'assigned_to_lawyer',
+          status: 'active',
         });
         mockFluidRegistrationService.processFluidRegistration.mockResolvedValue(
           {
@@ -267,22 +272,24 @@ describe('IntelligentUserRegistrationService', () => {
         expect(result).toEqual({
           response: mockAIResponse.response,
           statusUpdated: true,
-          newStatus: 'assigned_to_lawyer',
+          newStatus: 'active',
           lawyerNeeded: true,
           specializationRequired: 'direito_trabalhista',
           shouldShowFeedback: true,
-          feedbackReason: 'assigned_to_lawyer',
+          feedbackReason: 'assigned',
           userRegistered: false,
         });
 
         expect(mockConversationModel.findByIdAndUpdate).toHaveBeenCalledWith(
           mockConversationId,
           expect.objectContaining({
-            status: 'assigned_to_lawyer',
-            lawyerNeeded: true,
-            classification: {
-              legalArea: 'direito_trabalhista',
-            },
+            $set: expect.objectContaining({
+              status: 'active',
+              lawyerNeeded: true,
+              'classification.legalArea': 'direito_trabalhista',
+              'summary.text': 'Caso complexo requerendo advogado especialista',
+              'summary.generatedBy': 'ai',
+            }),
           }),
         );
       });

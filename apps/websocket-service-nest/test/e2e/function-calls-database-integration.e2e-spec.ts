@@ -258,7 +258,7 @@ describe('IntelligentUserRegistrationService - Function Calls Database Integrati
           {
             name: 'update_conversation_status' as const,
             parameters: {
-              status: 'assigned_to_lawyer' as const,
+              status: 'active' as const,
               lawyer_needed: true,
               specialization_required: 'Direito Trabalhista',
               notes:

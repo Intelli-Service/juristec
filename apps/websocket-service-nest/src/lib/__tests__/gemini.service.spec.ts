@@ -126,7 +126,7 @@ describe('GeminiService', () => {
 
       expect(result).toEqual({
         response: 'Resposta de teste da IA',
-        functionCalls: undefined,
+        functionCalls: [],
       });
     });
 
@@ -159,7 +159,7 @@ describe('GeminiService', () => {
 
       expect(result.response).toBe('Vou registrar você no sistema.');
       expect(result.functionCalls).toHaveLength(1);
-      expect(result.functionCalls![0]).toEqual({
+      expect(result.functionCalls[0]).toEqual({
         name: 'register_user',
         parameters: {
           name: 'João Silva',
@@ -178,7 +178,7 @@ describe('GeminiService', () => {
           {
             name: 'update_conversation_status',
             args: {
-              status: 'assigned_to_lawyer',
+              status: 'active',
               lawyer_needed: true,
               specialization_required: 'Direito Trabalhista',
               notes: 'Caso complexo de demissão',
@@ -198,10 +198,10 @@ describe('GeminiService', () => {
 
       expect(result.response).toBe('Este caso precisa de um advogado.');
       expect(result.functionCalls).toHaveLength(1);
-      expect(result.functionCalls![0]).toEqual({
+      expect(result.functionCalls[0]).toEqual({
         name: 'update_conversation_status',
         parameters: {
-          status: 'assigned_to_lawyer',
+          status: 'active',
           lawyer_needed: true,
           specialization_required: 'Direito Trabalhista',
           notes: 'Caso complexo de demissão',
@@ -232,7 +232,7 @@ describe('GeminiService', () => {
 
       expect(result.response).toBe('Obrigado pelo feedback!');
       expect(result.functionCalls).toHaveLength(1);
-      expect(result.functionCalls![0]).toEqual({
+      expect(result.functionCalls[0]).toEqual({
         name: 'detect_conversation_completion',
         parameters: {
           should_show_feedback: true,
@@ -274,8 +274,8 @@ describe('GeminiService', () => {
       const result = await service.generateAIResponseWithFunctions(messages);
 
       expect(result.functionCalls).toHaveLength(2);
-      expect(result.functionCalls![0].name).toBe('register_user');
-      expect(result.functionCalls![1].name).toBe(
+      expect(result.functionCalls[0].name).toBe('register_user');
+      expect(result.functionCalls[1].name).toBe(
         'detect_conversation_completion',
       );
     });
@@ -299,7 +299,7 @@ describe('GeminiService', () => {
 
       expect(result).toEqual({
         response: 'Resposta de teste da IA',
-        functionCalls: undefined,
+        functionCalls: [],
       });
     });
 
@@ -321,7 +321,7 @@ describe('GeminiService', () => {
 
       expect(result).toEqual({
         response: 'Resposta de teste da IA',
-        functionCalls: undefined,
+        functionCalls: [],
       });
     });
 
