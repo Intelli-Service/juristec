@@ -561,6 +561,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       let aiResponseText =
         'Olá! Sou o assistente jurídico da Juristec. Como posso ajudar você hoje com suas questões legais?';
 
+      // Emitir evento de início de digitação para conversas ativas com IA
+      if (conversation.status === CaseStatus.ACTIVE) {
+        this.server.to(roomId).emit('typing-start', {
+          conversationId: conversation._id.toString(),
+          sender: 'ai'
+        });
+      }
+
       try {
         registrationResult =
           await this.intelligentRegistrationService.processUserMessage(
@@ -650,6 +658,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         conversationId: conversation._id.toString(),
       });
       console.log('Depois de emitir mensagem da IA');
+
+      // Emitir evento de fim de digitação
+      this.server.to(roomId).emit('typing-stop', {
+        conversationId: conversation._id.toString(),
+        sender: 'ai'
+      });
     } catch (error) {
       console.error('Erro ao processar mensagem:', error);
 
@@ -728,6 +742,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         isError: true,
         shouldRetry,
         conversationId: conversation._id.toString(),
+      });
+
+      // Emitir evento de fim de digitação em caso de erro
+      this.server.to(roomId).emit('typing-stop', {
+        conversationId: conversation._id.toString(),
+        sender: 'ai'
       });
     }
   }
