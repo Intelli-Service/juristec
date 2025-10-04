@@ -27,6 +27,7 @@ export interface RegisterUserFunctionCall {
 export interface RequireLawyerAssistanceFunctionCall {
   name: 'require_lawyer_assistance';
   parameters: {
+    category?: string;
     specialization_required?: string;
     case_summary: string;
     required_specialties?: string;

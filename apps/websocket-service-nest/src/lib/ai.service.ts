@@ -217,7 +217,7 @@ export class AIService {
           },
         ],
       })
-        .select('roomId status assignedTo createdAt title classification priority lawyerNeeded')
+        .select('roomId status assignedTo createdAt title classification priority lawyerNeeded summary')
         .sort({ createdAt: -1 }) // Mais recentes primeiro
         .exec();
 
@@ -230,6 +230,7 @@ export class AIService {
         classification: conv.classification,
         priority: conv.priority,
         lawyerNeeded: conv.lawyerNeeded,
+        summary: conv.summary,
       }));
     } catch (error) {
       this.logger.error('Error getting cases for lawyer:', error);

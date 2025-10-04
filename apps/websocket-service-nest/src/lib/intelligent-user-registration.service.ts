@@ -560,6 +560,10 @@ export class IntelligentUserRegistrationService {
         updatedAt: new Date(),
       };
 
+      if (params.category) {
+        updateData['classification.category'] = params.category;
+      }
+
       if (params.specialization_required) {
         updateData['classification.legalArea'] = params.specialization_required;
       }

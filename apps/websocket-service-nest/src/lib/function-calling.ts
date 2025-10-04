@@ -33,6 +33,10 @@ export const requireLawyerAssistanceFunction = {
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
+      category: {
+        type: SchemaType.STRING,
+        description: 'Categoria geral do caso (ex: Trabalhista, Civil, Penal, etc.)',
+      },
       specialization_required: {
         type: SchemaType.STRING,
         description: 'Especialização jurídica necessária (opcional)',
