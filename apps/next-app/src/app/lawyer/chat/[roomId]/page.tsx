@@ -49,6 +49,7 @@ export default function LawyerChatPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const socketInitializedRef = useRef(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const loadConversation = useCallback(async () => {
     try {
@@ -102,6 +103,7 @@ export default function LawyerChatPage() {
 
     // Usar WebSocket URL correta - SIMPLIFICADO como no Chat.tsx
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080';
+    console.log('🔌 Inicializando socket com URL:', socketUrl);
     
     const newSocket = io(socketUrl);
     setSocket(newSocket);
@@ -185,6 +187,9 @@ export default function LawyerChatPage() {
 
   useEffect(() => {
     if (status === 'loading') return;
+    console.log('Session status:', status);
+    console.log('Session data:', session);
+    console.log('Room ID from params:', roomId);
 
     if (status === 'unauthenticated') {
       router.push('/auth/signin?callbackUrl=/lawyer');
@@ -201,10 +206,11 @@ export default function LawyerChatPage() {
       loadConversation();
       initializeSocket();
     }
-  }, [session, status, roomId, loadConversation, initializeSocket]);
+  }, [session, status, roomId]);
 
   // Reset socket initialization ref when roomId changes
   useEffect(() => {
+    console.log('Room ID mudou, resetando socketInitializedRef');
     socketInitializedRef.current = false;
   }, [roomId]);
 
@@ -264,6 +270,15 @@ export default function LawyerChatPage() {
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, []);
+
+  // Auto-scroll para o final quando novas mensagens chegam
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
   if (status === 'loading' || !session || !isInitialized) {
     return (
@@ -418,6 +433,8 @@ export default function LawyerChatPage() {
                 </div>
               </div>
             )}
+            {/* Elemento invisível para scroll automático */}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Input Container */}
