@@ -71,7 +71,10 @@ export const useWebSocketEvents = ({
       isError?: boolean; 
       shouldRetry?: boolean; 
       createdAt?: string; 
-      conversationId?: string 
+      conversationId?: string;
+      lawyerName?: string;
+      lawyerId?: string;
+      lawyerLicenseNumber?: string;
     }) => {
       console.log(`📨 Mensagem recebida:`, data);
       
@@ -80,6 +83,9 @@ export const useWebSocketEvents = ({
         text: data.text,
         sender: data.sender as 'user' | 'ai' | 'system',
         conversationId: data.conversationId,
+        lawyerName: data.lawyerName,
+        lawyerId: data.lawyerId,
+        lawyerLicenseNumber: data.lawyerLicenseNumber,
       };
       
       setMessages((prev) => [...prev, newMessage]);

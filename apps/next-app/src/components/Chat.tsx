@@ -7,14 +7,12 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useFeedback } from '@/hooks/useFeedback';
 import { useConversations } from '@/hooks/useConversations';
 import { useMessages } from '@/hooks/useMessages';
-import { useChargeModal } from '@/hooks/useChargeModal';
 import { Message, Conversation, CaseAssignment } from '@/types/chat.types';
 import { ChatHeader } from './chat/ChatHeader';
 import { ChatSidebar } from './chat/ChatSidebar';
 import { MobileSidebar } from './chat/MobileSidebar';
 import { MessageList } from './chat/MessageList';
 import { ChatInput } from './chat/ChatInput';
-import { ChargeModal } from './chat/ChargeModal';
 import FeedbackModal, { FeedbackData } from './feedback/FeedbackModal';
 
 export default function Chat() {
@@ -111,14 +109,6 @@ export default function Chat() {
     setIsUploadingAttachment,
   });
 
-  const {
-    showChargeModal,
-    setShowChargeModal,
-    isCreatingCharge,
-    chargeForm,
-    setChargeForm,
-    handleCreateCharge,
-  } = useChargeModal({ userId });
 
   const handleClearSelectedFile = useCallback(() => {
     setSelectedFile(null);
@@ -240,6 +230,7 @@ export default function Chat() {
       }>;
       lawyerName?: string;
       lawyerId?: string;
+      lawyerLicenseNumber?: string;
     }) => {
       console.log(`📨 CLIENTE recebeu receive-message:`, data);
       console.log(`� Detalhes da mensagem:`, {
@@ -256,6 +247,9 @@ export default function Chat() {
         sender: data.sender as 'user' | 'ai' | 'system',
         conversationId: data.conversationId,
         attachments: data.attachments,
+        lawyerName: data.lawyerName,
+        lawyerId: data.lawyerId,
+        lawyerLicenseNumber: data.lawyerLicenseNumber,
       };
 
       console.log(`💾 CLIENTE processando mensagem para state:`, newMessage);
@@ -284,7 +278,8 @@ export default function Chat() {
         setCaseAssigned({
           assigned: true,
           lawyerName: data.lawyerName || 'Advogado',
-          lawyerId: data.lawyerId || 'lawyer'
+          lawyerId: data.lawyerId || 'lawyer',
+          lawyerLicenseNumber: data.lawyerLicenseNumber
         });
       }
     });
@@ -404,18 +399,6 @@ export default function Chat() {
           onAttachmentDownload={handleAttachmentDownload}
         />
 
-        {/* Billing Button */}
-        {caseAssigned.assigned && caseAssigned.lawyerId && (
-          <div className="p-4 bg-slate-50 border-t border-slate-200">
-            <button
-              onClick={() => setShowChargeModal(true)}
-              className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center space-x-2"
-            >
-              <span>💰</span>
-              <span>Cobrar Cliente</span>
-            </button>
-          </div>
-        )}
 
         <ChatInput
           input={input}
@@ -431,15 +414,6 @@ export default function Chat() {
         />
       </div>
 
-      {/* Modals */}
-      <ChargeModal
-        showChargeModal={showChargeModal}
-        setShowChargeModal={setShowChargeModal}
-        chargeForm={chargeForm}
-        setChargeForm={setChargeForm}
-        handleCreateCharge={handleCreateCharge}
-        isCreatingCharge={isCreatingCharge}
-      />
 
       <FeedbackModal
         isOpen={showFeedbackModal}

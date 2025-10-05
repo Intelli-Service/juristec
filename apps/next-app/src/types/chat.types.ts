@@ -4,6 +4,9 @@ export interface Message {
   sender: 'user' | 'ai' | 'system' | 'lawyer';
   attachments?: FileAttachment[];
   conversationId?: string;
+  lawyerName?: string;
+  lawyerId?: string;
+  lawyerLicenseNumber?: string;
 }
 
 export interface FileAttachment {
@@ -31,6 +34,7 @@ export interface CaseAssignment {
   assigned: boolean;
   lawyerName?: string;
   lawyerId?: string;
+  lawyerLicenseNumber?: string;
 }
 
 export interface ChargeFormData {

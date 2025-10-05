@@ -19,10 +19,15 @@ const users = [
     role: 'super_admin'
   },
   {
-    name: 'Advogado Demo',
+    name: 'Dr. João Silva',
     email: 'lawyer@demo.com', 
     password: 'lawyer123',
-    role: 'lawyer'
+    role: 'lawyer',
+    profile: {
+      specialization: ['Direito Civil', 'Direito Trabalhista'],
+      licenseNumber: '123456/SP',
+      bio: 'Advogado especialista em Direito Civil e Trabalhista com mais de 10 anos de experiência.'
+    }
   },
   {
     name: 'Moderador Demo',

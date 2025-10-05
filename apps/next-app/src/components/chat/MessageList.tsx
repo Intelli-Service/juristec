@@ -78,11 +78,11 @@ export const MessageList: React.FC<MessageListProps> = ({
             {message.sender !== 'user' && message.sender !== 'system' && (
               <div className="flex justify-start">
                 <div className="flex items-center space-x-2 mb-1">
-                  <span className="text-lg">{getRespondentInfo(message.sender, caseAssigned).icon}</span>
+                  <span className="text-lg">{getRespondentInfo(message.sender, caseAssigned, message).icon}</span>
                   <div className="text-xs text-slate-500">
-                    <span className="font-medium">{getRespondentInfo(message.sender, caseAssigned).name}</span>
+                    <span className="font-medium">{getRespondentInfo(message.sender, caseAssigned, message).name}</span>
                     <span className="mx-1">•</span>
-                    <span>{getRespondentInfo(message.sender, caseAssigned).role}</span>
+                    <span>{getRespondentInfo(message.sender, caseAssigned, message).role}</span>
                   </div>
                 </div>
               </div>

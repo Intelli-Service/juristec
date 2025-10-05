@@ -19,6 +19,7 @@ import { VerificationService } from '../lib/verification.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { BillingService } from '../lib/billing.service';
 import Conversation from '../models/Conversation';
+import User from '../models/User';
 import { CaseStatus } from '../models/User';
 
 @WebSocketGateway({
@@ -937,6 +938,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       isAuthenticated: client.data.isAuthenticated,
       userRole: client.data.user?.role,
       userEmail: client.data.user?.email,
+      userName: client.data.user?.name,
+      clientData: client.data
     });
 
     const { roomId, message } = data;
@@ -1033,6 +1036,38 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         Array.from(this.server.sockets.adapter.rooms.keys()),
       );
 
+      // Buscar dados completos do advogado da base de dados
+      // Primeiro tentar usar o assignedTo da conversa, depois o userId do cliente
+      const lawyerUserId = conversation.assignedTo || client.data.user?.userId;
+      console.log('🔍 Buscando dados do advogado:', {
+        conversationAssignedTo: conversation.assignedTo,
+        conversationId: conversation._id,
+        clientUserId: client.data.user?.userId,
+        finalLawyerUserId: lawyerUserId,
+        clientUser: client.data.user,
+        clientData: client.data
+      });
+
+      const lawyer = await User.findById(lawyerUserId).select('name profile');
+      console.log('👨‍⚖️ Dados do advogado encontrados:', lawyer);
+
+      // Se não encontrou o advogado, tentar buscar por email (fallback)
+      let finalLawyer = lawyer;
+      if (!lawyer && client.data.user?.email) {
+        console.log('🔄 Fallback: buscando advogado por email:', client.data.user.email);
+        finalLawyer = await User.findOne({ email: client.data.user.email }).select('name profile');
+        console.log('👨‍⚖️ Dados do advogado encontrados por email:', finalLawyer);
+      }
+
+      const lawyerName = finalLawyer?.name || 'Advogado';
+      const lawyerLicenseNumber = finalLawyer?.profile?.licenseNumber;
+
+      console.log('📋 Dados finais do advogado:', {
+        lawyerName,
+        lawyerLicenseNumber,
+        lawyerId: lawyerUserId
+      });
+
       // Enviar para todos na sala do cliente (sala principal)
       const emitResult = this.server.to(roomId).emit('receive-message', {
         text: message,
@@ -1040,8 +1075,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         messageId: lawyerMessage._id.toString(),
         createdAt: lawyerMessage.createdAt,
         conversationId: conversation._id.toString(),
-        lawyerName: client.data.user?.name || 'Advogado',
-        lawyerId: client.data.user?.userId,
+        lawyerName: lawyerName,
+        lawyerId: lawyerUserId,
+        lawyerLicenseNumber: lawyerLicenseNumber,
       });
 
       console.log(
