@@ -238,6 +238,8 @@ export default function Chat() {
         mimeType: string;
         size: number;
       }>;
+      lawyerName?: string;
+      lawyerId?: string;
     }) => {
       console.log(`📨 CLIENTE recebeu receive-message:`, data);
       console.log(`� Detalhes da mensagem:`, {
@@ -281,8 +283,8 @@ export default function Chat() {
         console.log(`👨‍⚖️ CLIENTE detectou mensagem de advogado, atualizando caseAssigned`);
         setCaseAssigned({
           assigned: true,
-          lawyerName: 'Advogado',
-          lawyerId: 'lawyer'
+          lawyerName: data.lawyerName || 'Advogado',
+          lawyerId: data.lawyerId || 'lawyer'
         });
       }
     });

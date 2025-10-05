@@ -5,7 +5,7 @@ export const getRespondentInfo = (sender: string, caseAssigned: CaseAssignment) 
     return { name: 'Você', role: '', color: 'text-slate-600' };
   }
 
-  if (sender === 'lawyer' || (caseAssigned.assigned && sender === 'ai')) {
+  if (sender === 'lawyer') {
     return {
       name: caseAssigned.lawyerName || 'Advogado Responsável',
       role: 'Advogado Especialista',
@@ -14,10 +14,19 @@ export const getRespondentInfo = (sender: string, caseAssigned: CaseAssignment) 
     };
   }
 
+  if (sender === 'ai') {
+    return {
+      name: 'Assistente Jurídico',
+      role: 'IA Inteligente',
+      color: 'text-emerald-600',
+      icon: '🤖'
+    };
+  }
+
   return {
-    name: 'Assistente Jurídico',
-    role: 'IA Inteligente',
-    color: 'text-emerald-600',
-    icon: '🤖'
+    name: 'Sistema',
+    role: '',
+    color: 'text-slate-600',
+    icon: '⚙️'
   };
 };

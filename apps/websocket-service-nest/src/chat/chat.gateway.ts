@@ -1040,6 +1040,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         messageId: lawyerMessage._id.toString(),
         createdAt: lawyerMessage.createdAt,
         conversationId: conversation._id.toString(),
+        lawyerName: client.data.user?.name || 'Advogado',
+        lawyerId: client.data.user?.userId,
       });
 
       console.log(
