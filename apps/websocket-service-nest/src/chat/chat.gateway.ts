@@ -282,57 +282,101 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join-lawyer-room')
-  @UseGuards(NextAuthGuard)
   async handleJoinLawyerRoom(
     @MessageBody() roomId: string,
     @ConnectedSocket() client: Socket,
   ) {
+    console.log(`🏢 JOIN-LAWYER-ROOM: Iniciando para roomId: ${roomId}`);
+    console.log(`🏢 JOIN-LAWYER-ROOM: Cliente:`, {
+      id: client.id,
+      userId: client.data.userId,
+      role: client.data.user?.role,
+      authenticated: client.data.isAuthenticated
+    });
+
     try {
       // Verificar se o usuário é advogado
+      console.log(`🏢 JOIN-LAWYER-ROOM: Verificando permissões...`);
       if (
         !client.data.user ||
         !['lawyer', 'super_admin'].includes(client.data.user.role)
       ) {
+        console.log(`❌ JOIN-LAWYER-ROOM: Acesso negado - usuário não é advogado`);
         client.emit('error', {
           message: 'Acesso negado - apenas advogados podem acessar',
         });
         return;
       }
+      console.log(`✅ JOIN-LAWYER-ROOM: Permissões verificadas`);
 
       // Verificar se o caso existe
+      console.log(`🏢 JOIN-LAWYER-ROOM: Buscando conversa com roomId: ${roomId}`);
       const conversation = await Conversation.findOne({ roomId });
       if (!conversation) {
+        console.log(`❌ JOIN-LAWYER-ROOM: Caso não encontrado para roomId: ${roomId}`);
         client.emit('error', { message: 'Caso não encontrado' });
         return;
       }
+      console.log(`✅ JOIN-LAWYER-ROOM: Conversa encontrada:`, {
+        id: conversation._id,
+        assignedTo: conversation.assignedTo,
+        status: conversation.status
+      });
 
       // Super admins podem acessar qualquer caso, advogados apenas casos atribuídos a eles
+      console.log(`🏢 JOIN-LAWYER-ROOM: Verificando atribuição do caso...`);
+      console.log(`🏢 JOIN-LAWYER-ROOM: conversation.assignedTo:`, conversation.assignedTo);
+      console.log(`🏢 JOIN-LAWYER-ROOM: client.data.user.userId:`, client.data.user.userId);
+      console.log(`🏢 JOIN-LAWYER-ROOM: client.data.user.role:`, client.data.user.role);
+
       if (
         client.data.user.role !== 'super_admin' &&
         conversation.assignedTo !== client.data.user.userId
       ) {
+        console.log(`❌ JOIN-LAWYER-ROOM: Caso não atribuído ao advogado`, {
+          assignedTo: conversation.assignedTo,
+          lawyerId: client.data.user.userId,
+          assignedToType: typeof conversation.assignedTo,
+          lawyerIdType: typeof client.data.user.userId
+        });
         client.emit('error', {
           message: 'Acesso negado - caso não atribuído a você',
         });
         return;
       }
+      console.log(`✅ JOIN-LAWYER-ROOM: Atribuição verificada`);
 
       // Entrar na sala do cliente (para comunicação direta) e na sala específica do advogado
+      console.log(`🏢 JOIN-LAWYER-ROOM: Entrando nas salas...`);
       void client.join(roomId); // Sala principal do cliente
       void client.join(`lawyer-${roomId}`); // Sala específica dos advogados
+      console.log(`✅ JOIN-LAWYER-ROOM: Salas conectadas`);
 
       // Carregar histórico completo da conversa
+      console.log(`🏢 JOIN-LAWYER-ROOM: Carregando histórico de mensagens...`);
+      console.log(`🏢 JOIN-LAWYER-ROOM: userId para MessageService:`, client.data.userId);
+
+      if (!client.data.userId) {
+        console.log(`❌ JOIN-LAWYER-ROOM: userId inválido para carregar mensagens`);
+        client.emit('error', { message: 'Sessão inválida' });
+        return;
+      }
+
       const messages = await this.messageService.getMessages(
-        { conversationId: conversation._id },
+        { conversationId: conversation._id.toString() }, // Garantir que seja string
         {
-          userId: client.data.user._id,
+          userId: client.data.userId, // Usar userId consistente
           role: client.data.user.role,
           permissions: client.data.user.permissions,
         },
       );
+      console.log(`✅ JOIN-LAWYER-ROOM: ${messages.length} mensagens carregadas`);
+
       const visibleMessages = messages.filter(
         (msg) => !msg?.metadata?.hiddenFromClients,
       );
+      console.log(`✅ JOIN-LAWYER-ROOM: ${visibleMessages.length} mensagens visíveis`);
+
       client.emit(
         'lawyer-history-loaded',
         visibleMessages.map((msg) => ({
@@ -342,9 +386,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           createdAt: msg.createdAt,
         })),
       );
+      console.log(`✅ JOIN-LAWYER-ROOM: Histórico enviado com sucesso`);
     } catch (error) {
-      console.error('Erro ao entrar na sala do advogado:', error);
-      client.emit('error', { message: 'Erro interno do servidor' });
+      console.error('❌ JOIN-LAWYER-ROOM: Erro ao entrar na sala do advogado:', error);
+      console.error('❌ JOIN-LAWYER-ROOM: Tipo do erro:', error.constructor.name);
+      console.error('❌ JOIN-LAWYER-ROOM: Mensagem do erro:', error.message);
+      console.error('❌ JOIN-LAWYER-ROOM: Stack trace:', error.stack);
+
+      // Tentar identificar o tipo específico de erro
+      if (error.message?.includes('Acesso negado')) {
+        console.log('❌ JOIN-LAWYER-ROOM: Erro de permissão detectado');
+        client.emit('error', { message: error.message });
+      } else if (error.message?.includes('Conversa não encontrada')) {
+        console.log('❌ JOIN-LAWYER-ROOM: Conversa não encontrada');
+        client.emit('error', { message: 'Caso não encontrado' });
+      } else {
+        console.log('❌ JOIN-LAWYER-ROOM: Erro genérico do servidor');
+        client.emit('error', { message: 'Erro interno do servidor' });
+      }
     }
   }
 
@@ -820,11 +879,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('send-lawyer-message')
-  @UseGuards(NextAuthGuard)
   async handleSendLawyerMessage(
     @MessageBody() data: { roomId: string; message: string },
     @ConnectedSocket() client: Socket,
   ) {
+    console.log(`🎯 HANDLER: send-lawyer-message chamado!`);
+    console.log(`🎯 HANDLER: Dados recebidos:`, JSON.stringify(data, null, 2));
+    console.log(`🎯 HANDLER: Cliente autenticado:`, {
+      id: client.id,
+      userId: client.data.userId,
+      isAuthenticated: client.data.isAuthenticated,
+      userRole: client.data.user?.role,
+      userEmail: client.data.user?.email
+    });
+
     const { roomId, message } = data;
 
     console.log(`🎯 ADVOGADO enviando mensagem:`);
@@ -933,6 +1001,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       console.log(`✅ Mensagem do advogado enviada com sucesso`);
+      
+      // Enviar confirmação para o advogado
+      client.emit('message-sent-confirmation', {
+        messageId: lawyerMessage._id.toString(),
+        timestamp: new Date().toISOString(),
+        status: 'sent'
+      });
     } catch (error) {
       console.error('❌ Erro ao enviar mensagem do advogado:', error);
       client.emit('error', {
@@ -1283,5 +1358,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return cookie
       ? decodeURIComponent(cookie.substring(name.length + 1))
       : undefined;
+  }
+
+  @SubscribeMessage('test-connection')
+  async handleTestConnection(
+    @MessageBody() data: any,
+    @ConnectedSocket() client: Socket,
+  ) {
+    console.log('🧪 TESTE: Evento test-connection recebido!');
+    console.log('🧪 TESTE: Dados:', data);
+    console.log('🧪 TESTE: Cliente:', {
+      id: client.id,
+      userId: client.data.userId,
+      authenticated: client.data.isAuthenticated
+    });
+    
+    client.emit('test-response', { 
+      received: true, 
+      timestamp: new Date().toISOString(),
+      serverTime: Date.now()
+    });
   }
 }

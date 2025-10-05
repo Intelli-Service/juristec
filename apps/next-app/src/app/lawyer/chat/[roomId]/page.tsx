@@ -1,16 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
 import { useNotifications } from '@/hooks/useNotifications';
+import { Message } from '@/types/chat.types';
 
-interface Message {
-  id: string;
-  text: string;
-  sender: 'user' | 'ai' | 'lawyer';
+interface MessageWithTimestamp extends Message {
   createdAt: string;
 }
 
@@ -32,7 +30,8 @@ interface Conversation {
     name?: string;
     email?: string;
     phone?: string;
-  };
+    };
+
 }
 
 export default function LawyerChatPage() {
@@ -42,34 +41,16 @@ export default function LawyerChatPage() {
   const roomId = params.roomId as string;
   const notifications = useNotifications();
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<MessageWithTimestamp[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const socketInitializedRef = useRef(false);
 
-  useEffect(() => {
-    if (status === 'loading') return;
-
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin?callbackUrl=/lawyer');
-      return;
-    }
-
-    if (session && !['lawyer', 'super_admin'].includes(session.user.role)) {
-      router.push('/auth/signin?error=AccessDenied');
-      return;
-    }
-
-    if (session && roomId) {
-      loadConversation();
-      initializeSocket();
-    }
-  }, [session, status, router, roomId]);
-
-  const loadConversation = async () => {
+  const loadConversation = useCallback(async () => {
     try {
       const response = await fetch(`/api/lawyer/cases/${roomId}/messages`, {
         credentials: 'include',
@@ -110,74 +91,80 @@ export default function LawyerChatPage() {
     } finally {
       setIsInitialized(true);
     }
-  };
+  }, [roomId]);
 
-  const initializeSocket = async () => {
+  const initializeSocket = useCallback(async () => {
+    // Desconectar socket anterior se existir
+    if (socket) {
+      console.log('🔌 Desconectando socket anterior...');
+      socket.disconnect();
+    }
+
+    // Usar WebSocket URL correta - SIMPLIFICADO como no Chat.tsx
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080';
-    const newSocket = io(socketUrl, {
-      withCredentials: true, // Cookies são enviados automaticamente pelo navegador
-      transports: ['websocket'], // Forçar apenas WebSocket, sem polling HTTP
-      forceNew: true, // Sempre criar nova conexão
-      timeout: 5000, // Timeout de 5 segundos
-      reconnection: true, // Permitir reconexão automática
-      reconnectionAttempts: 5, // Máximo 5 tentativas de reconexão
-      reconnectionDelay: 1000, // Delay de 1 segundo entre tentativas
-      // Configurações para evitar requisições HTTP automáticas
-      autoConnect: true, // Conectar automaticamente
-      multiplex: false, // Não multiplexar conexões
-      // Desabilitar polling que pode causar requisições HTTP
-      upgrade: false, // Não tentar upgrade para WebSocket
+    
+    const newSocket = io(socketUrl);
+    setSocket(newSocket);
+
+    // Adicionar listeners de conexão - SIMPLIFICADO
+    newSocket.on('connect', () => {
+      console.log('🔌 Socket conectado (advogado):', newSocket.id);
     });
 
-    setSocket(newSocket);
+    newSocket.on('disconnect', (reason) => {
+      console.log('🔌 Socket desconectado (advogado):', reason);
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('🔌 Erro de conexão (advogado):', error);
+    });
 
     newSocket.emit('join-lawyer-room', roomId);
 
     newSocket.on('lawyer-history-loaded', (history: Message[]) => {
-      setMessages(history);
+      const historyWithTimestamps = history.map(msg => ({
+        ...msg,
+        createdAt: new Date().toISOString(), // Adicionar timestamp padrão para histórico
+      }));
+      setMessages(historyWithTimestamps);
     });
 
-    newSocket.on('receive-lawyer-message', (data: { text: string; sender: string; messageId: string; createdAt?: string }) => {
-      console.log('📨 Advogado recebeu receive-lawyer-message:', data);
-      const newMessage: Message = {
+    // Listener único para todas as mensagens recebidas pelo advogado
+    newSocket.on('receive-message', (data: { text: string; sender: string; messageId: string; createdAt?: string; conversationId?: string }) => {
+      console.log('📨 Advogado recebeu mensagem:', data);
+      
+      // Processar qualquer mensagem recebida (cliente, IA, sistema)
+      const newMessage: MessageWithTimestamp = {
         id: data.messageId,
         text: data.text,
-        sender: data.sender as 'user' | 'ai' | 'lawyer',
+        sender: data.sender as 'user' | 'ai' | 'lawyer' | 'system',
         createdAt: data.createdAt || new Date().toISOString(),
       };
+      
       setMessages((prev) => {
         // Evitar mensagens duplicadas
         const exists = prev.find(msg => msg.id === newMessage.id);
         if (exists) return prev;
         return [...prev, newMessage];
       });
+      
       console.log('💾 Mensagem adicionada ao state do advogado');
     });
 
-    // Também escutar mensagens regulares do cliente e IA
-    newSocket.on('receive-message', (data: { text: string; sender: string; messageId: string; createdAt?: string }) => {
-      console.log('📨 Advogado recebeu receive-message:', data);
-      // Só processar mensagens de cliente e IA
-      if (data.sender === 'user' || data.sender === 'ai' || data.sender === 'system') {
-        const newMessage: Message = {
-          id: data.messageId,
-          text: data.text,
-          sender: data.sender as 'user' | 'ai' | 'lawyer',
-          createdAt: data.createdAt || new Date().toISOString(),
-        };
-        setMessages((prev) => {
-          // Evitar mensagens duplicadas
-          const exists = prev.find(msg => msg.id === newMessage.id);
-          if (exists) return prev;
-          return [...prev, newMessage];
-        });
-        console.log('💾 Mensagem do cliente/IA adicionada ao state do advogado');
-      }
+    // Listener específico para mensagens enviadas apenas para advogados (se necessário)
+    newSocket.on('receive-lawyer-message', (data: { text: string; sender: string; messageId: string; createdAt?: string }) => {
+      console.log('📨 Advogado recebeu mensagem específica do advogado:', data);
+      // Este listener pode ser usado para mensagens privadas entre advogados, se necessário
     });
 
     newSocket.on('error', (error: { message: string }) => {
-      console.error('Erro do WebSocket:', error);
+      console.error('❌ Erro do WebSocket (advogado):', error);
       notifications.error('Erro de Conexão', error.message);
+    });
+
+    // Adicionar listener para resposta do teste
+    newSocket.on('test-response', (data: { message: string; success: boolean }) => {
+      console.log('🧪 Resposta do teste recebida:', data);
     });
 
     // Adicionar listeners de typing para comunicação com cliente
@@ -194,7 +181,32 @@ export default function LawyerChatPage() {
     return () => {
       newSocket.disconnect();
     };
-  };
+  }, [roomId, notifications]);
+
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin?callbackUrl=/lawyer');
+      return;
+    }
+
+    if (session && !['lawyer', 'super_admin'].includes(session.user.role)) {
+      router.push('/auth/signin?error=AccessDenied');
+      return;
+    }
+
+    if (session && roomId && !socketInitializedRef.current) { // Só inicializar se não foi inicializado ainda
+      socketInitializedRef.current = true;
+      loadConversation();
+      initializeSocket();
+    }
+  }, [session, status, roomId, loadConversation, initializeSocket]);
+
+  // Reset socket initialization ref when roomId changes
+  useEffect(() => {
+    socketInitializedRef.current = false;
+  }, [roomId]);
 
   const sendMessage = async () => {
     if (!input.trim() || !socket) return;
@@ -205,11 +217,16 @@ export default function LawyerChatPage() {
 
     try {
       console.log('📤 Enviando mensagem do advogado:', { roomId, message: messageText });
+      console.log('📤 Socket conectado:', socket.connected);
+      console.log('📤 Socket ID:', socket.id);
+      
       socket.emit('send-lawyer-message', {
         roomId,
         message: messageText,
         lawyerId: session?.user?.id,
       });
+      
+      console.log('📤 Evento send-lawyer-message emitido com sucesso');
       
       // Reset loading imediatamente após enviar - mais responsivo
       setIsLoading(false);
