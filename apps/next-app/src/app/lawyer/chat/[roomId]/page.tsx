@@ -275,10 +275,14 @@ export default function LawyerChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, []);
 
-  // Auto-scroll para o final quando novas mensagens chegam
+  // Auto-scroll para o final quando novas mensagens chegam ou chat é carregado
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    // Pequeno delay para garantir que o DOM esteja pronto
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [messages, scrollToBottom, isInitialized]);
 
   if (status === 'loading' || !session || !isInitialized) {
     return (
