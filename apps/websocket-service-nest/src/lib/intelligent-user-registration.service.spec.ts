@@ -6,7 +6,6 @@ import { MessageService } from './message.service';
 import { FluidRegistrationService } from './fluid-registration.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { getModelToken } from '@nestjs/mongoose';
-import { CaseStatus } from '../models/User';
 
 // Mock classes
 const mockGeminiService = {
@@ -207,8 +206,10 @@ describe('IntelligentUserRegistrationService', () => {
               name: 'require_lawyer_assistance',
               parameters: {
                 specialization_required: 'direito_trabalhista',
-                case_summary: 'Caso complexo de direito trabalhista envolvendo demissão injusta e reivindicação de direitos',
-                required_specialties: 'Direito trabalhista avançado, processo civil',
+                case_summary:
+                  'Caso complexo de direito trabalhista envolvendo demissão injusta e reivindicação de direitos',
+                required_specialties:
+                  'Direito trabalhista avançado, processo civil',
               },
             },
             {
@@ -261,7 +262,8 @@ describe('IntelligentUserRegistrationService', () => {
             $set: expect.objectContaining({
               lawyerNeeded: true,
               'classification.legalArea': 'direito_trabalhista',
-              'summary.text': 'Caso complexo de direito trabalhista envolvendo demissão injusta e reivindicação de direitos',
+              'summary.text':
+                'Caso complexo de direito trabalhista envolvendo demissão injusta e reivindicação de direitos',
               'summary.generatedBy': 'ai',
               notes: 'Direito trabalhista avançado, processo civil',
             }),

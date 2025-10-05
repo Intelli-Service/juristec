@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
   GoogleGenerativeAI,
-  SchemaType,
   Part,
   FileDataPart,
   TextPart,
@@ -10,7 +9,7 @@ import { AIService } from './ai.service';
 import {
   registerUserFunction,
   requireLawyerAssistanceFunction,
-  detectConversationCompletionFunction,
+  updateConversationStatusFunction,
 } from './function-calling';
 
 export interface RegisterUserFunctionCall {
@@ -47,10 +46,25 @@ export interface DetectConversationCompletionFunctionCall {
   };
 }
 
+export interface UpdateConversationStatusFunctionCall {
+  name: 'update_conversation_status';
+  parameters: {
+    status:
+      | 'open'
+      | 'active'
+      | 'resolved_by_ai'
+      | 'assigned'
+      | 'completed'
+      | 'abandoned';
+    reason?: string;
+  };
+}
+
 export type FunctionCall =
   | RegisterUserFunctionCall
   | RequireLawyerAssistanceFunctionCall
-  | DetectConversationCompletionFunctionCall;
+  | DetectConversationCompletionFunctionCall
+  | UpdateConversationStatusFunctionCall;
 
 export interface GeminiAttachment {
   fileUri: string;
@@ -273,7 +287,7 @@ export class GeminiService {
           functionDeclarations: [
             registerUserFunction as any,
             requireLawyerAssistanceFunction as any,
-            detectConversationCompletionFunction as any,
+            updateConversationStatusFunction as any,
           ],
         },
       ],
@@ -433,11 +447,11 @@ export class GeminiService {
               normalizedArgs as RequireLawyerAssistanceFunctionCall['parameters'],
           });
           break;
-        case 'detect_conversation_completion':
+        case 'update_conversation_status':
           collected.push({
-            name: 'detect_conversation_completion',
+            name: 'update_conversation_status',
             parameters:
-              normalizedArgs as DetectConversationCompletionFunctionCall['parameters'],
+              normalizedArgs as UpdateConversationStatusFunctionCall['parameters'],
           });
           break;
         default:

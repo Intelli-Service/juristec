@@ -5,6 +5,7 @@ import AIConfig from '../models/AIConfig'; // Corrigido
 import { IAIConfig } from '../models/AIConfig'; // Corrigido
 import { IConversation } from '../models/Conversation'; // Corrigido
 import Conversation from '../models/Conversation';
+import { CaseStatus } from '../models/User';
 
 @Injectable()
 export class AIService {
@@ -89,6 +90,7 @@ export class AIService {
         //   {
         //     functionDeclarations: [
         //       registerUserFunction,
+        //       requireLawyerAssistanceFunction,
         //       updateConversationStatusFunction,
         //     ],
         //   },
@@ -208,16 +210,19 @@ export class AIService {
       this.logger.log(`Getting cases for lawyer: ${lawyerId}`);
 
       // Buscar conversas atribuídas ao advogado ou disponíveis (que precisam de advogado)
+      // Também incluir casos fechados atribuídos ao advogado
       const conversations = await Conversation.find({
         $or: [
-          { assignedTo: lawyerId },
+          { assignedTo: lawyerId }, // Todos os casos atribuídos ao advogado (incluindo fechados)
           {
             lawyerNeeded: true, // Casos que precisam de advogado
-            assignedTo: { $exists: false } // Só casos não atribuídos ainda
+            assignedTo: { $exists: false }, // Só casos não atribuídos ainda
           },
         ],
       })
-        .select('roomId status assignedTo createdAt title classification priority lawyerNeeded summary')
+        .select(
+          'roomId status assignedTo createdAt title classification priority lawyerNeeded summary',
+        )
         .sort({ createdAt: -1 }) // Mais recentes primeiro
         .exec();
 
@@ -249,21 +254,20 @@ export class AIService {
         {
           roomId,
           lawyerNeeded: true, // Só pode atribuir casos que precisam de advogado
-          $or: [
-            { assignedTo: { $exists: false } },
-            { assignedTo: null }
-          ]
+          $or: [{ assignedTo: { $exists: false } }, { assignedTo: null }],
         },
         {
           assignedTo: lawyerId,
-          status: 'assigned',
+          status: CaseStatus.ASSIGNED,
           assignedAt: new Date(),
         },
         { new: true },
       ).exec();
 
       if (!result) {
-        throw new Error('Case not found, already assigned, or does not need a lawyer');
+        throw new Error(
+          'Case not found, already assigned, or does not need a lawyer',
+        );
       }
 
       return { success: true };

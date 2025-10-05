@@ -324,6 +324,18 @@ export class IntelligentUserRegistrationService {
               `processUserMessage: require_lawyer_assistance aplicado para conversation=${conversationId} ` +
                 `lawyerNeeded=${lawyerNeeded} specialization=${specializationRequired}`,
             );
+          } else if (functionCall.name === 'update_conversation_status') {
+            const statusResult = await this.handleConversationStatusUpdate(
+              functionCall.parameters,
+              conversationId,
+            );
+            statusUpdated = statusResult.statusUpdated;
+            newStatus = statusResult.newStatus;
+            functionExecutionResult = statusResult;
+            this.logger.log(
+              `processUserMessage: update_conversation_status aplicado para conversation=${conversationId} ` +
+                `statusUpdated=${statusUpdated} newStatus=${newStatus}`,
+            );
           } else if (functionCall.name === 'detect_conversation_completion') {
             // Validação de parâmetros para evitar erros de runtime
             if (
@@ -405,9 +417,10 @@ export class IntelligentUserRegistrationService {
         error?.stack,
       );
       // Fallback para resposta simples sem function calls
-      const fallbackResponse = await this.geminiService.generateAIResponseWithFunctionsLegacy([
-        { text: message, sender: 'user' },
-      ]);
+      const fallbackResponse =
+        await this.geminiService.generateAIResponseWithFunctionsLegacy([
+          { text: message, sender: 'user' },
+        ]);
 
       return {
         response: fallbackResponse.response,
@@ -594,6 +607,73 @@ export class IntelligentUserRegistrationService {
     } catch (error) {
       this.logger.error(
         `handleLawyerAssistanceRequest:error conversation=${conversationId}: ${error?.message || error}`,
+        error?.stack,
+      );
+      throw error;
+    }
+  }
+
+  private async handleConversationStatusUpdate(
+    params: { status: string; reason?: string },
+    conversationId: string,
+  ): Promise<{
+    statusUpdated: boolean;
+    newStatus: CaseStatus;
+  }> {
+    try {
+      this.logger.debug(
+        `handleConversationStatusUpdate:start conversation=${conversationId} payload=${this.formatLogPayload(
+          params,
+        )}`,
+      );
+
+      // Validar se o status é válido
+      const validStatuses = Object.values(CaseStatus);
+      if (!validStatuses.includes(params.status as CaseStatus)) {
+        throw new Error(
+          `Status inválido: ${params.status}. Status válidos: ${validStatuses.join(', ')}`,
+        );
+      }
+
+      const newStatus = params.status as CaseStatus;
+
+      const updateData: Record<string, any> = {
+        status: newStatus,
+        updatedAt: new Date(),
+      };
+
+      // Se o status for RESOLVED_BY_AI, COMPLETED ou ABANDONED, definir closedAt
+      if (
+        [
+          CaseStatus.RESOLVED_BY_AI,
+          CaseStatus.COMPLETED,
+          CaseStatus.ABANDONED,
+        ].includes(newStatus)
+      ) {
+        updateData.closedAt = new Date();
+        updateData.closedBy = 'ai'; // Indica que foi fechado pela IA
+      }
+
+      // Adicionar razão se fornecida
+      if (params.reason) {
+        updateData.notes = params.reason;
+      }
+
+      await this.conversationModel.findByIdAndUpdate(conversationId, {
+        $set: updateData,
+      });
+
+      this.logger.log(
+        `handleConversationStatusUpdate:concluded conversation=${conversationId} status=${newStatus}`,
+      );
+
+      return {
+        statusUpdated: true,
+        newStatus,
+      };
+    } catch (error) {
+      this.logger.error(
+        `handleConversationStatusUpdate:error conversation=${conversationId}: ${error?.message || error}`,
         error?.stack,
       );
       throw error;

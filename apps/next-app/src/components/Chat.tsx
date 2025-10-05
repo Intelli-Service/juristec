@@ -102,7 +102,6 @@ export default function Chat() {
     hasStartedConversation,
     input,
     selectedFile,
-    setMessages,
     setInput,
     setSelectedFile,
     setClearFileTrigger,

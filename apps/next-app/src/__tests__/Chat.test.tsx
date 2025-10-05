@@ -41,7 +41,7 @@ jest.mock('socket.io-client', () => ({
 
 // Mock do Sheet component
 jest.mock('@/components/ui/sheet', () => ({
-  Sheet: ({ children, open, onOpenChange: _onOpenChange }: { children: React.ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) => open ? <div data-testid="sheet">{children}</div> : null,
+  Sheet: ({ children, open }: { children: React.ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) => open ? <div data-testid="sheet">{children}</div> : null,
   SheetContent: ({ children }: { children: React.ReactNode }) => <div data-testid="sheet-content">{children}</div>,
   SheetTrigger: ({ children }: { children: React.ReactNode }) => <div data-testid="sheet-trigger">{children}</div>,
 }));

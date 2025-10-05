@@ -10,7 +10,7 @@ type CaseStatus =
   | 'open'
   | 'active'
   | 'resolved_by_ai'
-  | 'assigned_to_lawyer'
+  | 'assigned'
   | 'completed'
   | 'abandoned';
 
@@ -61,6 +61,7 @@ interface LawyerStats {
   openCases: number;
   closedCases: number;
   assignedCases: number;
+  availableCases: number;
   recentClosedCases: number;
   successRate: number;
 }
@@ -114,6 +115,14 @@ export default function LawyerDashboard() {
       
       const data = await response.json();
       setCases(data);
+      
+      // Debug: mostrar status de todos os casos
+      console.log('Casos carregados:', data.map((c: Conversation) => ({ 
+        roomId: c.roomId, 
+        status: c.status,
+        assignedTo: c.assignedTo,
+        lawyerNeeded: c.lawyerNeeded
+      })));
     } catch (error) {
       console.error('Erro ao carregar casos:', error);
     } finally {
@@ -133,6 +142,9 @@ export default function LawyerDashboard() {
       if (response.ok) {
         const data = await response.json();
         setStats(data);
+        
+        // Debug: mostrar estatísticas
+        console.log('Estatísticas carregadas:', data);
       }
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);
@@ -198,6 +210,11 @@ export default function LawyerDashboard() {
     const awaitingLawyer =
       case_.lawyerNeeded === true && !hasAssignedLawyer && !isClosedStatus;
     const inAICare = !hasAssignedLawyer && !awaitingLawyer && !isClosedStatus;
+
+    // Debug: mostrar status dos casos
+    if (currentFilter === 'closed' && isClosedStatus) {
+      console.log('Caso fechado encontrado:', case_.roomId, 'Status:', status);
+    }
 
     switch (currentFilter) {
       case 'open':
@@ -287,10 +304,13 @@ export default function LawyerDashboard() {
         }
         return { label: 'Em análise pela IA', color: 'bg-emerald-100 text-emerald-700' };
       case 'active':
+        if (awaitingLawyer) {
+          return { label: 'Aguardando advogado', color: 'bg-blue-100 text-blue-700' };
+        }
         return { label: 'Em andamento', color: 'bg-emerald-100 text-emerald-700' };
       case 'resolved_by_ai':
         return { label: 'Resolvido pela IA', color: 'bg-emerald-100 text-emerald-700' };
-      case 'assigned_to_lawyer':
+      case 'assigned':
         if (awaitingLawyer) {
           return { label: 'Aguardando advogado', color: 'bg-blue-100 text-blue-700' };
         }
@@ -359,10 +379,14 @@ export default function LawyerDashboard() {
 
           {/* Estatísticas */}
           {stats && (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
               <div className="bg-white rounded-lg shadow-md p-4">
                 <div className="text-2xl font-bold text-slate-800">{stats.totalCases}</div>
                 <div className="text-sm text-slate-600">Total de Casos</div>
+              </div>
+              <div className="bg-orange-50 rounded-lg shadow-md p-4">
+                <div className="text-2xl font-bold text-orange-600">{stats.availableCases}</div>
+                <div className="text-sm text-slate-600">Disponíveis</div>
               </div>
               <div className="bg-blue-50 rounded-lg shadow-md p-4">
                 <div className="text-2xl font-bold text-blue-600">{stats.openCases}</div>

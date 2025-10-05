@@ -44,7 +44,6 @@ test.describe('Chat Flow E2E Tests', () => {
   });
 
   test('should handle empty message submission', async ({ page }) => {
-    const _messageInput = page.locator('[data-testid="chat-input"]');
     const sendButton = page.locator('[data-testid="send-button"]');
 
     // Try to send empty message

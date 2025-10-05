@@ -95,7 +95,8 @@ describe('GeminiService', () => {
         { text: 'Tenho um problema trabalhista', sender: 'user' },
       ];
 
-      const result = await service.generateAIResponseWithFunctionsLegacy(messages);
+      const result =
+        await service.generateAIResponseWithFunctionsLegacy(messages);
 
       expect(result.response).toBe('Resposta de teste da IA');
       expect(mockAIService.getCurrentConfig).toHaveBeenCalled();
@@ -104,7 +105,8 @@ describe('GeminiService', () => {
     it('should handle single message conversation', async () => {
       const messages = [{ text: 'Olá, preciso de ajuda', sender: 'user' }];
 
-      const result = await service.generateAIResponseWithFunctionsLegacy(messages);
+      const result =
+        await service.generateAIResponseWithFunctionsLegacy(messages);
 
       expect(result.response).toBe('Resposta de teste da IA');
     });
@@ -112,7 +114,9 @@ describe('GeminiService', () => {
     it('should handle empty message history', async () => {
       const messages: { text: string; sender: string }[] = [];
 
-      await expect(service.generateAIResponseWithFunctionsLegacy(messages)).rejects.toThrow();
+      await expect(
+        service.generateAIResponseWithFunctionsLegacy(messages),
+      ).rejects.toThrow();
     });
   });
 
@@ -180,7 +184,8 @@ describe('GeminiService', () => {
             name: 'require_lawyer_assistance',
             args: {
               specialization_required: 'Direito Trabalhista',
-              case_summary: 'Demissão sem justa causa com reivindicação de direitos trabalhistas',
+              case_summary:
+                'Demissão sem justa causa com reivindicação de direitos trabalhistas',
               required_specialties: 'Direito trabalhista, processo civil',
             },
           },
@@ -203,7 +208,8 @@ describe('GeminiService', () => {
         name: 'require_lawyer_assistance',
         parameters: {
           specialization_required: 'Direito Trabalhista',
-          case_summary: 'Demissão sem justa causa com reivindicação de direitos trabalhistas',
+          case_summary:
+            'Demissão sem justa causa com reivindicação de direitos trabalhistas',
           required_specialties: 'Direito trabalhista, processo civil',
         },
       });

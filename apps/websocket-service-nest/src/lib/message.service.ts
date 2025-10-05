@@ -172,11 +172,9 @@ export class MessageService {
       case 'moderator':
         // Moderadores podem enviar mensagens em qualquer conversa ativa
         if (
-          ![
-            CaseStatus.OPEN,
-            CaseStatus.ACTIVE,
-            CaseStatus.ASSIGNED,
-          ].includes(conversation.status)
+          ![CaseStatus.OPEN, CaseStatus.ACTIVE, CaseStatus.ASSIGNED].includes(
+            conversation.status,
+          )
         ) {
           throw new ForbiddenException(
             'Moderador não pode enviar mensagens para esta conversa',

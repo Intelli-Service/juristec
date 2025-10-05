@@ -29,13 +29,15 @@ export const registerUserFunction = {
 
 export const requireLawyerAssistanceFunction = {
   name: 'require_lawyer_assistance',
-  description: 'Indica que a conversa requer assistência de um advogado especialista',
+  description:
+    'Indica que a conversa requer assistência de um advogado especialista',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
       category: {
         type: SchemaType.STRING,
-        description: 'Categoria geral do caso (ex: Trabalhista, Civil, Penal, etc.)',
+        description:
+          'Categoria geral do caso (ex: Trabalhista, Civil, Penal, etc.)',
       },
       specialization_required: {
         type: SchemaType.STRING,
@@ -43,37 +45,43 @@ export const requireLawyerAssistanceFunction = {
       },
       case_summary: {
         type: SchemaType.STRING,
-        description: 'Resumo conciso do caso para o advogado avaliar rapidamente',
+        description:
+          'Resumo conciso do caso para o advogado avaliar rapidamente',
       },
       required_specialties: {
         type: SchemaType.STRING,
-        description: 'Especialidades jurídicas específicas requeridas para o caso (opcional)',
+        description:
+          'Especialidades jurídicas específicas requeridas para o caso (opcional)',
       },
     },
     required: ['case_summary'],
   },
 };
 
-export const detectConversationCompletionFunction = {
-  name: 'detect_conversation_completion',
+export const updateConversationStatusFunction = {
+  name: 'update_conversation_status',
   description:
-    'Detecta quando uma conversa deve ser finalizada e se deve solicitar feedback ao usuário',
+    'Atualiza o status de uma conversa baseada no progresso da triagem',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
-      should_show_feedback: {
-        type: SchemaType.BOOLEAN,
-        description: 'Se deve mostrar o modal de feedback ao usuário',
-      },
-      completion_reason: {
+      status: {
         type: SchemaType.STRING,
-        description: 'Razão pela qual a conversa está sendo finalizada',
+        enum: [
+          'open',
+          'active',
+          'resolved_by_ai',
+          'assigned',
+          'completed',
+          'abandoned',
+        ],
+        description: 'Novo status da conversa',
       },
-      feedback_context: {
+      reason: {
         type: SchemaType.STRING,
-        description: 'Contexto adicional para o feedback (opcional)',
+        description: 'Razão da mudança de status',
       },
     },
-    required: ['should_show_feedback', 'completion_reason'],
+    required: ['status'],
   },
 };

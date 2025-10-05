@@ -129,7 +129,7 @@ export class LawyerController {
     return Conversation.findOneAndUpdate(
       { roomId },
       {
-        status: 'closed',
+        status: 'completed',
         resolution,
         closedAt: new Date(),
         closedBy: req.user.userId,
@@ -186,14 +186,23 @@ export class LawyerController {
   async getLawyerStats(@Request() req: { user: JwtPayload }) {
     const lawyerId = req.user.userId;
 
-    const [totalCases, openCases, closedCases, assignedCases] =
+    const [totalCases, openCases, closedCases, assignedCases, availableCases] =
       await Promise.all([
         Conversation.countDocuments({ assignedTo: lawyerId }),
         Conversation.countDocuments({ assignedTo: lawyerId, status: 'open' }),
-        Conversation.countDocuments({ assignedTo: lawyerId, status: 'closed' }),
+        Conversation.countDocuments({
+          assignedTo: lawyerId,
+          status: { $in: ['completed', 'abandoned', 'resolved_by_ai'] },
+        }),
         Conversation.countDocuments({
           assignedTo: lawyerId,
           status: 'assigned',
+        }),
+        // Casos disponíveis para atribuição (precisam de advogado mas não foram atribuídos)
+        Conversation.countDocuments({
+          lawyerNeeded: true,
+          assignedTo: { $exists: false },
+          status: { $nin: ['completed', 'abandoned', 'resolved_by_ai'] },
         }),
       ]);
 
@@ -203,7 +212,7 @@ export class LawyerController {
 
     const recentClosedCases = await Conversation.countDocuments({
       assignedTo: lawyerId,
-      status: 'closed',
+      status: { $in: ['completed', 'abandoned', 'resolved_by_ai'] },
       closedAt: { $gte: thirtyDaysAgo },
     });
 
@@ -212,6 +221,7 @@ export class LawyerController {
       openCases,
       closedCases,
       assignedCases,
+      availableCases,
       recentClosedCases,
       successRate:
         totalCases > 0 ? Math.round((closedCases / totalCases) * 100) : 0,
