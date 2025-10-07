@@ -606,8 +606,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Processar mensagem com cadastro inteligente
       let registrationResult;
-      let aiResponseText =
-        'Olá! Sou o assistente jurídico da Juristec. Como posso ajudar você hoje com suas questões legais?';
 
       // Verificar se a mensagem é um código de verificação (6 dígitos)
       const codeMatch = message.match(/^\d{6}$/);
@@ -672,8 +670,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             client.data.userId, // Usar userId consistente (sempre existe, mesmo para usuários anônimos)
             true, // Sempre incluir histórico quando há conversationId (todas as mensagens são salvas no banco)
             client.data.isAuthenticated, // Passar se o usuário está autenticado para determinar o role correto
+            _attachments,
+            // Callback para emitir function calls em tempo real
+            (event: string, data: any) => {
+              this.server.to(roomId).emit(event, data);
+            }
           );
-        aiResponseText = registrationResult.response;
+        // NÃO usar aiResponseText - o processUserMessage já criou todas as mensagens necessárias
       } catch (aiError) {
         console.warn('Erro na IA Gemini:', aiError?.message || aiError);
         // Qualquer erro do Gemini deve ser tratado como erro crítico
@@ -684,19 +687,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         );
       }
 
-      // Usar a resposta da IA (que pode incluir function calls)
-
-      // Log de eventos importantes
+      // Log de eventos importantes (baseado no resultado do processUserMessage)
       if (registrationResult.userRegistered) {
-        // Usuário registrado na conversa
+        console.log('✅ Usuário registrado na conversa');
       }
       if (registrationResult.statusUpdated) {
-        // Status da conversa atualizado
+        console.log('✅ Status da conversa atualizado');
         if (registrationResult.lawyerNeeded) {
-          // Conversa necessita advogado especializado
+          console.log('✅ Conversa necessita advogado especializado');
         }
       }
       if (registrationResult.shouldShowFeedback) {
+        console.log('✅ Modal de feedback deve ser mostrado');
         // Mapear feedbackReason para uma mensagem de contexto apropriada
         const feedbackContextMap: Record<string, string> = {
           resolved_by_ai: 'Conversa resolvida com sucesso pela IA',
@@ -714,30 +716,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
       }
 
-      // Salvar resposta da IA
-      console.log('💾 Tentando salvar mensagem da IA no banco de dados...');
-      let aiMessage;
-      try {
-        aiMessage = await this.messageService.createMessage({
-          conversationId: conversation._id.toString(),
-          text: aiResponseText,
-          sender: 'ai',
-          senderId: 'ai-gemini', // Identificador único para IA
-          metadata: { generatedBy: 'gemini' },
-        });
-        console.log('✅ Mensagem da IA salva com sucesso:', aiMessage._id);
-      } catch (_dbError) {
-        console.warn(
-          '❌ Erro ao salvar mensagem da IA, continuando sem persistência:',
-          _dbError.message,
-        );
-        aiMessage = {
-          _id: `temp-ai-${Date.now()}`,
-          text: aiResponseText,
-          sender: 'ai',
-        };
-      }
-
       // Tentar classificar conversa (opcional)
       try {
         await this.aiService.classifyConversation(roomId);
@@ -745,16 +723,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         console.warn('Erro ao classificar conversa:', classifyError.message);
       }
 
-      console.log('Antes de emitir mensagem da IA:', aiResponseText);
-      this.server.to(roomId).emit('receive-message', {
-        text: aiResponseText,
-        sender: 'ai',
-        messageId: aiMessage._id.toString(),
-        conversationId: conversation._id.toString(),
-      });
-      console.log('Depois de emitir mensagem da IA');
-
-      // Emitir evento de fim de digitação
+      // Emitir evento de fim de digitação (não há mais mensagem da IA para emitir aqui)
       console.log(
         '🛑 Emitting typing-stop for conversation:',
         conversation._id.toString(),
@@ -1357,7 +1326,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       const visibleMessages = messages.filter(
-        (msg) => !msg?.metadata?.hiddenFromClients,
+        (msg) => !msg?.metadata?.hiddenFromClients || msg?.metadata?.type === 'function_call' || msg?.metadata?.type === 'function_response',
       );
 
       // Get all user conversations for sidebar
@@ -1390,6 +1359,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
               sender: msg.sender,
               timestamp: msg.createdAt,
               attachments: attachments,
+              metadata: msg.metadata,
             };
           }),
         ),

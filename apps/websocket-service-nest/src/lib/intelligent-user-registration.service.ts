@@ -70,6 +70,7 @@ export class IntelligentUserRegistrationService {
     includeHistory: boolean = true,
     isAuthenticated: boolean = false,
     attachments: any[] = [],
+    realtimeEmitter?: (event: string, data: any) => void, // Callback para emitir mensagens em tempo real
   ): Promise<IntelligentRegistrationResult> {
     try {
       this.logger.debug(
@@ -271,6 +272,7 @@ export class IntelligentUserRegistrationService {
         this.logger.log(
           `processUserMessage: função(ões) retornadas pelo Gemini (${result.functionCalls.length}) para conversation=${conversationId}`,
         );
+        this.logger.debug(JSON.stringify(result, null, 2), "ResultComplete");
       } else {
         this.logger.warn(
           `processUserMessage: GEMINI NÃO RETORNOU FUNCTION CALLS conversation=${conversationId} respostaPreview="${(
@@ -292,10 +294,27 @@ export class IntelligentUserRegistrationService {
       let shouldShowFeedback = false;
       let feedbackReason: string | undefined;
 
-      // Processar function calls se existirem
-      if (result.functionCalls) {
-        for (const functionCall of result.functionCalls) {
-          await this.recordFunctionCallMessage(conversationId, functionCall);
+      // LOOP DE FUNCTION CALLS: Executar function calls e chamar Gemini novamente até obter resposta final
+      let currentResult = result;
+      let iterationCount = 0;
+      const maxIterations = 5; // Limite de segurança para evitar loops infinitos
+
+      while (currentResult.functionCalls?.length && iterationCount < maxIterations) {
+        iterationCount++;
+        this.logger.log(
+          `🔄 FUNCTION CALL LOOP - Iteração ${iterationCount}/${maxIterations} para conversation=${conversationId}`,
+        );
+
+        // Processar function calls da resposta atual
+        let sequenceCounter = 0;
+
+        for (const functionCall of currentResult.functionCalls) {
+          // Adicionar delay mínimo para garantir timestamps distintos
+          if (sequenceCounter > 0) {
+            await new Promise(resolve => setTimeout(resolve, 10)); // 10ms delay
+          }
+
+          await this.recordFunctionCallMessage(conversationId, functionCall, sequenceCounter, realtimeEmitter);
 
           this.logger.debug(
             `processUserMessage: executando function call "${functionCall.name}" ` +
@@ -376,12 +395,127 @@ export class IntelligentUserRegistrationService {
             } satisfies Record<string, unknown>;
           }
 
+          // Adicionar delay mínimo antes de gravar o resultado também
+          await new Promise(resolve => setTimeout(resolve, 5)); // 5ms delay
           await this.recordFunctionResultMessage(
             conversationId,
             functionCall.name,
             functionExecutionResult ?? { acknowledged: true },
+            sequenceCounter,
+            realtimeEmitter
+          );
+
+          sequenceCounter++;
+        }
+
+        // APÓS EXECUTAR TODAS AS FUNCTION CALLS, CHAMAR NOVAMENTE O GEMINI
+        // Recarregar histórico atualizado (incluindo as function calls recém-executadas)
+        const updatedMessages = await this.messageService.getMessages(
+          { conversationId, limit: 50 },
+          {
+            userId: userId || '',
+            role: isAuthenticated ? 'client' : 'anonymous',
+            permissions: [],
+          },
+        );
+
+        // Preparar mensagens atualizadas para o Gemini
+        const updatedGeminiMessages: MessageWithAttachments[] = [];
+
+        for (const msg of updatedMessages) {
+          const isHiddenForClients = msg?.metadata?.hiddenFromClients === true;
+          const messageAttachments = isHiddenForClients
+            ? []
+            : await this.uploadsService.getFilesByMessageId(msg._id.toString());
+
+          const geminiAttachments: GeminiAttachment[] = messageAttachments
+            .filter((attachment: any) => attachment && attachment.aiSignedUrl)
+            .map((attachment: any) => ({
+              fileUri: attachment.aiSignedUrl,
+              mimeType: attachment.mimeType,
+              displayName: attachment.originalName,
+            }));
+
+          let messageText = msg.text || '';
+
+          if (geminiAttachments.length > 0 && messageText.trim().length > 0) {
+            let attachmentsContext =
+              '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
+            geminiAttachments.forEach((file, index) => {
+              attachmentsContext += `${index + 1}. **${file.displayName}**\n`;
+              attachmentsContext += `   - Tipo: ${file.mimeType}\n`;
+              attachmentsContext += '\n';
+            });
+            attachmentsContext +=
+              '**IMPORTANTE:** Os documentos foram enviados como anexos para análise direta pela IA.\n\n';
+
+            messageText += attachmentsContext;
+          }
+
+          updatedGeminiMessages.push({
+            text: messageText,
+            sender: msg.sender,
+            attachments: geminiAttachments,
+            metadata: msg.metadata || undefined,
+          });
+        }
+
+        this.logger.log(
+          `🔄 CHAMANDO GEMINI NOVAMENTE - Iteração ${iterationCount} com ${updatedGeminiMessages.length} mensagens atualizadas`,
+        );
+
+        // Chamar Gemini novamente com histórico atualizado
+        currentResult = await this.geminiService.generateAIResponseWithFunctions(
+          updatedGeminiMessages,
+        );
+
+        // Se o Gemini retornou mais texto, criar uma NOVA mensagem separada
+        if (currentResult.response && currentResult.response.trim()) {
+          this.logger.log(
+            `📝 GEMINI RETORNOU TEXTO ADICIONAL na iteração ${iterationCount} - Criando nova mensagem separada`,
+          );
+
+          // Criar uma nova mensagem separada para o texto adicional
+          if (realtimeEmitter) {
+            const additionalMessageData = await this.messageService.createMessage({
+              conversationId,
+              text: currentResult.response,
+              sender: 'ai',
+              senderId: 'ai-gemini',
+              metadata: {
+                generatedBy: 'gemini',
+                iteration: iterationCount,
+                isAdditionalResponse: true
+              },
+            });
+
+            realtimeEmitter('receive-message', {
+              text: additionalMessageData.text,
+              sender: additionalMessageData.sender,
+              messageId: additionalMessageData._id.toString(),
+              conversationId: conversationId,
+              createdAt: additionalMessageData.createdAt?.toISOString(),
+              metadata: additionalMessageData.metadata,
+            });
+          }
+        }
+
+        if (currentResult.functionCalls?.length) {
+          this.logger.log(
+            `🔄 GEMINI RETORNOU MAIS ${currentResult.functionCalls.length} FUNCTION CALLS - Continuando loop`,
+          );
+        } else {
+          this.logger.log(
+            `✅ GEMINI RETORNOU APENAS TEXTO - Finalizando loop após ${iterationCount} iterações`,
           );
         }
+      }
+
+      // Verificar se atingimos o limite de iterações
+      if (iterationCount >= maxIterations) {
+        this.logger.warn(
+          `⚠️ FUNCTION CALL LOOP - Limite de ${maxIterations} iterações atingido para conversation=${conversationId}`,
+        );
       }
 
       this.logger.debug(
@@ -390,7 +524,7 @@ export class IntelligentUserRegistrationService {
       );
 
       const response: IntelligentRegistrationResult = {
-        response: result.response,
+        response: result.response, // Retornar APENAS a resposta inicial (texto + function calls originais)
         userRegistered,
         shouldShowFeedback,
         feedbackReason,
@@ -683,9 +817,11 @@ export class IntelligentUserRegistrationService {
   private async recordFunctionCallMessage(
     conversationId: string,
     functionCall: FunctionCall,
+    sequenceCounter?: number,
+    realtimeEmitter?: (event: string, data: any) => void,
   ): Promise<void> {
     try {
-      await this.messageService.createMessage({
+      const messageData = await this.messageService.createMessage({
         conversationId,
         text: `Função IA executada: ${functionCall.name}`,
         sender: 'ai',
@@ -694,9 +830,22 @@ export class IntelligentUserRegistrationService {
           type: 'function_call',
           name: functionCall.name,
           arguments: functionCall.parameters,
+          sequence: sequenceCounter,
           hiddenFromClients: true,
         },
       });
+
+      // Emitir em tempo real se callback fornecido
+      if (realtimeEmitter && messageData) {
+        realtimeEmitter('receive-message', {
+          text: messageData.text,
+          sender: messageData.sender,
+          messageId: messageData._id.toString(),
+          conversationId: conversationId,
+          createdAt: messageData.createdAt?.toISOString(),
+          metadata: messageData.metadata,
+        });
+      }
     } catch (error) {
       this.logger.warn(
         `recordFunctionCallMessage: falha ao registrar function call ${functionCall.name} para conversation=${conversationId}: ${error?.message || error}`,
@@ -708,20 +857,34 @@ export class IntelligentUserRegistrationService {
     conversationId: string,
     functionName: FunctionCall['name'],
     result: unknown,
+    sequenceCounter?: number,
+    realtimeEmitter?: (event: string, data: any) => void,
   ): Promise<void> {
     try {
-      const textSummary = `Resultado da função ${functionName}`;
-      await this.messageService.createMessage({
+      const messageData = await this.messageService.createMessage({
         conversationId,
-        text: textSummary,
+        text: `Resultado da função ${functionName}`,
         sender: 'system',
         metadata: {
           type: 'function_response',
           name: functionName,
           result,
+          sequence: sequenceCounter,
           hiddenFromClients: true,
         },
       });
+
+      // Emitir em tempo real se callback fornecido
+      if (realtimeEmitter && messageData) {
+        realtimeEmitter('receive-message', {
+          text: messageData.text,
+          sender: messageData.sender,
+          messageId: messageData._id.toString(),
+          conversationId: conversationId,
+          createdAt: messageData.createdAt?.toISOString(),
+          metadata: messageData.metadata,
+        });
+      }
     } catch (error) {
       this.logger.warn(
         `recordFunctionResultMessage: falha ao registrar resultado da função ${functionName} para conversation=${conversationId}: ${error?.message || error}`,
