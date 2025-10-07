@@ -6,12 +6,19 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
 import { useNotifications } from '@/hooks/useNotifications';
+import MessageAttachments from '@/components/MessageAttachments';
 
 interface Message {
   id: string;
   text: string;
   sender: 'user' | 'ai' | 'lawyer';
   createdAt: string;
+  attachments?: Array<{
+    id: string;
+    originalName: string;
+    mimeType: string;
+    size: number;
+  }>;
 }
 
 interface Conversation {
@@ -54,6 +61,35 @@ export default function LawyerChatPage() {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleAttachmentDownload = async (attachment: { id: string; originalName: string; mimeType: string; size: number }) => {
+    try {
+      console.log('⬇️ Baixando anexo:', attachment);
+      const response = await fetch(`/api/uploads/download/${attachment.id}`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachment.originalName;
+      document.body.appendChild(a);
+      a.click();
+
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      notifications.success('Download concluído', `Arquivo ${attachment.originalName} baixado com sucesso`);
+    } catch (error) {
+      console.error('Erro no download:', error);
+      notifications.error('Erro no download', 'Não foi possível baixar o arquivo');
+    }
   };
 
   useEffect(() => {
@@ -159,13 +195,14 @@ export default function LawyerChatPage() {
       setMessages(history);
     });
 
-    newSocket.on('receive-lawyer-message', (data: { text: string; sender: string; messageId: string; createdAt?: string }) => {
+    newSocket.on('receive-lawyer-message', (data: { text: string; sender: string; messageId: string; createdAt?: string; attachments?: Array<{ id: string; originalName: string; mimeType: string; size: number }> }) => {
       console.log('📨 Advogado recebeu receive-lawyer-message:', data);
       const newMessage: Message = {
         id: data.messageId,
         text: data.text,
         sender: data.sender as 'user' | 'ai' | 'lawyer',
         createdAt: data.createdAt || new Date().toISOString(),
+        attachments: data.attachments,
       };
       setMessages((prev) => {
         // Evitar mensagens duplicadas
@@ -177,7 +214,7 @@ export default function LawyerChatPage() {
     });
 
     // Também escutar mensagens regulares do cliente e IA
-    newSocket.on('receive-message', (data: { text: string; sender: string; messageId: string; createdAt?: string }) => {
+    newSocket.on('receive-message', (data: { text: string; sender: string; messageId: string; createdAt?: string; attachments?: Array<{ id: string; originalName: string; mimeType: string; size: number }> }) => {
       console.log('📨 Advogado recebeu receive-message:', data);
       // Só processar mensagens de cliente e IA
       if (data.sender === 'user' || data.sender === 'ai' || data.sender === 'system') {
@@ -186,6 +223,7 @@ export default function LawyerChatPage() {
           text: data.text,
           sender: data.sender as 'user' | 'ai' | 'lawyer',
           createdAt: data.createdAt || new Date().toISOString(),
+          attachments: data.attachments,
         };
         setMessages((prev) => {
           // Evitar mensagens duplicadas
@@ -390,6 +428,13 @@ export default function LawyerChatPage() {
                       }`}
                     >
                       {message.text}
+                      {message.attachments && message.attachments.length > 0 && (
+                        <MessageAttachments
+                          key={`attachments-${message.id}`}
+                          attachments={message.attachments}
+                          onDownload={handleAttachmentDownload}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
