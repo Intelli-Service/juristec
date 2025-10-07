@@ -14,3 +14,20 @@ global.fetch = jest.fn(() =>
     text: () => Promise.resolve('Service not available'),
   })
 )
+
+// Mock scrollIntoView for DOM elements
+Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+  writable: true,
+  value: jest.fn(),
+});
+
+// Mock scrollHeight and scrollTop for DOM elements
+Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+  writable: true,
+  value: 1000,
+});
+
+Object.defineProperty(HTMLElement.prototype, 'scrollTop', {
+  writable: true,
+  value: 0,
+});

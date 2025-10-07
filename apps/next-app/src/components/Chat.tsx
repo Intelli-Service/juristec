@@ -210,7 +210,15 @@ export default function Chat() {
       messages: Message[]
     }) => {
       console.log(`📜 Carregando histórico para conversa ${data.conversationId}: ${data.messages.length} mensagens`);
-      setMessages(data.messages);
+      
+      // Garantir ordenação cronológica das mensagens (mais antigas primeiro)
+      const sortedMessages = data.messages.sort((a, b) => {
+        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return timeA - timeB;
+      });
+      
+      setMessages(sortedMessages);
       setHasStartedConversation(data.messages.length > 0);
     });
 
@@ -231,6 +239,7 @@ export default function Chat() {
       lawyerName?: string;
       lawyerId?: string;
       lawyerLicenseNumber?: string;
+      metadata?: Record<string, unknown>; // Adicionar metadata
     }) => {
       console.log(`📨 CLIENTE recebeu receive-message:`, data);
       console.log(`� Detalhes da mensagem:`, {
@@ -246,10 +255,12 @@ export default function Chat() {
         text: data.text,
         sender: data.sender as 'user' | 'ai' | 'system',
         conversationId: data.conversationId,
+        timestamp: data.createdAt ? new Date(data.createdAt) : new Date(),
         attachments: data.attachments,
         lawyerName: data.lawyerName,
         lawyerId: data.lawyerId,
         lawyerLicenseNumber: data.lawyerLicenseNumber,
+        metadata: data.metadata, // Incluir metadata se disponível
       };
 
       console.log(`💾 CLIENTE processando mensagem para state:`, newMessage);
@@ -263,6 +274,14 @@ export default function Chat() {
       setMessages((prev) => {
         console.log(`📝 CLIENTE adicionando mensagem ao state. Total anterior: ${prev.length}`);
         const updated = [...prev, newMessage];
+        
+        // Garantir ordenação cronológica após adicionar nova mensagem
+        updated.sort((a, b) => {
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeA - timeB;
+        });
+        
         console.log(`📝 CLIENTE state atualizado. Total atual: ${updated.length}`);
         return updated;
       });

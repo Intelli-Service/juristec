@@ -1,7 +1,47 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import MessageAttachments from '@/components/MessageAttachments';
-import { Message, FileAttachment, CaseAssignment } from '@/types/chat.types';
+import { Message, FileAttachment, CaseAssignment, FunctionCallMessage, FunctionResponseMessage } from '@/types/chat.types';
 import { getRespondentInfo } from '@/lib/chat.utils';
+
+interface FunctionCallDisplayProps {
+  message: FunctionCallMessage | FunctionResponseMessage;
+}
+
+const FunctionCallDisplay: React.FC<FunctionCallDisplayProps> = ({ message }) => {
+  const isFunctionCall = message.metadata.type === 'function_call';
+  const functionName = message.metadata.name;
+  const data = isFunctionCall ? message.metadata.arguments : message.metadata.result;
+
+  return (
+    <div className="flex justify-center my-2">
+      <div className="max-w-lg w-full">
+        <div className={`flex items-center space-x-2 mb-1 ${isFunctionCall ? 'justify-start' : 'justify-end'}`}>
+          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+            isFunctionCall
+              ? 'bg-blue-100 text-blue-800'
+              : 'bg-green-100 text-green-800'
+          }`}>
+            {isFunctionCall ? '🤖 Function Call' : '✅ Function Result'}
+          </span>
+          <span className="text-xs text-slate-500 font-mono">
+            {functionName}
+          </span>
+        </div>
+        <div className={`p-3 rounded-lg border text-xs font-mono ${
+          isFunctionCall
+            ? 'bg-blue-50 border-blue-200 text-blue-900'
+            : 'bg-green-50 border-green-200 text-green-900'
+        }`}>
+          <div className="max-h-32 overflow-y-auto">
+            <pre className="whitespace-pre-wrap break-words">
+              {JSON.stringify(data, null, 2)}
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface MessageListProps {
   messages: Message[];
@@ -74,60 +114,71 @@ export const MessageList: React.FC<MessageListProps> = ({
       {messages
         .filter(message => !message.conversationId || message.conversationId === activeConversationId)
         .map((message) => (
-          <div key={message.id} className="space-y-1" data-testid="message">
-            {message.sender !== 'user' && message.sender !== 'system' && (
-              <div className="flex justify-start">
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="text-lg">{getRespondentInfo(message.sender, caseAssigned, message).icon}</span>
-                  <div className="text-xs text-slate-500">
-                    <span className="font-medium">{getRespondentInfo(message.sender, caseAssigned, message).name}</span>
-                    <span className="mx-1">•</span>
-                    <span>{getRespondentInfo(message.sender, caseAssigned, message).role}</span>
-                  </div>
-                </div>
-              </div>
+          <React.Fragment key={message.id}>
+            {/* Renderizar function calls primeiro */}
+            {(message.metadata?.type === 'function_call' || message.metadata?.type === 'function_response') && (
+              <FunctionCallDisplay message={message as FunctionCallMessage | FunctionResponseMessage} />
             )}
-            {message.sender === 'system' && (
-              <div className="flex justify-center">
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="text-sm">⚠️</span>
-                  <div className="text-xs text-amber-600">
-                    <span className="font-medium">Sistema</span>
+            
+            {/* Renderizar mensagens normais apenas se não forem function calls */}
+            {message.metadata?.type !== 'function_call' && message.metadata?.type !== 'function_response' && (
+              <div className="space-y-1" data-testid="message">
+                {message.sender !== 'user' && message.sender !== 'system' && (
+                  <div className="flex justify-start">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className="text-lg">{getRespondentInfo(message.sender, caseAssigned, message).icon}</span>
+                      <div className="text-xs text-slate-500">
+                        <span className="font-medium">{getRespondentInfo(message.sender, caseAssigned, message).name}</span>
+                        <span className="mx-1">•</span>
+                        <span>{getRespondentInfo(message.sender, caseAssigned, message).role}</span>
+                      </div>
+                    </div>
+                    <div>
+                      test123
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
-            <div
-              className={`flex ${
-                message.sender === 'user' ? 'justify-end' : message.sender === 'system' ? 'justify-center' : 'justify-start'
-              }`}
-            >
-              <div
-                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                  message.sender === 'user'
-                    ? 'bg-emerald-600 text-white'
-                    : message.sender === 'system'
-                    ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                    : message.sender === 'lawyer'
-                    ? 'bg-purple-50 text-purple-900 shadow-md border border-purple-200'
-                    : 'bg-white text-slate-800 shadow-md border border-slate-200'
-                }`}
-                data-testid={`message-${message.sender}`}
-              >
-                {message.text}
-                {message.attachments && message.attachments.length > 0 && (
-                  <MessageAttachments
-                    key={`attachments-${message.id}`}
-                    attachments={message.attachments}
-                    onDownload={onAttachmentDownload}
-                  />
                 )}
+                {message.sender === 'system' && (
+                  <div className="flex justify-center">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className="text-sm">⚠️</span>
+                      <div className="text-xs text-amber-600">
+                        <span className="font-medium">Sistema</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div
+                  className={`flex ${
+                    message.sender === 'user' ? 'justify-end' : message.sender === 'system' ? 'justify-center' : 'justify-start'
+                  }`}
+                >
+                  <div
+                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                      message.sender === 'user'
+                        ? 'bg-emerald-600 text-white'
+                        : message.sender === 'system'
+                        ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                        : message.sender === 'lawyer'
+                        ? 'bg-purple-50 text-purple-900 shadow-md border border-purple-200'
+                        : 'bg-white text-slate-800 shadow-md border border-slate-200'
+                    }`}
+                    data-testid={`message-${message.sender}`}
+                  >
+                    {message.text}
+                    {message.attachments && message.attachments.length > 0 && (
+                      <MessageAttachments
+                        key={`attachments-${message.id}`}
+                        attachments={message.attachments}
+                        onDownload={onAttachmentDownload}
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        ))}
-      
-      {isTyping && (
+            )}
+          </React.Fragment>
+        ))}      {isTyping && (
         <div className="flex justify-start">
           <div className="bg-white text-slate-800 shadow-md border border-slate-200 px-4 py-2 rounded-lg">
             <div className="flex items-center space-x-2">

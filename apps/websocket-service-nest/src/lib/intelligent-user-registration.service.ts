@@ -294,6 +294,41 @@ export class IntelligentUserRegistrationService {
       let shouldShowFeedback = false;
       let feedbackReason: string | undefined;
 
+      // SE HÁ RESPOSTA DE TEXTO NA RESPOSTA INICIAL, ENVIAR IMEDIATAMENTE (independentemente de function calls)
+      if (result.response && result.response.trim()) {
+        this.logger.log(
+          `📝 GEMINI RETORNOU TEXTO INICIAL - Enviando resposta como mensagem separada (function calls: ${result.functionCalls?.length || 0})`,
+        );
+
+        // Criar mensagem separada para a resposta inicial
+        if (realtimeEmitter) {
+          const initialMessageData = await this.messageService.createMessage({
+            conversationId,
+            text: result.response,
+            sender: 'ai',
+            senderId: 'ai-gemini',
+            metadata: {
+              generatedBy: 'gemini',
+              isInitialResponse: true,
+              hasFunctionCalls: Boolean(result.functionCalls?.length)
+            },
+          });
+
+          realtimeEmitter('receive-message', {
+            text: initialMessageData.text,
+            sender: initialMessageData.sender,
+            messageId: initialMessageData._id.toString(),
+            conversationId: conversationId,
+            createdAt: initialMessageData.createdAt?.toISOString(),
+            metadata: initialMessageData.metadata,
+          });
+        }
+      } else if (!result.functionCalls?.length) {
+        this.logger.warn(
+          `⚠️ GEMINI NÃO RETORNOU TEXTO NEM FUNCTION CALLS - Resposta vazia para conversation=${conversationId}`,
+        );
+      }
+
       // LOOP DE FUNCTION CALLS: Executar function calls e chamar Gemini novamente até obter resposta final
       let currentResult = result;
       let iterationCount = 0;
