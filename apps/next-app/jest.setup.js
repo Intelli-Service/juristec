@@ -3,7 +3,9 @@
 
 // Used for __tests__/testing-library.js
 // Learn more: https://github.com/testing-library/jest-dom
-import '@testing-library/jest-dom'
+if (typeof window !== 'undefined') {
+  import('@testing-library/jest-dom')
+}
 
 // Mock fetch for Node.js environment
 global.fetch = jest.fn(() =>
@@ -16,18 +18,20 @@ global.fetch = jest.fn(() =>
 )
 
 // Mock scrollIntoView for DOM elements
-Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
-  writable: true,
-  value: jest.fn(),
-});
+if (typeof HTMLElement !== 'undefined') {
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    writable: true,
+    value: jest.fn(),
+  });
 
-// Mock scrollHeight and scrollTop for DOM elements
-Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
-  writable: true,
-  value: 1000,
-});
+  // Mock scrollHeight and scrollTop for DOM elements
+  Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+    writable: true,
+    value: 1000,
+  });
 
-Object.defineProperty(HTMLElement.prototype, 'scrollTop', {
-  writable: true,
-  value: 0,
-});
+  Object.defineProperty(HTMLElement.prototype, 'scrollTop', {
+    writable: true,
+    value: 0,
+  });
+}

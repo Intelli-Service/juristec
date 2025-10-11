@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { test, expect } from '@playwright/test';
 
 test.describe('File Upload in Chat - Advanced Tests with MCP', () => {
@@ -61,7 +62,7 @@ test.describe('File Upload in Chat - Advanced Tests with MCP', () => {
           console.log(`Found file indicator: ${indicator}`);
           break;
         }
-      } catch (_e) {
+      } catch (_) {
         // Continue checking other indicators
       }
     }

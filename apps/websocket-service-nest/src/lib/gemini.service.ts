@@ -454,6 +454,13 @@ export class GeminiService {
               normalizedArgs as UpdateConversationStatusFunctionCall['parameters'],
           });
           break;
+        case 'detect_conversation_completion':
+          collected.push({
+            name: 'detect_conversation_completion',
+            parameters:
+              normalizedArgs as DetectConversationCompletionFunctionCall['parameters'],
+          });
+          break;
         default:
           this.log(`ℹ️ Function call desconhecida ignorada: ${call.name}`);
           break;

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { test, expect } from '@playwright/test';
 
 // Configuração base para testes E2E - Versão Simplificada para Debugging
@@ -29,7 +30,7 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
         const response = await page.request.get('http://localhost:8080');
         console.log('Status do servidor:', response.status());
       } catch (reqError) {
-        console.log('Servidor não responde:', reqError.message);
+        console.log('Servidor não responde:', (reqError as Error).message);
       }
 
       // Não falhar o teste por enquanto - queremos identificar problemas
@@ -56,7 +57,7 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
       try {
         const title = await page.title();
         console.log('📄 Título da página:', title || 'Nenhum título definido');
-      } catch (_e) {
+      } catch (_) {
         console.log('⚠️ Título da página não definido');
       }
 
@@ -103,7 +104,7 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
             foundChatElements = true;
             break;
           }
-        } catch (_e) {
+        } catch (_) {
           // Continuar procurando
         }
       }
@@ -113,7 +114,7 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
       }
 
     } catch (error) {
-      console.log('⚠️ Erro ao acessar página de chat:', error.message);
+      console.log('⚠️ Erro ao acessar página de chat:', (error as Error).message);
     }
 
     expect(true).toBe(true);
@@ -152,7 +153,7 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
             console.log('✅ Elemento de login encontrado:', selector);
             foundLoginElements = true;
           }
-        } catch (_e) {
+        } catch (_) {
           // Continuar procurando
         }
       }
@@ -162,7 +163,7 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
       }
 
     } catch (error) {
-      console.log('⚠️ Erro ao acessar página de admin:', error.message);
+      console.log('⚠️ Erro ao acessar página de admin:', (error as Error).message);
     }
 
     expect(true).toBe(true);
@@ -183,7 +184,7 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
         const response = await page.request.get(endpoint, { timeout: 5000 });
         console.log(`✅ ${endpoint}: ${response.status()} ${response.statusText()}`);
       } catch (error) {
-        console.log(`⚠️ ${endpoint}: ${error.message}`);
+        console.log(`⚠️ ${endpoint}: ${(error as Error).message}`);
       }
     }
 
@@ -198,9 +199,9 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
       await page.goto('http://localhost:8080', { timeout: 15000 });
 
       // Verificar se não há erros críticos no console
-      const errors = [];
+      const errors: string[] = [];
       page.on('pageerror', (error) => {
-        errors.push(error.message);
+        errors.push((error as Error).message);
       });
 
       // Aguardar um pouco para capturar erros
@@ -216,7 +217,7 @@ test.describe('Juristec Platform - E2E Tests (Simplified)', () => {
       }
 
     } catch (error) {
-      console.log('⚠️ Erro geral na aplicação:', error.message);
+      console.log('⚠️ Erro geral na aplicação:', (error as Error).message);
     }
 
     expect(true).toBe(true);

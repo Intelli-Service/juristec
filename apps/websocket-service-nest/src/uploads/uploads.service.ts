@@ -489,7 +489,9 @@ export class UploadsService implements OnModuleInit {
       const fileRef = this.storage.bucket(this.bucket).file(file.gcsPath);
       const stream = fileRef.createReadStream();
 
-      console.log(`📥 Streaming file ${file.filename} for user ${requestingUser.userId}`);
+      console.log(
+        `📥 Streaming file ${file.filename} for user ${requestingUser.userId}`,
+      );
       return { stream, file };
     } catch (error) {
       console.error(`❌ Error downloading file ${fileId}:`, error);

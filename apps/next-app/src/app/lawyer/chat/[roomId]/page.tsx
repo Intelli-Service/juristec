@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -109,7 +109,7 @@ export default function LawyerChatPage() {
       loadConversation();
       initializeSocket();
     }
-  }, [session, status, router, roomId]);
+  }, [session, status, router, roomId, loadConversation, initializeSocket]);
 
   // Scroll automático quando mensagens mudam
   useEffect(() => {
@@ -127,7 +127,7 @@ export default function LawyerChatPage() {
     }
   }, [isInitialized, messages.length]);
 
-  const loadConversation = async () => {
+  const loadConversation = useCallback(async () => {
     try {
       const response = await fetch(`/api/lawyer/cases/${roomId}/messages`, {
         credentials: 'include',
@@ -173,9 +173,9 @@ export default function LawyerChatPage() {
     } finally {
       setIsInitialized(true);
     }
-  };
+  }, [roomId]);
 
-  const initializeSocket = async () => {
+  const initializeSocket = useCallback(async () => {
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080';
     const newSocket = io(socketUrl, {
       withCredentials: true, // Cookies são enviados automaticamente pelo navegador
@@ -263,7 +263,7 @@ export default function LawyerChatPage() {
     return () => {
       newSocket.disconnect();
     };
-  };
+  }, [roomId, notifications]);
 
   const sendMessage = async () => {
     if (!input.trim() || !socket) return;

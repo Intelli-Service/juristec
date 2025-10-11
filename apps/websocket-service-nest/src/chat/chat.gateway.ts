@@ -674,7 +674,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             // Callback para emitir function calls em tempo real
             (event: string, data: any) => {
               this.server.to(roomId).emit(event, data);
-            }
+            },
           );
         // NÃO usar aiResponseText - o processUserMessage já criou todas as mensagens necessárias
       } catch (aiError) {
@@ -908,7 +908,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       userRole: client.data.user?.role,
       userEmail: client.data.user?.email,
       userName: client.data.user?.name,
-      clientData: client.data
+      clientData: client.data,
     });
 
     const { roomId, message } = data;
@@ -1014,7 +1014,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         clientUserId: client.data.user?.userId,
         finalLawyerUserId: lawyerUserId,
         clientUser: client.data.user,
-        clientData: client.data
+        clientData: client.data,
       });
 
       const lawyer = await User.findById(lawyerUserId).select('name profile');
@@ -1023,8 +1023,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Se não encontrou o advogado, tentar buscar por email (fallback)
       let finalLawyer = lawyer;
       if (!lawyer && client.data.user?.email) {
-        console.log('🔄 Fallback: buscando advogado por email:', client.data.user.email);
-        finalLawyer = await User.findOne({ email: client.data.user.email }).select('name profile');
+        console.log(
+          '🔄 Fallback: buscando advogado por email:',
+          client.data.user.email,
+        );
+        finalLawyer = await User.findOne({
+          email: client.data.user.email,
+        }).select('name profile');
         console.log('👨‍⚖️ Dados do advogado encontrados por email:', finalLawyer);
       }
 
@@ -1034,7 +1039,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       console.log('📋 Dados finais do advogado:', {
         lawyerName,
         lawyerLicenseNumber,
-        lawyerId: lawyerUserId
+        lawyerId: lawyerUserId,
       });
 
       // Enviar para todos na sala do cliente (sala principal)
@@ -1326,7 +1331,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       const visibleMessages = messages.filter(
-        (msg) => !msg?.metadata?.hiddenFromClients || msg?.metadata?.type === 'function_call' || msg?.metadata?.type === 'function_response',
+        (msg) =>
+          !msg?.metadata?.hiddenFromClients ||
+          msg?.metadata?.type === 'function_call' ||
+          msg?.metadata?.type === 'function_response',
       );
 
       // Get all user conversations for sidebar

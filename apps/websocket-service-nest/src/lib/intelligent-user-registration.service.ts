@@ -272,7 +272,7 @@ export class IntelligentUserRegistrationService {
         this.logger.log(
           `processUserMessage: função(ões) retornadas pelo Gemini (${result.functionCalls.length}) para conversation=${conversationId}`,
         );
-        this.logger.debug(JSON.stringify(result, null, 2), "ResultComplete");
+        this.logger.debug(JSON.stringify(result, null, 2), 'ResultComplete');
       } else {
         this.logger.warn(
           `processUserMessage: GEMINI NÃO RETORNOU FUNCTION CALLS conversation=${conversationId} respostaPreview="${(
@@ -310,7 +310,7 @@ export class IntelligentUserRegistrationService {
             metadata: {
               generatedBy: 'gemini',
               isInitialResponse: true,
-              hasFunctionCalls: Boolean(result.functionCalls?.length)
+              hasFunctionCalls: Boolean(result.functionCalls?.length),
             },
           });
 
@@ -334,7 +334,10 @@ export class IntelligentUserRegistrationService {
       let iterationCount = 0;
       const maxIterations = 5; // Limite de segurança para evitar loops infinitos
 
-      while (currentResult.functionCalls?.length && iterationCount < maxIterations) {
+      while (
+        currentResult.functionCalls?.length &&
+        iterationCount < maxIterations
+      ) {
         iterationCount++;
         this.logger.log(
           `🔄 FUNCTION CALL LOOP - Iteração ${iterationCount}/${maxIterations} para conversation=${conversationId}`,
@@ -346,10 +349,15 @@ export class IntelligentUserRegistrationService {
         for (const functionCall of currentResult.functionCalls) {
           // Adicionar delay mínimo para garantir timestamps distintos
           if (sequenceCounter > 0) {
-            await new Promise(resolve => setTimeout(resolve, 10)); // 10ms delay
+            await new Promise((resolve) => setTimeout(resolve, 10)); // 10ms delay
           }
 
-          await this.recordFunctionCallMessage(conversationId, functionCall, sequenceCounter, realtimeEmitter);
+          await this.recordFunctionCallMessage(
+            conversationId,
+            functionCall,
+            sequenceCounter,
+            realtimeEmitter,
+          );
 
           this.logger.debug(
             `processUserMessage: executando function call "${functionCall.name}" ` +
@@ -431,13 +439,13 @@ export class IntelligentUserRegistrationService {
           }
 
           // Adicionar delay mínimo antes de gravar o resultado também
-          await new Promise(resolve => setTimeout(resolve, 5)); // 5ms delay
+          await new Promise((resolve) => setTimeout(resolve, 5)); // 5ms delay
           await this.recordFunctionResultMessage(
             conversationId,
             functionCall.name,
             functionExecutionResult ?? { acknowledged: true },
             sequenceCounter,
-            realtimeEmitter
+            realtimeEmitter,
           );
 
           sequenceCounter++;
@@ -500,9 +508,10 @@ export class IntelligentUserRegistrationService {
         );
 
         // Chamar Gemini novamente com histórico atualizado
-        currentResult = await this.geminiService.generateAIResponseWithFunctions(
-          updatedGeminiMessages,
-        );
+        currentResult =
+          await this.geminiService.generateAIResponseWithFunctions(
+            updatedGeminiMessages,
+          );
 
         // Se o Gemini retornou mais texto, criar uma NOVA mensagem separada
         if (currentResult.response && currentResult.response.trim()) {
@@ -512,17 +521,18 @@ export class IntelligentUserRegistrationService {
 
           // Criar uma nova mensagem separada para o texto adicional
           if (realtimeEmitter) {
-            const additionalMessageData = await this.messageService.createMessage({
-              conversationId,
-              text: currentResult.response,
-              sender: 'ai',
-              senderId: 'ai-gemini',
-              metadata: {
-                generatedBy: 'gemini',
-                iteration: iterationCount,
-                isAdditionalResponse: true
-              },
-            });
+            const additionalMessageData =
+              await this.messageService.createMessage({
+                conversationId,
+                text: currentResult.response,
+                sender: 'ai',
+                senderId: 'ai-gemini',
+                metadata: {
+                  generatedBy: 'gemini',
+                  iteration: iterationCount,
+                  isAdditionalResponse: true,
+                },
+              });
 
             realtimeEmitter('receive-message', {
               text: additionalMessageData.text,

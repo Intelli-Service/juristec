@@ -120,8 +120,9 @@ describe('Authentication Configuration', () => {
         )
 
         if (user) {
-          const { password: _password, ...userWithoutPassword } = user
-          return userWithoutPassword
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { password, ...userWithoutPassword } = user;
+          return userWithoutPassword;
         }
 
         return null

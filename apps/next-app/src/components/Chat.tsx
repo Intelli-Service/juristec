@@ -350,7 +350,7 @@ export default function Chat() {
     return () => {
       newSocket.disconnect();
     };
-  }, [sessionStatus, session]);
+  }, [sessionStatus, session, activeConversationId, isTyping]);
 
   const handleFeedbackSubmit = async (feedbackData: FeedbackData) => {
     await feedbackHook.submitFeedback(feedbackData);
