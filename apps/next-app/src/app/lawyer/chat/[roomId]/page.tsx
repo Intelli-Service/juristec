@@ -92,41 +92,6 @@ export default function LawyerChatPage() {
     }
   };
 
-  useEffect(() => {
-    if (status === 'loading') return;
-
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin?callbackUrl=/lawyer');
-      return;
-    }
-
-    if (session && !['lawyer', 'super_admin'].includes(session.user.role)) {
-      router.push('/auth/signin?error=AccessDenied');
-      return;
-    }
-
-    if (session && roomId) {
-      loadConversation();
-      initializeSocket();
-    }
-  }, [session, status, router, roomId, loadConversation, initializeSocket]);
-
-  // Scroll automático quando mensagens mudam
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Scroll na inicialização quando tudo estiver carregado
-  useEffect(() => {
-    if (isInitialized && messages.length > 0) {
-      // Pequeno delay para garantir que o DOM esteja completamente renderizado
-      const timer = setTimeout(() => {
-        scrollToBottom();
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [isInitialized, messages.length]);
-
   const loadConversation = useCallback(async () => {
     try {
       const response = await fetch(`/api/lawyer/cases/${roomId}/messages`, {
@@ -264,6 +229,41 @@ export default function LawyerChatPage() {
       newSocket.disconnect();
     };
   }, [roomId, notifications]);
+
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin?callbackUrl=/lawyer');
+      return;
+    }
+
+    if (session && !['lawyer', 'super_admin'].includes(session.user.role)) {
+      router.push('/auth/signin?error=AccessDenied');
+      return;
+    }
+
+    if (session && roomId) {
+      loadConversation();
+      initializeSocket();
+    }
+  }, [session, status, router, roomId, loadConversation, initializeSocket]);
+
+  // Scroll automático quando mensagens mudam
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Scroll na inicialização quando tudo estiver carregado
+  useEffect(() => {
+    if (isInitialized && messages.length > 0) {
+      // Pequeno delay para garantir que o DOM esteja completamente renderizado
+      const timer = setTimeout(() => {
+        scrollToBottom();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isInitialized, messages.length]);
 
   const sendMessage = async () => {
     if (!input.trim() || !socket) return;
