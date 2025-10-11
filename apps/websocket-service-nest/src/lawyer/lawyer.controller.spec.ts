@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { LawyerController } from './lawyer.controller';
 import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
+import { UploadsService } from '../uploads/uploads.service';
 import { NextAuthGuard } from '../guards/nextauth.guard';
 
 describe('LawyerController', () => {
@@ -16,12 +17,17 @@ describe('LawyerController', () => {
     getMessages: jest.fn(),
   };
 
+  const mockUploadsService = {
+    getFilesByMessageId: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [LawyerController],
       providers: [
         { provide: AIService, useValue: mockAIService },
         { provide: MessageService, useValue: mockMessageService },
+        { provide: UploadsService, useValue: mockUploadsService },
       ],
     })
       .overrideGuard(NextAuthGuard)

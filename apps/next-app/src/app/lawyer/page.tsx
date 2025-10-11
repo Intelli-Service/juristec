@@ -1,36 +1,59 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useNotifications } from '../../hooks/useNotifications';
 
+type CaseStatus =
+  | 'open'
+  | 'active'
+  | 'resolved_by_ai'
+  | 'assigned'
+  | 'completed'
+  | 'abandoned';
+
+type CasePriority = 'low' | 'medium' | 'high' | 'urgent';
+
+type FilterOption = 'all' | 'open' | 'assigned' | 'closed';
+
 interface Conversation {
-  _id: string;
+  _id?: string;
+  id?: string;
   roomId: string;
-  status: string;
-  classification: {
-    category: string;
-    complexity: string;
-    legalArea: string;
+  status: CaseStatus;
+  classification?: {
+    category?: string;
+    complexity?: string;
+    legalArea?: string;
   };
-  summary: {
-    text: string;
-    lastUpdated: string;
+  summary?: {
+    text?: string;
+    lastUpdated?: string;
+    generatedBy?: string;
   };
-  assignedTo?: string;
-  closedAt?: string;
-  closedBy?: string;
-  resolution?: string;
+  priority?: CasePriority;
+  lawyerNeeded?: boolean;
+  assignedTo?: string | null;
+  assignedAt?: string | null;
+  closedAt?: string | null;
+  closedBy?: string | null;
+  resolution?: string | null;
   transferHistory?: Array<{
     from: string;
     to: string;
     reason: string;
     transferredAt: string;
   }>;
+  clientInfo?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+  };
   createdAt: string;
   updatedAt: string;
+  lastMessageAt?: string;
 }
 
 interface LawyerStats {
@@ -38,6 +61,7 @@ interface LawyerStats {
   openCases: number;
   closedCases: number;
   assignedCases: number;
+  availableCases: number;
   recentClosedCases: number;
   successRate: number;
 }
@@ -47,7 +71,7 @@ export default function LawyerDashboard() {
   const router = useRouter();
   const [cases, setCases] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all, open, assigned, closed
+  const [filter, setFilter] = useState<FilterOption>('all');
   const [stats, setStats] = useState<LawyerStats | null>(null);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -76,17 +100,6 @@ export default function LawyerDashboard() {
     }
   }, [session, status, router]);
 
-  if (status === 'loading' || !session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto"></div>
-          <p className="mt-2 text-slate-600">Verificando autenticação...</p>
-        </div>
-      </div>
-    );
-  }
-
   const loadCases = async () => {
     try {
       const response = await fetch('/api/lawyer/cases', {
@@ -102,6 +115,14 @@ export default function LawyerDashboard() {
       
       const data = await response.json();
       setCases(data);
+      
+      // Debug: mostrar status de todos os casos
+      console.log('Casos carregados:', data.map((c: Conversation) => ({ 
+        roomId: c.roomId, 
+        status: c.status,
+        assignedTo: c.assignedTo,
+        lawyerNeeded: c.lawyerNeeded
+      })));
     } catch (error) {
       console.error('Erro ao carregar casos:', error);
     } finally {
@@ -121,6 +142,9 @@ export default function LawyerDashboard() {
       if (response.ok) {
         const data = await response.json();
         setStats(data);
+        
+        // Debug: mostrar estatísticas
+        console.log('Estatísticas carregadas:', data);
       }
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);
@@ -174,31 +198,145 @@ export default function LawyerDashboard() {
     }
   };
 
-  const filteredCases = cases.filter(case_ => {
-    if (filter === 'all') return true;
-    if (filter === 'open') return case_.status === 'open';
-    if (filter === 'assigned') return case_.assignedTo && case_.status !== 'closed';
-    if (filter === 'closed') return case_.status === 'closed';
-    return true;
-  });
+  const matchesFilter = (case_: Conversation, currentFilter: FilterOption) => {
+    if (currentFilter === 'all') {
+      return true;
+    }
 
-  const getComplexityColor = (complexity: string) => {
+    const status = case_.status;
+    const isClosedStatus =
+      status === 'completed' || status === 'abandoned' || status === 'resolved_by_ai';
+    const hasAssignedLawyer = Boolean(case_.assignedTo) && !isClosedStatus;
+    const awaitingLawyer =
+      case_.lawyerNeeded === true && !hasAssignedLawyer && !isClosedStatus;
+    const inAICare = !hasAssignedLawyer && !awaitingLawyer && !isClosedStatus;
+
+    // Debug: mostrar status dos casos
+    if (currentFilter === 'closed' && isClosedStatus) {
+      console.log('Caso fechado encontrado:', case_.roomId, 'Status:', status);
+    }
+
+    switch (currentFilter) {
+      case 'open':
+        return awaitingLawyer || inAICare;
+      case 'assigned':
+        return hasAssignedLawyer;
+      case 'closed':
+        return isClosedStatus;
+      default:
+        return true;
+    }
+  };
+
+  const filteredCases = useMemo(
+    () => cases.filter((case_) => matchesFilter(case_, filter)),
+    [cases, filter]
+  );
+
+  const formatDate = (value?: string | null) => {
+    if (!value) {
+      return 'Data não disponível';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return 'Data não disponível';
+    }
+
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getComplexityColor = (complexity?: string) => {
     switch (complexity) {
-      case 'simples': return 'bg-green-100 text-green-800';
-      case 'medio': return 'bg-yellow-100 text-yellow-800';
-      case 'complexo': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'simples':
+        return 'bg-emerald-100 text-emerald-700';
+      case 'medio':
+        return 'bg-amber-100 text-amber-700';
+      case 'complexo':
+        return 'bg-rose-100 text-rose-700';
+      default:
+        return 'bg-slate-100 text-slate-600';
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'open': return 'bg-blue-100 text-blue-800';
-      case 'assigned': return 'bg-purple-100 text-purple-800';
-      case 'closed': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const getComplexityLabel = (complexity?: string) => {
+    switch (complexity) {
+      case 'simples':
+        return 'Simples';
+      case 'medio':
+        return 'Médio';
+      case 'complexo':
+        return 'Complexo';
+      default:
+        return 'Complexidade não informada';
     }
   };
+
+  const getPriorityPresentation = (priority?: CasePriority) => {
+    switch (priority) {
+      case 'urgent':
+        return { label: 'Urgente', color: 'bg-red-100 text-red-700' };
+      case 'high':
+        return { label: 'Alta', color: 'bg-orange-100 text-orange-700' };
+      case 'medium':
+        return { label: 'Média', color: 'bg-amber-100 text-amber-700' };
+      case 'low':
+        return { label: 'Baixa', color: 'bg-slate-100 text-slate-600' };
+      default:
+        return { label: 'Normal', color: 'bg-slate-100 text-slate-600' };
+    }
+  };
+
+  const getStatusPresentation = (case_: Conversation) => {
+    const hasAssignedLawyer = Boolean(case_.assignedTo);
+    const awaitingLawyer = case_.lawyerNeeded === true && !hasAssignedLawyer;
+
+    switch (case_.status) {
+      case 'open':
+        if (awaitingLawyer) {
+          return { label: 'Aguardando advogado', color: 'bg-blue-100 text-blue-700' };
+        }
+        return { label: 'Em análise pela IA', color: 'bg-emerald-100 text-emerald-700' };
+      case 'active':
+        if (awaitingLawyer) {
+          return { label: 'Aguardando advogado', color: 'bg-blue-100 text-blue-700' };
+        }
+        return { label: 'Em andamento', color: 'bg-emerald-100 text-emerald-700' };
+      case 'resolved_by_ai':
+        return { label: 'Resolvido pela IA', color: 'bg-emerald-100 text-emerald-700' };
+      case 'assigned':
+        if (awaitingLawyer) {
+          return { label: 'Aguardando advogado', color: 'bg-blue-100 text-blue-700' };
+        }
+        if (hasAssignedLawyer) {
+          return { label: 'Com advogado', color: 'bg-purple-100 text-purple-700' };
+        }
+        return { label: 'Em triagem jurídica', color: 'bg-emerald-100 text-emerald-700' };
+      case 'completed':
+        return { label: 'Concluído', color: 'bg-slate-200 text-slate-700' };
+      case 'abandoned':
+        return { label: 'Abandonado', color: 'bg-orange-100 text-orange-700' };
+      default:
+        return { label: 'Status desconhecido', color: 'bg-slate-100 text-slate-600' };
+    }
+  };
+
+  if (status === 'loading' || !session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto"></div>
+          <p className="mt-2 text-slate-600">Verificando autenticação...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -241,10 +379,14 @@ export default function LawyerDashboard() {
 
           {/* Estatísticas */}
           {stats && (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
               <div className="bg-white rounded-lg shadow-md p-4">
                 <div className="text-2xl font-bold text-slate-800">{stats.totalCases}</div>
                 <div className="text-sm text-slate-600">Total de Casos</div>
+              </div>
+              <div className="bg-orange-50 rounded-lg shadow-md p-4">
+                <div className="text-2xl font-bold text-orange-600">{stats.availableCases}</div>
+                <div className="text-sm text-slate-600">Disponíveis</div>
               </div>
               <div className="bg-blue-50 rounded-lg shadow-md p-4">
                 <div className="text-2xl font-bold text-blue-600">{stats.openCases}</div>
@@ -289,7 +431,7 @@ export default function LawyerDashboard() {
                   : 'bg-white text-slate-600 hover:bg-slate-100'
               }`}
             >
-              Abertos ({cases.filter(c => c.status === 'open').length})
+              Abertos ({cases.filter((c) => matchesFilter(c, 'open')).length})
             </button>
             <button
               onClick={() => setFilter('assigned')}
@@ -299,7 +441,7 @@ export default function LawyerDashboard() {
                   : 'bg-white text-slate-600 hover:bg-slate-100'
               }`}
             >
-              Em Andamento ({cases.filter(c => c.assignedTo && c.status !== 'closed').length})
+              Em Andamento ({cases.filter((c) => matchesFilter(c, 'assigned')).length})
             </button>
             <button
               onClick={() => setFilter('closed')}
@@ -309,100 +451,157 @@ export default function LawyerDashboard() {
                   : 'bg-white text-slate-600 hover:bg-slate-100'
               }`}
             >
-              Fechados ({cases.filter(c => c.status === 'closed').length})
+              Fechados ({cases.filter((c) => matchesFilter(c, 'closed')).length})
             </button>
           </div>
         </div>
 
         {/* Lista de Casos */}
         <div className="grid gap-4">
-          {filteredCases.map((case_) => (
-            <div key={case_.roomId} className="bg-white rounded-lg shadow-md p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <h3 className="text-lg font-semibold text-slate-800">
-                      Caso #{case_.roomId.slice(-6)}
-                    </h3>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(case_.status)}`}>
-                      {case_.status === 'open' ? 'Aberto' :
-                       case_.status === 'assigned' ? 'Atribuído' : 'Fechado'}
-                    </span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getComplexityColor(case_.classification.complexity)}`}>
-                      {case_.classification.complexity === 'simples' ? 'Simples' :
-                       case_.classification.complexity === 'medio' ? 'Médio' : 'Complexo'}
-                    </span>
+          {filteredCases.map((case_) => {
+            const statusInfo = getStatusPresentation(case_);
+            const complexityValue = case_.classification?.complexity;
+            const complexityColor = getComplexityColor(complexityValue);
+            const complexityLabel = getComplexityLabel(complexityValue);
+            const category = case_.classification?.category ?? 'Categoria não informada';
+            const legalArea = case_.classification?.legalArea ?? 'Área não informada';
+            const summaryText =
+              case_.summary?.text?.trim() ||
+              'Resumo ainda não gerado pela IA. Aguarde enquanto coletamos mais informações.';
+            const createdAt = formatDate(case_.createdAt);
+            const updatedAt = formatDate(case_.lastMessageAt || case_.updatedAt);
+            const priorityInfo = getPriorityPresentation(case_.priority);
+
+            const sessionUser = session?.user as { id?: string; _id?: string } | undefined;
+            const assignedToCurrentLawyer =
+              Boolean(case_.assignedTo) &&
+              (case_.assignedTo === sessionUser?.id || case_.assignedTo === sessionUser?._id);
+
+            const isAssigned = Boolean(case_.assignedTo);
+            const isAssignedToAnother = isAssigned && !assignedToCurrentLawyer;
+            const isClosed =
+              case_.status === 'completed' ||
+              case_.status === 'abandoned' ||
+              case_.status === 'resolved_by_ai';
+            const canAssign = !isAssigned && !isClosed && case_.lawyerNeeded === true;
+
+            return (
+              <div key={case_.roomId} className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <h3 className="text-lg font-semibold text-slate-800">
+                        Caso #{case_.roomId.slice(-6)}
+                      </h3>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}
+                      >
+                        {statusInfo.label}
+                      </span>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${complexityColor}`}
+                      >
+                        {complexityLabel}
+                      </span>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${priorityInfo.color}`}
+                      >
+                        Prioridade: {priorityInfo.label}
+                      </span>
+                    </div>
+
+                    <div className="text-sm text-slate-600 mb-2 flex flex-wrap gap-2">
+                      <span>
+                        <strong>Categoria:</strong> {category}
+                      </span>
+                      <span>•</span>
+                      <span>
+                        <strong>Área:</strong> {legalArea}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-700 mb-3 leading-relaxed">{summaryText}</p>
+
+                    <div className="text-xs text-slate-500 flex flex-wrap gap-2">
+                      <span>Criado em: {createdAt}</span>
+                      <span>•</span>
+                      <span>Última atividade: {updatedAt}</span>
+                    </div>
                   </div>
 
-                  <div className="text-sm text-slate-600 mb-2">
-                    <strong>Categoria:</strong> {case_.classification.category} •
-                    <strong> Área:</strong> {case_.classification.legalArea}
-                  </div>
-
-                  <p className="text-slate-700 mb-3">{case_.summary.text}</p>
-
-                  <div className="text-xs text-slate-500">
-                    Criado em: {new Date(case_.createdAt).toLocaleDateString('pt-BR')} •
-                    Atualizado: {new Date(case_.updatedAt).toLocaleDateString('pt-BR')}
-                  </div>
-                </div>
-
-                <div className="ml-4">
-                  {case_.status === 'open' && !case_.assignedTo ? (
-                    <button
-                      onClick={() => assignCase(case_.roomId)}
-                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
-                    >
-                      Pegar Caso
-                    </button>
-                  ) : case_.assignedTo && case_.status !== 'closed' ? (
-                    <div className="flex flex-col space-y-2">
-                      <div className="text-emerald-600 font-medium text-sm text-center mb-2">
-                        Caso atribuído a você
-                      </div>
-                      <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
-                        <a href={`/lawyer/chat/${case_.roomId}`} className="text-white no-underline">Ver Chat Completo</a>
+                  <div className="w-full md:w-auto md:ml-4 flex flex-col items-stretch text-sm space-y-2">
+                    {canAssign ? (
+                      <button
+                        onClick={() => assignCase(case_.roomId)}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+                      >
+                        Assumir Caso
                       </button>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => {
-                            setSelectedCase(case_);
-                            setShowCloseModal(true);
-                          }}
-                          className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs font-medium"
-                        >
-                          Fechar Caso
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedCase(case_);
-                            setShowTransferModal(true);
-                          }}
-                          className="px-3 py-1 bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors text-xs font-medium"
-                        >
-                          Transferir
-                        </button>
-                      </div>
-                    </div>
-                  ) : case_.status === 'closed' ? (
-                    <div className="text-center">
-                      <div className="text-green-600 font-medium text-sm mb-2">
-                        Caso Fechado
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {case_.closedAt ? new Date(case_.closedAt).toLocaleDateString('pt-BR') : 'Data não disponível'}
-                      </div>
-                      {case_.resolution && (
-                        <div className="text-xs text-slate-600 mt-1 max-w-32 truncate" title={case_.resolution}>
-                          {case_.resolution}
+                    ) : assignedToCurrentLawyer && !isClosed ? (
+                      <>
+                        <div className="text-emerald-600 font-medium text-center md:text-left">
+                          Caso sob sua responsabilidade
                         </div>
-                      )}
-                    </div>
-                  ) : null}
+                        <Link
+                          href={`/lawyer/chat/${case_.roomId}`}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-center hover:bg-blue-700 transition-colors font-medium"
+                        >
+                          Abrir Chat
+                        </Link>
+                        <div className="flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0">
+                          <button
+                            onClick={() => {
+                              setSelectedCase(case_);
+                              setShowCloseModal(true);
+                            }}
+                            className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium"
+                          >
+                            Fechar Caso
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedCase(case_);
+                              setShowTransferModal(true);
+                            }}
+                            className="flex-1 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-xs font-medium"
+                          >
+                            Transferir
+                          </button>
+                        </div>
+                      </>
+                    ) : isAssignedToAnother ? (
+                      <div className="text-center md:text-left text-slate-500">
+                        Este caso já está com outro advogado.
+                      </div>
+                    ) : isClosed ? (
+                      <div className="text-center md:text-left text-sm space-y-1">
+                        <div className="text-green-600 font-medium">
+                          {case_.status === 'resolved_by_ai'
+                            ? 'Encerrado pela IA'
+                            : 'Caso finalizado'}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {case_.closedAt ? formatDate(case_.closedAt) : 'Data não disponível'}
+                        </div>
+                        {case_.resolution && (
+                          <div
+                            className="text-xs text-slate-600 mt-1 max-h-20 overflow-hidden"
+                            title={case_.resolution}
+                          >
+                            {case_.resolution}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center md:text-left text-slate-500">
+                        Aguardando evolução da triagem automática.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {filteredCases.length === 0 && (

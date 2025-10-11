@@ -45,9 +45,20 @@ describe('UploadsController', () => {
       } as Express.Multer.File;
 
       const mockResult = {
-        id: '1',
+        _id: '1',
         filename: 'test.pdf',
+        originalName: 'test.pdf',
+        mimeType: 'application/pdf',
+        size: 1024,
         url: 'https://storage.googleapis.com/test.pdf',
+        gcsPath: 'uploads/conv-123/test.pdf',
+        conversationId: 'conv-123',
+        userId: 'user-123',
+        messageId: '',
+        isDeleted: false,
+        textExtractionStatus: 'pending',
+        geminiUploadStatus: 'failed',
+        id: '1',
       };
 
       const mockReq = {
@@ -65,7 +76,15 @@ describe('UploadsController', () => {
 
       expect(result).toEqual({
         success: true,
-        data: mockResult,
+        data: {
+          id: '1',
+          originalName: 'test.pdf',
+          mimeType: 'application/pdf',
+          size: 1024,
+          url: 'https://storage.googleapis.com/test.pdf',
+          conversationId: 'conv-123',
+          messageId: '',
+        },
       });
       expect(mockUploadsService.uploadFile).toHaveBeenCalledWith(
         mockFile,

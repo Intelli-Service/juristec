@@ -32,6 +32,16 @@ const client = new MongoClient(process.env.MONGODB_URI!)
 
 export const authOptions: NextAuthOptions = {
   // adapter: MongoDBAdapter(client), // Temporariamente removido para testar JWT puro
+  useSecureCookies: process.env.NODE_ENV === 'production',
+  // Desabilitar validações automáticas de sessão para evitar chamadas HTTP desnecessárias
+  events: {
+    async signIn() {
+      // Não fazer nada
+    },
+    async signOut() {
+      // Não fazer nada
+    },
+  },
   providers: [
     // Provider anônimo - sempre permite login
     {
@@ -135,6 +145,7 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
     maxAge: 24 * 60 * 60, // 24 hours
+    updateAge: 24 * 60 * 60, // Não atualizar sessão automaticamente
   },
   jwt: {
     maxAge: 24 * 60 * 60, // 24 hours
@@ -183,6 +194,10 @@ export const authOptions: NextAuthOptions = {
         session.user.isAnonymous = token.isAnonymous as boolean
       }
       return session
+    },
+    // Desabilitar redirect automático que pode causar chamadas HTTP
+    async redirect({ url, baseUrl }) {
+      return url.startsWith(baseUrl) ? url : baseUrl
     }
   },
   pages: {

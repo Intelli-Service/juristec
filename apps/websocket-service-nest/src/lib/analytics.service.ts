@@ -580,9 +580,7 @@ export class AnalyticsService {
   ) {
     const totalMessages = messages.length;
     const activeConversations = conversations.filter(
-      (c) =>
-        c.status === CaseStatus.OPEN ||
-        c.status === CaseStatus.ASSIGNED_TO_LAWYER,
+      (c) => c.status === CaseStatus.OPEN || c.status === CaseStatus.ACTIVE,
     ).length;
     const systemUptime = 99.9; // TODO: implementar monitoramento real
 

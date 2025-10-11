@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Star, TrendingUp, Users, MessageSquare, Clock } from 'lucide-react';
 
 interface FeedbackStats {
@@ -24,11 +24,7 @@ export default function FeedbackDashboard({ lawyerId, className = '' }: Feedback
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchStats();
-  }, [lawyerId]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
       const params = lawyerId ? `?lawyerId=${lawyerId}` : '';
@@ -45,7 +41,11 @@ export default function FeedbackDashboard({ lawyerId, className = '' }: Feedback
     } finally {
       setLoading(false);
     }
-  };
+  }, [lawyerId]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   if (loading) {
     return (

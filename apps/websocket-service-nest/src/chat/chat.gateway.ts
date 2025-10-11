@@ -8,9 +8,8 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Injectable, UseGuards } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { NextAuthGuard } from '../guards/nextauth.guard';
 import { GeminiService } from '../lib/gemini.service';
 import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
@@ -20,6 +19,7 @@ import { VerificationService } from '../lib/verification.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { BillingService } from '../lib/billing.service';
 import Conversation from '../models/Conversation';
+import User from '../models/User';
 import { CaseStatus } from '../models/User';
 
 @WebSocketGateway({
@@ -220,7 +220,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           isAuthenticated: client.data.isAuthenticated,
           user: client.data.user,
           conversationNumber: 1,
-          status: CaseStatus.ACTIVE,
+          status: CaseStatus.OPEN,
           title: 'Nova Conversa #1',
         });
 
@@ -282,66 +282,158 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join-lawyer-room')
-  @UseGuards(NextAuthGuard)
   async handleJoinLawyerRoom(
     @MessageBody() roomId: string,
     @ConnectedSocket() client: Socket,
   ) {
+    console.log(`🏢 JOIN-LAWYER-ROOM: Iniciando para roomId: ${roomId}`);
+    console.log(`🏢 JOIN-LAWYER-ROOM: Cliente:`, {
+      id: client.id,
+      userId: client.data.userId,
+      role: client.data.user?.role,
+      authenticated: client.data.isAuthenticated,
+    });
+
     try {
       // Verificar se o usuário é advogado
+      console.log(`🏢 JOIN-LAWYER-ROOM: Verificando permissões...`);
       if (
         !client.data.user ||
         !['lawyer', 'super_admin'].includes(client.data.user.role)
       ) {
+        console.log(
+          `❌ JOIN-LAWYER-ROOM: Acesso negado - usuário não é advogado`,
+        );
         client.emit('error', {
           message: 'Acesso negado - apenas advogados podem acessar',
         });
         return;
       }
+      console.log(`✅ JOIN-LAWYER-ROOM: Permissões verificadas`);
 
       // Verificar se o caso existe
+      console.log(
+        `🏢 JOIN-LAWYER-ROOM: Buscando conversa com roomId: ${roomId}`,
+      );
       const conversation = await Conversation.findOne({ roomId });
       if (!conversation) {
+        console.log(
+          `❌ JOIN-LAWYER-ROOM: Caso não encontrado para roomId: ${roomId}`,
+        );
         client.emit('error', { message: 'Caso não encontrado' });
         return;
       }
+      console.log(`✅ JOIN-LAWYER-ROOM: Conversa encontrada:`, {
+        id: conversation._id,
+        assignedTo: conversation.assignedTo,
+        status: conversation.status,
+      });
 
       // Super admins podem acessar qualquer caso, advogados apenas casos atribuídos a eles
+      console.log(`🏢 JOIN-LAWYER-ROOM: Verificando atribuição do caso...`);
+      console.log(
+        `🏢 JOIN-LAWYER-ROOM: conversation.assignedTo:`,
+        conversation.assignedTo,
+      );
+      console.log(
+        `🏢 JOIN-LAWYER-ROOM: client.data.user.userId:`,
+        client.data.user.userId,
+      );
+      console.log(
+        `🏢 JOIN-LAWYER-ROOM: client.data.user.role:`,
+        client.data.user.role,
+      );
+
       if (
         client.data.user.role !== 'super_admin' &&
         conversation.assignedTo !== client.data.user.userId
       ) {
+        console.log(`❌ JOIN-LAWYER-ROOM: Caso não atribuído ao advogado`, {
+          assignedTo: conversation.assignedTo,
+          lawyerId: client.data.user.userId,
+          assignedToType: typeof conversation.assignedTo,
+          lawyerIdType: typeof client.data.user.userId,
+        });
         client.emit('error', {
           message: 'Acesso negado - caso não atribuído a você',
         });
         return;
       }
+      console.log(`✅ JOIN-LAWYER-ROOM: Atribuição verificada`);
 
       // Entrar na sala do cliente (para comunicação direta) e na sala específica do advogado
+      console.log(`🏢 JOIN-LAWYER-ROOM: Entrando nas salas...`);
       void client.join(roomId); // Sala principal do cliente
       void client.join(`lawyer-${roomId}`); // Sala específica dos advogados
+      console.log(`✅ JOIN-LAWYER-ROOM: Salas conectadas`);
 
       // Carregar histórico completo da conversa
+      console.log(`🏢 JOIN-LAWYER-ROOM: Carregando histórico de mensagens...`);
+      console.log(
+        `🏢 JOIN-LAWYER-ROOM: userId para MessageService:`,
+        client.data.userId,
+      );
+
+      if (!client.data.userId) {
+        console.log(
+          `❌ JOIN-LAWYER-ROOM: userId inválido para carregar mensagens`,
+        );
+        client.emit('error', { message: 'Sessão inválida' });
+        return;
+      }
+
       const messages = await this.messageService.getMessages(
-        { conversationId: conversation._id },
+        { conversationId: conversation._id.toString() }, // Garantir que seja string
         {
-          userId: client.data.user._id,
+          userId: client.data.userId, // Usar userId consistente
           role: client.data.user.role,
           permissions: client.data.user.permissions,
         },
       );
+      console.log(
+        `✅ JOIN-LAWYER-ROOM: ${messages.length} mensagens carregadas`,
+      );
+
+      const visibleMessages = messages.filter(
+        (msg) => !msg?.metadata?.hiddenFromClients,
+      );
+      console.log(
+        `✅ JOIN-LAWYER-ROOM: ${visibleMessages.length} mensagens visíveis`,
+      );
+
       client.emit(
         'lawyer-history-loaded',
-        messages.map((msg) => ({
+        visibleMessages.map((msg) => ({
           id: msg._id.toString(),
           text: msg.text,
           sender: msg.sender,
           createdAt: msg.createdAt,
         })),
       );
+      console.log(`✅ JOIN-LAWYER-ROOM: Histórico enviado com sucesso`);
     } catch (error) {
-      console.error('Erro ao entrar na sala do advogado:', error);
-      client.emit('error', { message: 'Erro interno do servidor' });
+      console.error(
+        '❌ JOIN-LAWYER-ROOM: Erro ao entrar na sala do advogado:',
+        error,
+      );
+      console.error(
+        '❌ JOIN-LAWYER-ROOM: Tipo do erro:',
+        error.constructor.name,
+      );
+      console.error('❌ JOIN-LAWYER-ROOM: Mensagem do erro:', error.message);
+      console.error('❌ JOIN-LAWYER-ROOM: Stack trace:', error.stack);
+
+      // Tentar identificar o tipo específico de erro
+      if (error.message?.includes('Acesso negado')) {
+        console.log('❌ JOIN-LAWYER-ROOM: Erro de permissão detectado');
+        client.emit('error', { message: error.message });
+      } else if (error.message?.includes('Conversa não encontrada')) {
+        console.log('❌ JOIN-LAWYER-ROOM: Conversa não encontrada');
+        client.emit('error', { message: 'Caso não encontrado' });
+      } else {
+        console.log('❌ JOIN-LAWYER-ROOM: Erro genérico do servidor');
+        client.emit('error', { message: 'Erro interno do servidor' });
+      }
     }
   }
 
@@ -452,7 +544,41 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           _id: `temp-msg-${Date.now()}`,
           text: finalMessage,
           sender: 'user',
+          createdAt: new Date(),
         };
+      }
+
+      const messageId =
+        userMessage._id?.toString?.() ??
+        userMessage._id ??
+        `temp-${Date.now()}`;
+      const createdAtValue =
+        userMessage?.createdAt instanceof Date
+          ? userMessage.createdAt.toISOString()
+          : (userMessage?.createdAt ?? new Date().toISOString());
+
+      const userMessagePayload = {
+        text: finalMessage,
+        sender: 'user',
+        messageId,
+        conversationId: conversation._id.toString(),
+        createdAt: createdAtValue,
+        attachments: _attachments,
+      };
+
+      this.server.to(roomId).emit('receive-message', userMessagePayload);
+
+      // Só deferir para advogado se um advogado específico foi atribuído ao caso
+      // lawyerNeeded = true significa apenas que o caso precisa de advogado, mas a IA ainda pode responder
+      const shouldDeferToLawyer =
+        Boolean(conversation.assignedTo) ||
+        conversation.status === CaseStatus.ASSIGNED;
+
+      if (shouldDeferToLawyer) {
+        console.log(
+          `🔄 Caso deferido para advogado: assignedTo=${conversation.assignedTo}, status=${conversation.status}`,
+        );
+        return;
       }
 
       // Buscar mensagens para contexto (se o DB estiver funcionando)
@@ -477,6 +603,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // Para usuários anônimos, usar apenas a mensagem atual
         _messages = [userMessage];
       }
+
+      // Processar mensagem com cadastro inteligente
+      let registrationResult;
 
       // Verificar se a mensagem é um código de verificação (6 dígitos)
       const codeMatch = message.match(/^\d{6}$/);
@@ -521,11 +650,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return; // Não processar como mensagem normal da IA
       }
 
-      // Processar mensagem com cadastro inteligente
-      let registrationResult;
-      let aiResponseText =
-        'Olá! Sou o assistente jurídico da Juristec. Como posso ajudar você hoje com suas questões legais?';
+      // Emitir evento de início de digitação APÓS verificar deferência para advogado e códigos
+      console.log(
+        '✍️ Emitting typing-start for conversation:',
+        conversation._id.toString(),
+        'in room:',
+        roomId,
+      );
+      this.server.to(roomId).emit('typing-start', {
+        conversationId: conversation._id.toString(),
+      });
 
+      // Processar mensagem com cadastro inteligente
       try {
         registrationResult =
           await this.intelligentRegistrationService.processUserMessage(
@@ -534,8 +670,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             client.data.userId, // Usar userId consistente (sempre existe, mesmo para usuários anônimos)
             true, // Sempre incluir histórico quando há conversationId (todas as mensagens são salvas no banco)
             client.data.isAuthenticated, // Passar se o usuário está autenticado para determinar o role correto
+            _attachments,
+            // Callback para emitir function calls em tempo real
+            (event: string, data: any) => {
+              this.server.to(roomId).emit(event, data);
+            },
           );
-        aiResponseText = registrationResult.response;
+        // NÃO usar aiResponseText - o processUserMessage já criou todas as mensagens necessárias
       } catch (aiError) {
         console.warn('Erro na IA Gemini:', aiError?.message || aiError);
         // Qualquer erro do Gemini deve ser tratado como erro crítico
@@ -546,23 +687,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         );
       }
 
-      // Usar a resposta da IA (que pode incluir function calls)
-
-      // Log de eventos importantes
+      // Log de eventos importantes (baseado no resultado do processUserMessage)
       if (registrationResult.userRegistered) {
-        // Usuário registrado na conversa
+        console.log('✅ Usuário registrado na conversa');
       }
       if (registrationResult.statusUpdated) {
-        // Status da conversa atualizado
+        console.log('✅ Status da conversa atualizado');
         if (registrationResult.lawyerNeeded) {
-          // Conversa necessita advogado especializado
+          console.log('✅ Conversa necessita advogado especializado');
         }
       }
       if (registrationResult.shouldShowFeedback) {
+        console.log('✅ Modal de feedback deve ser mostrado');
         // Mapear feedbackReason para uma mensagem de contexto apropriada
         const feedbackContextMap: Record<string, string> = {
           resolved_by_ai: 'Conversa resolvida com sucesso pela IA',
-          assigned_to_lawyer: 'Caso encaminhado para advogado especializado',
+          assigned: 'Caso encaminhado para advogado especializado',
           user_satisfied: 'Usuário demonstrou satisfação com a solução',
           user_abandoned: 'Usuário abandonou a conversa',
         };
@@ -576,30 +716,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
       }
 
-      // Salvar resposta da IA
-      console.log('💾 Tentando salvar mensagem da IA no banco de dados...');
-      let aiMessage;
-      try {
-        aiMessage = await this.messageService.createMessage({
-          conversationId: conversation._id.toString(),
-          text: aiResponseText,
-          sender: 'ai',
-          senderId: 'ai-gemini', // Identificador único para IA
-          metadata: { generatedBy: 'gemini' },
-        });
-        console.log('✅ Mensagem da IA salva com sucesso:', aiMessage._id);
-      } catch (_dbError) {
-        console.warn(
-          '❌ Erro ao salvar mensagem da IA, continuando sem persistência:',
-          _dbError.message,
-        );
-        aiMessage = {
-          _id: `temp-ai-${Date.now()}`,
-          text: aiResponseText,
-          sender: 'ai',
-        };
-      }
-
       // Tentar classificar conversa (opcional)
       try {
         await this.aiService.classifyConversation(roomId);
@@ -607,14 +723,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         console.warn('Erro ao classificar conversa:', classifyError.message);
       }
 
-      console.log('Antes de emitir mensagem da IA:', aiResponseText);
-      this.server.to(roomId).emit('receive-message', {
-        text: aiResponseText,
-        sender: 'ai',
-        messageId: aiMessage._id.toString(),
+      // Emitir evento de fim de digitação (não há mais mensagem da IA para emitir aqui)
+      console.log(
+        '🛑 Emitting typing-stop for conversation:',
+        conversation._id.toString(),
+        'in room:',
+        roomId,
+      );
+      this.server.to(roomId).emit('typing-stop', {
         conversationId: conversation._id.toString(),
       });
-      console.log('Depois de emitir mensagem da IA');
     } catch (error) {
       console.error('Erro ao processar mensagem:', error);
 
@@ -694,6 +812,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         shouldRetry,
         conversationId: conversation._id.toString(),
       });
+
+      // Emitir evento de fim de digitação em caso de erro
+      console.log(
+        '🛑 Emitting typing-stop (error) for conversation:',
+        conversation._id.toString(),
+        'in room:',
+        roomId,
+      );
+      this.server.to(roomId).emit('typing-stop', {
+        conversationId: conversation._id.toString(),
+      });
     }
   }
 
@@ -766,12 +895,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('send-lawyer-message')
-  @UseGuards(NextAuthGuard)
   async handleSendLawyerMessage(
     @MessageBody() data: { roomId: string; message: string },
     @ConnectedSocket() client: Socket,
   ) {
+    console.log(`🎯 HANDLER: send-lawyer-message chamado!`);
+    console.log(`🎯 HANDLER: Dados recebidos:`, JSON.stringify(data, null, 2));
+    console.log(`🎯 HANDLER: Cliente autenticado:`, {
+      id: client.id,
+      userId: client.data.userId,
+      isAuthenticated: client.data.isAuthenticated,
+      userRole: client.data.user?.role,
+      userEmail: client.data.user?.email,
+      userName: client.data.user?.name,
+      clientData: client.data,
+    });
+
     const { roomId, message } = data;
+
+    console.log(`🎯 ADVOGADO enviando mensagem:`);
+    console.log(`   roomId: ${roomId}`);
+    console.log(`   message: "${message}"`);
+    console.log(
+      `   lawyer: ${client.data.user?.userId} (${client.data.user?.role})`,
+    );
 
     try {
       // Verificar se o usuário é advogado
@@ -779,29 +926,43 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         !client.data.user ||
         !['lawyer', 'super_admin'].includes(client.data.user.role)
       ) {
+        console.log(`❌ Acesso negado - usuário não é advogado`);
         client.emit('error', {
           message: 'Acesso negado - apenas advogados podem enviar mensagens',
         });
         return;
       }
 
+      console.log(`🔍 Buscando conversa com roomId: ${roomId}`);
       const conversation = await Conversation.findOne({ roomId });
       if (!conversation) {
+        console.log(`❌ Conversa não encontrada para roomId: ${roomId}`);
         client.emit('error', { message: 'Caso não encontrado' });
         return;
       }
+
+      console.log(`✅ Conversa encontrada:`, {
+        id: conversation._id,
+        roomId: conversation.roomId,
+        userId: conversation.userId,
+        assignedTo: conversation.assignedTo,
+      });
 
       // Verificar permissão para o caso
       if (
         client.data.user.role !== 'super_admin' &&
         conversation.assignedTo !== client.data.user.userId
       ) {
+        console.log(
+          `❌ Permissão negada - caso atribuído a: ${conversation.assignedTo}, advogado: ${client.data.user.userId}`,
+        );
         client.emit('error', {
           message: 'Acesso negado - caso não atribuído a você',
         });
         return;
       }
 
+      console.log(`💾 Salvando mensagem do advogado no banco...`);
       // Criar mensagem do advogado usando o MessageService
       const lawyerMessage = await this.messageService.createMessage({
         conversationId: conversation._id.toString(),
@@ -811,24 +972,118 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         metadata: { lawyerRole: client.data.user?.role },
       });
 
+      console.log(`✅ Mensagem salva com ID: ${lawyerMessage._id}`);
+
+      const messageTimestamp =
+        lawyerMessage.createdAt instanceof Date
+          ? lawyerMessage.createdAt
+          : new Date();
+
+      const updatePayload: Record<string, any> = {
+        status: CaseStatus.ASSIGNED,
+        lawyerNeeded: false,
+        updatedAt: messageTimestamp,
+        lastMessageAt: messageTimestamp,
+      };
+
+      if (!conversation.assignedTo) {
+        updatePayload.assignedTo = client.data.user.userId;
+        updatePayload.assignedAt = messageTimestamp;
+      }
+
+      await Conversation.findByIdAndUpdate(conversation._id, {
+        $set: updatePayload,
+      });
+
+      console.log(`🔄 Emitindo mensagem para sala: ${roomId}`);
+      console.log(
+        `📊 Clientes na sala ${roomId}:`,
+        this.server.sockets.adapter.rooms.get(roomId)?.size || 0,
+      );
+      console.log(
+        `📊 Todos os rooms:`,
+        Array.from(this.server.sockets.adapter.rooms.keys()),
+      );
+
+      // Buscar dados completos do advogado da base de dados
+      // Primeiro tentar usar o assignedTo da conversa, depois o userId do cliente
+      const lawyerUserId = conversation.assignedTo || client.data.user?.userId;
+      console.log('🔍 Buscando dados do advogado:', {
+        conversationAssignedTo: conversation.assignedTo,
+        conversationId: conversation._id,
+        clientUserId: client.data.user?.userId,
+        finalLawyerUserId: lawyerUserId,
+        clientUser: client.data.user,
+        clientData: client.data,
+      });
+
+      const lawyer = await User.findById(lawyerUserId).select('name profile');
+      console.log('👨‍⚖️ Dados do advogado encontrados:', lawyer);
+
+      // Se não encontrou o advogado, tentar buscar por email (fallback)
+      let finalLawyer = lawyer;
+      if (!lawyer && client.data.user?.email) {
+        console.log(
+          '🔄 Fallback: buscando advogado por email:',
+          client.data.user.email,
+        );
+        finalLawyer = await User.findOne({
+          email: client.data.user.email,
+        }).select('name profile');
+        console.log('👨‍⚖️ Dados do advogado encontrados por email:', finalLawyer);
+      }
+
+      const lawyerName = finalLawyer?.name || 'Advogado';
+      const lawyerLicenseNumber = finalLawyer?.profile?.licenseNumber;
+
+      console.log('📋 Dados finais do advogado:', {
+        lawyerName,
+        lawyerLicenseNumber,
+        lawyerId: lawyerUserId,
+      });
+
       // Enviar para todos na sala do cliente (sala principal)
-      this.server.to(roomId).emit('receive-message', {
+      const emitResult = this.server.to(roomId).emit('receive-message', {
         text: message,
         sender: 'lawyer', // Cliente verá como mensagem do advogado
         messageId: lawyerMessage._id.toString(),
         createdAt: lawyerMessage.createdAt,
         conversationId: conversation._id.toString(),
+        lawyerName: lawyerName,
+        lawyerId: lawyerUserId,
+        lawyerLicenseNumber: lawyerLicenseNumber,
       });
 
+      console.log(
+        `📤 Mensagem emitida para sala ${roomId}, resultado:`,
+        emitResult,
+      );
+
       // Também enviar confirmação para todos os advogados na sala específica
-      this.server.to(`lawyer-${roomId}`).emit('receive-lawyer-message', {
+      const lawyerRoom = `lawyer-${roomId}`;
+      console.log(`🔄 Emitindo para advogados na sala: ${lawyerRoom}`);
+      console.log(
+        `📊 Advogados na sala ${lawyerRoom}:`,
+        this.server.sockets.adapter.rooms.get(lawyerRoom)?.size || 0,
+      );
+
+      this.server.to(lawyerRoom).emit('receive-lawyer-message', {
         text: message,
         sender: 'lawyer',
         messageId: lawyerMessage._id.toString(),
         createdAt: lawyerMessage.createdAt,
       });
+
+      console.log(`✅ Mensagem do advogado enviada com sucesso`);
+
+      // Enviar confirmação para o advogado
+      client.emit('message-sent-confirmation', {
+        messageId: lawyerMessage._id.toString(),
+        timestamp: new Date().toISOString(),
+        status: 'sent',
+      });
     } catch (error) {
-      console.error('Erro ao enviar mensagem do advogado:', error);
+      console.error('❌ Erro ao enviar mensagem do advogado:', error);
       client.emit('error', {
         message: 'Erro ao enviar mensagem',
       });
@@ -938,7 +1193,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           userId,
           roomId,
           title: `Nova Conversa #${nextConversationNumber}`,
-          status: CaseStatus.ACTIVE, // Usar status válido do enum CaseStatus
+          status: CaseStatus.OPEN, // Usar status válido do enum CaseStatus
           conversationNumber: nextConversationNumber,
           isAnonymous: client.data.isAnonymous || false,
           metadata: {
@@ -1075,6 +1330,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         messages = [];
       }
 
+      const visibleMessages = messages.filter(
+        (msg) =>
+          !msg?.metadata?.hiddenFromClients ||
+          msg?.metadata?.type === 'function_call' ||
+          msg?.metadata?.type === 'function_response',
+      );
+
       // Get all user conversations for sidebar
       const conversations = await Conversation.find({ userId })
         .sort({ createdAt: -1 })
@@ -1085,7 +1347,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('conversation-switched', {
         conversationId,
         messages: await Promise.all(
-          messages.map(async (msg) => {
+          visibleMessages.map(async (msg) => {
             // Buscar anexos da mensagem
             let attachments: any[] = [];
             try {
@@ -1105,6 +1367,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
               sender: msg.sender,
               timestamp: msg.createdAt,
               attachments: attachments,
+              metadata: msg.metadata,
             };
           }),
         ),
@@ -1173,5 +1436,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return cookie
       ? decodeURIComponent(cookie.substring(name.length + 1))
       : undefined;
+  }
+
+  @SubscribeMessage('test-connection')
+  async handleTestConnection(
+    @MessageBody() data: any,
+    @ConnectedSocket() client: Socket,
+  ) {
+    console.log('🧪 TESTE: Evento test-connection recebido!');
+    console.log('🧪 TESTE: Dados:', data);
+    console.log('🧪 TESTE: Cliente:', {
+      id: client.id,
+      userId: client.data.userId,
+      authenticated: client.data.isAuthenticated,
+    });
+
+    client.emit('test-response', {
+      received: true,
+      timestamp: new Date().toISOString(),
+      serverTime: Date.now(),
+    });
   }
 }

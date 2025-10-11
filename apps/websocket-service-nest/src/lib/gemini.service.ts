@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import {
   GoogleGenerativeAI,
-  SchemaType,
   Part,
   FileDataPart,
   TextPart,
 } from '@google/generative-ai';
 import { AIService } from './ai.service';
+import {
+  registerUserFunction,
+  requireLawyerAssistanceFunction,
+  updateConversationStatusFunction,
+} from './function-calling';
 
 export interface RegisterUserFunctionCall {
   name: 'register_user';
@@ -19,18 +23,13 @@ export interface RegisterUserFunctionCall {
   };
 }
 
-export interface UpdateConversationStatusFunctionCall {
-  name: 'update_conversation_status';
+export interface RequireLawyerAssistanceFunctionCall {
+  name: 'require_lawyer_assistance';
   parameters: {
-    status:
-      | 'active'
-      | 'resolved_by_ai'
-      | 'assigned_to_lawyer'
-      | 'completed'
-      | 'abandoned';
-    lawyer_needed: boolean;
+    category?: string;
     specialization_required?: string;
-    notes?: string;
+    case_summary: string;
+    required_specialties?: string;
   };
 }
 
@@ -40,17 +39,32 @@ export interface DetectConversationCompletionFunctionCall {
     should_show_feedback: boolean;
     completion_reason:
       | 'resolved_by_ai'
-      | 'assigned_to_lawyer'
+      | 'assigned'
       | 'user_satisfied'
       | 'user_abandoned';
     feedback_context?: string;
   };
 }
 
+export interface UpdateConversationStatusFunctionCall {
+  name: 'update_conversation_status';
+  parameters: {
+    status:
+      | 'open'
+      | 'active'
+      | 'resolved_by_ai'
+      | 'assigned'
+      | 'completed'
+      | 'abandoned';
+    reason?: string;
+  };
+}
+
 export type FunctionCall =
   | RegisterUserFunctionCall
-  | UpdateConversationStatusFunctionCall
-  | DetectConversationCompletionFunctionCall;
+  | RequireLawyerAssistanceFunctionCall
+  | DetectConversationCompletionFunctionCall
+  | UpdateConversationStatusFunctionCall;
 
 export interface GeminiAttachment {
   fileUri: string;
@@ -62,6 +76,7 @@ export interface MessageWithAttachments {
   text: string;
   sender: string;
   attachments?: GeminiAttachment[];
+  metadata?: Record<string, any>;
 }
 
 @Injectable()
@@ -88,6 +103,54 @@ export class GeminiService {
    */
   private buildMessageParts(message: MessageWithAttachments): Part[] {
     const parts: Part[] = [];
+
+    const metadataType = message.metadata?.type;
+
+    if (metadataType === 'function_call') {
+      const functionName = message.metadata?.name;
+      if (functionName) {
+        const args =
+          message.metadata?.arguments ??
+          message.metadata?.params ??
+          message.metadata?.parameters ??
+          {};
+
+        this.log('🔁 Incluindo histórico de function call no Gemini', {
+          functionName,
+        });
+
+        parts.push({
+          functionCall: {
+            name: functionName,
+            args,
+          },
+        } as Part);
+        return parts;
+      }
+    }
+
+    if (metadataType === 'function_response') {
+      const functionName = message.metadata?.name;
+      if (functionName) {
+        const responsePayload =
+          message.metadata?.result ??
+          message.metadata?.response ??
+          message.metadata?.data ??
+          {};
+
+        this.log('🔁 Incluindo histórico de retorno de função no Gemini', {
+          functionName,
+        });
+
+        parts.push({
+          functionResponse: {
+            name: functionName,
+            response: responsePayload,
+          },
+        } as Part);
+        return parts;
+      }
+    }
 
     // Adicionar texto da mensagem se existir
     if (message.text && message.text.trim()) {
@@ -117,6 +180,22 @@ export class GeminiService {
     return parts;
   }
 
+  private getMessageRole(
+    message: MessageWithAttachments,
+  ): 'user' | 'model' | 'function' {
+    const metadataType = message.metadata?.type;
+
+    if (metadataType === 'function_response') {
+      return 'function';
+    }
+
+    if (message.sender === 'user') {
+      return 'user';
+    }
+
+    return 'model';
+  }
+
   async getModel() {
     const config = await this.aiService.getCurrentConfig();
     const modelName = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
@@ -125,147 +204,6 @@ export class GeminiService {
       model: modelName,
       systemInstruction: config?.systemPrompt || 'Você é um assistente útil.',
     });
-  }
-
-  async generateAIResponse(
-    messages: { text: string; sender: string }[],
-  ): Promise<string> {
-    const model = await this.getModel();
-    const config = await this.aiService.getCurrentConfig();
-
-    // Preparar histórico para chat session
-    const history = messages.slice(0, -1).map((msg) => ({
-      role: msg.sender === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.text }],
-    }));
-
-    // Iniciar chat com histórico
-    const chat = model.startChat({
-      history,
-      generationConfig: {
-        maxOutputTokens: config?.behaviorSettings?.maxTokens || 1000,
-        temperature: config?.behaviorSettings?.temperature || 0.7,
-      },
-      tools: [
-        {
-          functionDeclarations: [
-            {
-              name: 'register_user',
-              description:
-                'Registra um novo usuário no sistema com dados coletados da conversa',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  name: {
-                    type: SchemaType.STRING,
-                    description: 'Nome completo do usuário',
-                  },
-                  email: {
-                    type: SchemaType.STRING,
-                    description: 'Email do usuário (opcional se não fornecido)',
-                  },
-                  phone: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Telefone/WhatsApp do usuário (opcional se não fornecido)',
-                  },
-                  problem_description: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Descrição resumida do problema jurídico relatado',
-                  },
-                  urgency_level: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: ['low', 'medium', 'high', 'urgent'],
-                    description:
-                      'Nível de urgência do caso baseado na descrição',
-                  },
-                },
-                required: ['name', 'problem_description', 'urgency_level'],
-              },
-            },
-            {
-              name: 'update_conversation_status',
-              description:
-                'Atualiza o status da conversa e determina próximos passos',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  status: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: [
-                      'open',
-                      'active',
-                      'resolved_by_ai',
-                      'assigned_to_lawyer',
-                      'completed',
-                      'abandoned',
-                    ],
-                    description:
-                      'Status atual da conversa para controle de feedback inteligente',
-                  },
-                  lawyer_needed: {
-                    type: SchemaType.BOOLEAN,
-                    description: 'Se é necessário conectar com um advogado',
-                  },
-                  specialization_required: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Especialização jurídica necessária (se lawyer_needed for true)',
-                  },
-                  notes: {
-                    type: SchemaType.STRING,
-                    description: 'Notas adicionais sobre a conversa ou decisão',
-                  },
-                },
-                required: ['status', 'lawyer_needed'],
-              },
-            },
-            {
-              name: 'detect_conversation_completion',
-              description:
-                'Detecta quando uma conversa deve mostrar feedback baseado no contexto e intenção do usuário',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  should_show_feedback: {
-                    type: SchemaType.BOOLEAN,
-                    description:
-                      'Se deve mostrar o modal de feedback para esta conversa',
-                  },
-                  completion_reason: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: [
-                      'resolved_by_ai',
-                      'assigned_to_lawyer',
-                      'user_satisfied',
-                      'user_abandoned',
-                    ],
-                    description:
-                      'Razão pela qual a conversa deve mostrar feedback',
-                  },
-                  feedback_context: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Contexto adicional sobre por que o feedback deve ser mostrado',
-                  },
-                },
-                required: ['should_show_feedback', 'completion_reason'],
-              },
-            },
-          ],
-        },
-      ],
-    });
-
-    // Última mensagem do usuário
-    const lastMessage = messages[messages.length - 1];
-    const result = await chat.sendMessage(lastMessage.text);
-
-    return result.response.text();
   }
 
   async generateAIResponseWithFunctions(
@@ -293,135 +231,23 @@ export class GeminiService {
     // Preparar histórico para chat session
     const history = messages
       .slice(0, -1)
-      .filter((msg) => msg.sender === 'user' || msg.sender === 'ai')
-      .map((msg) => ({
-        role: msg.sender === 'user' ? 'user' : 'model',
-        parts: this.buildMessageParts(msg),
-      }));
+      .map((msg) => {
+        const parts = this.buildMessageParts(msg);
+        if (!parts.length) {
+          return null;
+        }
 
-    // Iniciar chat com histórico
-    const chat = model.startChat({
-      history,
-      generationConfig: {
-        maxOutputTokens: config?.behaviorSettings?.maxTokens || 1000,
-        temperature: config?.behaviorSettings?.temperature || 0.7,
-      },
-      tools: [
-        {
-          functionDeclarations: [
-            {
-              name: 'register_user',
-              description:
-                'Registra um novo usuário no sistema com dados coletados da conversa',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  name: {
-                    type: SchemaType.STRING,
-                    description: 'Nome completo do usuário',
-                  },
-                  email: {
-                    type: SchemaType.STRING,
-                    description: 'Email do usuário (opcional se não fornecido)',
-                  },
-                  phone: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Telefone/WhatsApp do usuário (opcional se não fornecido)',
-                  },
-                  problem_description: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Descrição resumida do problema jurídico relatado',
-                  },
-                  urgency_level: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: ['low', 'medium', 'high', 'urgent'],
-                    description:
-                      'Nível de urgência do caso baseado na descrição',
-                  },
-                },
-                required: ['name', 'problem_description', 'urgency_level'],
-              },
-            },
-            {
-              name: 'update_conversation_status',
-              description:
-                'Atualiza o status da conversa e determina próximos passos',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  status: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: [
-                      'open',
-                      'active',
-                      'resolved_by_ai',
-                      'assigned_to_lawyer',
-                      'completed',
-                      'abandoned',
-                    ],
-                    description:
-                      'Status atual da conversa para controle de feedback inteligente',
-                  },
-                  lawyer_needed: {
-                    type: SchemaType.BOOLEAN,
-                    description: 'Se é necessário conectar com um advogado',
-                  },
-                  specialization_required: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Especialização jurídica necessária (se lawyer_needed for true)',
-                  },
-                  notes: {
-                    type: SchemaType.STRING,
-                    description: 'Notas adicionais sobre a conversa ou decisão',
-                  },
-                },
-                required: ['status', 'lawyer_needed'],
-              },
-            },
-            {
-              name: 'detect_conversation_completion',
-              description:
-                'Detecta quando uma conversa deve mostrar feedback baseado no contexto e intenção do usuário',
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  should_show_feedback: {
-                    type: SchemaType.BOOLEAN,
-                    description:
-                      'Se deve mostrar o modal de feedback para esta conversa',
-                  },
-                  completion_reason: {
-                    type: SchemaType.STRING,
-                    format: 'enum',
-                    enum: [
-                      'resolved_by_ai',
-                      'assigned_to_lawyer',
-                      'user_satisfied',
-                      'user_abandoned',
-                    ],
-                    description:
-                      'Razão pela qual a conversa deve mostrar feedback',
-                  },
-                  feedback_context: {
-                    type: SchemaType.STRING,
-                    description:
-                      'Contexto adicional sobre por que o feedback deve ser mostrado',
-                  },
-                },
-                required: ['should_show_feedback', 'completion_reason'],
-              },
-            },
-          ],
-        },
-      ],
-    });
+        return {
+          role: this.getMessageRole(msg),
+          parts,
+        };
+      })
+      .filter(Boolean) as {
+      role: 'user' | 'model' | 'function';
+      parts: Part[];
+    }[];
 
-    this.log('Enviando mensagem para Gemini...');
+    // Preparar a última mensagem
     const lastMessageParts = this.buildMessageParts(lastMessage);
 
     // Log detalhado completo dos parts sendo enviados
@@ -449,6 +275,24 @@ export class GeminiService {
       }
     });
 
+    // Iniciar chat com histórico
+    const chat = model.startChat({
+      history,
+      generationConfig: {
+        maxOutputTokens: config?.behaviorSettings?.maxTokens || 1000,
+        temperature: config?.behaviorSettings?.temperature || 0.7,
+      },
+      tools: [
+        {
+          functionDeclarations: [
+            registerUserFunction as any,
+            requireLawyerAssistanceFunction as any,
+            updateConversationStatusFunction as any,
+          ],
+        },
+      ],
+    });
+
     // Log do objeto sendo enviado (sanitizado para produção)
     if (process.env.NODE_ENV !== 'production') {
       this.log(`🚀 RESUMO DO OBJETO ENVIADO PARA GEMINI API:`);
@@ -469,40 +313,161 @@ export class GeminiService {
 
     this.log('Resposta recebida do Gemini');
     const response = result.response;
+    const responseText = response.text();
     this.log(
-      `Texto da resposta: ${response.text().substring(0, 200)}${response.text().length > 200 ? '...' : ''}`,
+      `Texto da resposta: ${responseText.substring(0, 200)}${responseText.length > 200 ? '...' : ''}`,
     );
+
+    const rawFunctionCalls: unknown = (response as any)?.functionCalls;
+    if (Array.isArray(rawFunctionCalls) && rawFunctionCalls.length > 0) {
+      this.log(
+        `🔧 Function calls detectadas (nomes): ${rawFunctionCalls
+          .map((call: any) => call?.name || '[sem-nome]')
+          .join(', ')}`,
+      );
+    } else {
+      this.log('ℹ️ Nenhuma function call detectada no payload bruto.');
+    }
+
+    const firstCandidate = (response as any)?.candidates?.[0];
+    if (firstCandidate) {
+      try {
+        const candidatePreview = {
+          finishReason: firstCandidate.finishReason,
+          safetyRatings: firstCandidate.safetyRatings,
+          parts: Array.isArray(firstCandidate.content?.parts)
+            ? firstCandidate.content.parts.map((part: any, idx: number) => {
+                if (part.functionCall) {
+                  return {
+                    index: idx,
+                    type: 'functionCall',
+                    name: part.functionCall.name,
+                    hasArgs: Boolean(part.functionCall.args),
+                  };
+                }
+                if (part.text) {
+                  const textValue = String(part.text);
+                  return {
+                    index: idx,
+                    type: 'text',
+                    textPreview: `${textValue.substring(0, 120)}${
+                      textValue.length > 120 ? '...' : ''
+                    }`,
+                  };
+                }
+                return { index: idx, type: Object.keys(part)[0] ?? 'unknown' };
+              })
+            : [],
+        };
+        this.log('📄 Candidate[0] preview:', candidatePreview);
+      } catch (error) {
+        this.log('⚠️ Falha ao serializar candidate[0] para log:', error);
+      }
+    }
+
+    const promptFeedback = (response as any)?.promptFeedback;
+    if (promptFeedback) {
+      this.log('🛡️ Prompt feedback recebido:', promptFeedback);
+    }
+
+    if (!responseText?.trim()) {
+      this.log('⚠️ Resposta textual vazia recebida do Gemini.');
+    }
 
     const functionCalls: FunctionCall[] = [];
 
-    // Verificar function calls na resposta
-    if (response.functionCalls && Array.isArray(response.functionCalls)) {
-      for (const call of response.functionCalls) {
-        if (call.name === 'register_user') {
-          functionCalls.push({
-            name: 'register_user',
-            parameters: call.args as RegisterUserFunctionCall['parameters'],
-          });
-        } else if (call.name === 'update_conversation_status') {
-          functionCalls.push({
-            name: 'update_conversation_status',
-            parameters:
-              call.args as UpdateConversationStatusFunctionCall['parameters'],
-          });
-        } else if (call.name === 'detect_conversation_completion') {
-          functionCalls.push({
-            name: 'detect_conversation_completion',
-            parameters:
-              call.args as DetectConversationCompletionFunctionCall['parameters'],
-          });
+    const structuredCalls = this.extractFunctionCalls(response);
+    this.log(
+      `🧩 Function calls extraídas: ${structuredCalls.length}`,
+      structuredCalls.map((call) => ({
+        name: call.name,
+        hasParameters: Boolean(call.parameters),
+      })),
+    );
+    functionCalls.push(...structuredCalls);
+
+    return {
+      response: responseText,
+      functionCalls,
+    };
+  }
+
+  private extractFunctionCalls(response: any): FunctionCall[] {
+    const collected: FunctionCall[] = [];
+
+    if (!response) {
+      this.log('ℹ️ extractFunctionCalls: resposta vazia recebida.');
+      return collected;
+    }
+
+    let candidateCalls: any[] = [];
+
+    if (Array.isArray(response.functionCalls)) {
+      candidateCalls = response.functionCalls;
+    }
+
+    if (candidateCalls.length === 0) {
+      const parts = response.candidates?.[0]?.content?.parts;
+      if (Array.isArray(parts)) {
+        candidateCalls = parts
+          .filter((part: any) => Boolean(part?.functionCall))
+          .map((part: any) => part.functionCall);
+        if (candidateCalls.length > 0) {
+          this.log(
+            'ℹ️ extractFunctionCalls: function calls obtidas a partir de candidates[0].parts.',
+          );
         }
       }
     }
 
-    return {
-      response: response.text(),
-      functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
-    };
+    if (candidateCalls.length === 0) {
+      return collected;
+    }
+
+    for (const call of candidateCalls) {
+      if (!call?.name) {
+        this.log('⚠️ Function call sem nome ignorada:', call);
+        continue;
+      }
+
+      const normalizedArgs = call.args ?? call.arguments ?? {};
+
+      switch (call.name) {
+        case 'register_user':
+          collected.push({
+            name: 'register_user',
+            parameters:
+              normalizedArgs as RegisterUserFunctionCall['parameters'],
+          });
+          break;
+        case 'require_lawyer_assistance':
+          collected.push({
+            name: 'require_lawyer_assistance',
+            parameters:
+              normalizedArgs as RequireLawyerAssistanceFunctionCall['parameters'],
+          });
+          break;
+        case 'update_conversation_status':
+          collected.push({
+            name: 'update_conversation_status',
+            parameters:
+              normalizedArgs as UpdateConversationStatusFunctionCall['parameters'],
+          });
+          break;
+        case 'detect_conversation_completion':
+          collected.push({
+            name: 'detect_conversation_completion',
+            parameters:
+              normalizedArgs as DetectConversationCompletionFunctionCall['parameters'],
+          });
+          break;
+        default:
+          this.log(`ℹ️ Function call desconhecida ignorada: ${call.name}`);
+          break;
+      }
+    }
+
+    return collected;
   }
 
   /**

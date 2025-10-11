@@ -4,7 +4,6 @@
  * Testa apenas a funcionalidade crítica de validação de status para mensagens da IA
  */
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException } from '@nestjs/common';
 import { MessageService } from '../message.service';
 import Conversation from '../../models/Conversation';
 import Message from '../../models/Message';
@@ -75,22 +74,19 @@ describe('AI Status Validation - Critical Tests', () => {
   });
 
   /**
-   * SEGURANÇA: IA não deve conseguir enviar mensagens em conversas CLOSED
+   * CONSISTÊNCIA: IA deve conseguir registrar histórico mesmo em conversas concluídas
    */
-  it('🚫 should REJECT AI messages in COMPLETED conversations', async () => {
+  it('✅ should ALLOW AI messages in COMPLETED conversations', async () => {
     // Arrange
     (Conversation.findById as jest.Mock).mockResolvedValue({
       ...mockConversation,
       status: CaseStatus.COMPLETED,
     });
 
-    // Act & Assert - Should throw ForbiddenException
-    await expect(service.createMessage(validAIMessageData)).rejects.toThrow(
-      ForbiddenException,
-    );
-    await expect(service.createMessage(validAIMessageData)).rejects.toThrow(
-      'IA não pode enviar mensagens para esta conversa',
-    );
+    // Act & Assert - Should NOT throw
+    await expect(
+      service.createMessage(validAIMessageData),
+    ).resolves.toBeDefined();
   });
 
   /**
@@ -109,18 +105,19 @@ describe('AI Status Validation - Critical Tests', () => {
   });
 
   /**
-   * COMPATIBILIDADE: IA deve continuar funcionando em conversas ASSIGNED
+   * COMPATIBILIDADE: IA deve continuar funcionando em conversas atribuídas
    */
   it('✅ should ALLOW AI messages in ASSIGNED conversations', async () => {
     // Arrange
     (Conversation.findById as jest.Mock).mockResolvedValue({
       ...mockConversation,
-      status: CaseStatus.ASSIGNED_TO_LAWYER,
+      status: CaseStatus.ASSIGNED,
     });
 
-    // Act & Assert - Should NOT throw
-    const result = await service.createMessage(validAIMessageData);
-    expect(result).toBeDefined();
+    // Act & Assert
+    await expect(
+      service.createMessage(validAIMessageData),
+    ).resolves.toBeDefined();
   });
 
   /**

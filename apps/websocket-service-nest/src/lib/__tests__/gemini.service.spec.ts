@@ -87,7 +87,7 @@ describe('GeminiService', () => {
     });
   });
 
-  describe('generateAIResponse', () => {
+  describe('generateAIResponseWithFunctionsLegacy', () => {
     it('should generate AI response for user messages', async () => {
       const messages = [
         { text: 'Olá, preciso de ajuda jurídica', sender: 'user' },
@@ -95,24 +95,28 @@ describe('GeminiService', () => {
         { text: 'Tenho um problema trabalhista', sender: 'user' },
       ];
 
-      const result = await service.generateAIResponse(messages);
+      const result =
+        await service.generateAIResponseWithFunctionsLegacy(messages);
 
-      expect(result).toBe('Resposta de teste da IA');
+      expect(result.response).toBe('Resposta de teste da IA');
       expect(mockAIService.getCurrentConfig).toHaveBeenCalled();
     });
 
     it('should handle single message conversation', async () => {
       const messages = [{ text: 'Olá, preciso de ajuda', sender: 'user' }];
 
-      const result = await service.generateAIResponse(messages);
+      const result =
+        await service.generateAIResponseWithFunctionsLegacy(messages);
 
-      expect(result).toBe('Resposta de teste da IA');
+      expect(result.response).toBe('Resposta de teste da IA');
     });
 
     it('should handle empty message history', async () => {
       const messages: { text: string; sender: string }[] = [];
 
-      await expect(service.generateAIResponse(messages)).rejects.toThrow();
+      await expect(
+        service.generateAIResponseWithFunctionsLegacy(messages),
+      ).rejects.toThrow();
     });
   });
 
@@ -126,7 +130,7 @@ describe('GeminiService', () => {
 
       expect(result).toEqual({
         response: 'Resposta de teste da IA',
-        functionCalls: undefined,
+        functionCalls: [],
       });
     });
 
@@ -158,7 +162,8 @@ describe('GeminiService', () => {
       const result = await service.generateAIResponseWithFunctions(messages);
 
       expect(result.response).toBe('Vou registrar você no sistema.');
-      expect(result.functionCalls).toHaveLength(1);
+      expect(result.functionCalls).toBeDefined();
+      expect(result.functionCalls!).toHaveLength(1);
       expect(result.functionCalls![0]).toEqual({
         name: 'register_user',
         parameters: {
@@ -171,17 +176,17 @@ describe('GeminiService', () => {
       });
     });
 
-    it('should handle update_conversation_status function call', async () => {
+    it('should handle require_lawyer_assistance function call', async () => {
       mockResponse = {
         text: jest.fn().mockReturnValue('Este caso precisa de um advogado.'),
         functionCalls: [
           {
-            name: 'update_conversation_status',
+            name: 'require_lawyer_assistance',
             args: {
-              status: 'assigned_to_lawyer',
-              lawyer_needed: true,
               specialization_required: 'Direito Trabalhista',
-              notes: 'Caso complexo de demissão',
+              case_summary:
+                'Demissão sem justa causa com reivindicação de direitos trabalhistas',
+              required_specialties: 'Direito trabalhista, processo civil',
             },
           },
         ],
@@ -197,14 +202,15 @@ describe('GeminiService', () => {
       const result = await service.generateAIResponseWithFunctions(messages);
 
       expect(result.response).toBe('Este caso precisa de um advogado.');
-      expect(result.functionCalls).toHaveLength(1);
+      expect(result.functionCalls).toBeDefined();
+      expect(result.functionCalls!).toHaveLength(1);
       expect(result.functionCalls![0]).toEqual({
-        name: 'update_conversation_status',
+        name: 'require_lawyer_assistance',
         parameters: {
-          status: 'assigned_to_lawyer',
-          lawyer_needed: true,
           specialization_required: 'Direito Trabalhista',
-          notes: 'Caso complexo de demissão',
+          case_summary:
+            'Demissão sem justa causa com reivindicação de direitos trabalhistas',
+          required_specialties: 'Direito trabalhista, processo civil',
         },
       });
     });
@@ -231,7 +237,8 @@ describe('GeminiService', () => {
       const result = await service.generateAIResponseWithFunctions(messages);
 
       expect(result.response).toBe('Obrigado pelo feedback!');
-      expect(result.functionCalls).toHaveLength(1);
+      expect(result.functionCalls).toBeDefined();
+      expect(result.functionCalls!).toHaveLength(1);
       expect(result.functionCalls![0]).toEqual({
         name: 'detect_conversation_completion',
         parameters: {
@@ -273,7 +280,8 @@ describe('GeminiService', () => {
 
       const result = await service.generateAIResponseWithFunctions(messages);
 
-      expect(result.functionCalls).toHaveLength(2);
+      expect(result.functionCalls).toBeDefined();
+      expect(result.functionCalls!).toHaveLength(2);
       expect(result.functionCalls![0].name).toBe('register_user');
       expect(result.functionCalls![1].name).toBe(
         'detect_conversation_completion',
@@ -299,7 +307,7 @@ describe('GeminiService', () => {
 
       expect(result).toEqual({
         response: 'Resposta de teste da IA',
-        functionCalls: undefined,
+        functionCalls: [],
       });
     });
 
@@ -321,7 +329,7 @@ describe('GeminiService', () => {
 
       expect(result).toEqual({
         response: 'Resposta de teste da IA',
-        functionCalls: undefined,
+        functionCalls: [],
       });
     });
 

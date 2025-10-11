@@ -79,10 +79,14 @@ describe('UploadsService', () => {
   describe('downloadFileDirectly', () => {
     it('should throw error for invalid ObjectId', async () => {
       const invalidFileId = 'invalid-id';
-      const userId = 'user123';
+      const requestingUser = {
+        userId: 'user123',
+        role: 'client',
+        permissions: [],
+      };
 
       await expect(
-        service.downloadFileDirectly(invalidFileId, userId),
+        service.downloadFileDirectly(invalidFileId, requestingUser),
       ).rejects.toThrow('Invalid file ID format');
     });
   });

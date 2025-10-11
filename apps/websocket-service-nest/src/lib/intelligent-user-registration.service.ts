@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   GeminiService,
   RegisterUserFunctionCall,
-  UpdateConversationStatusFunctionCall,
+  RequireLawyerAssistanceFunctionCall,
   GeminiAttachment,
   MessageWithAttachments,
+  FunctionCall,
 } from './gemini.service';
 import { AIService } from './ai.service';
 import { MessageService } from './message.service';
@@ -27,6 +28,14 @@ export interface IntelligentRegistrationResult {
   feedbackReason?: string;
 }
 
+interface RegistrationOutcome {
+  success: boolean;
+  mode: 'fluid' | 'fallback';
+  userId?: string | null;
+  createdUser?: boolean;
+  message?: string;
+}
+
 @Injectable()
 export class IntelligentUserRegistrationService {
   private readonly urgencyToPriorityMap: Record<
@@ -38,6 +47,7 @@ export class IntelligentUserRegistrationService {
     high: 'high',
     urgent: 'urgent',
   };
+  private readonly logger = new Logger(IntelligentUserRegistrationService.name);
 
   constructor(
     private readonly geminiService: GeminiService,
@@ -60,8 +70,13 @@ export class IntelligentUserRegistrationService {
     includeHistory: boolean = true,
     isAuthenticated: boolean = false,
     attachments: any[] = [],
+    realtimeEmitter?: (event: string, data: any) => void, // Callback para emitir mensagens em tempo real
   ): Promise<IntelligentRegistrationResult> {
     try {
+      this.logger.debug(
+        `processUserMessage:start conversation=${conversationId} user=${userId} includeHistory=${includeHistory} authenticated=${isAuthenticated} messageSize=${message?.length}`,
+      );
+
       let messages: any[] = [];
 
       if (includeHistory && userId) {
@@ -92,9 +107,12 @@ export class IntelligentUserRegistrationService {
       if (includeHistory && userId) {
         // Usar histórico completo com anexos de cada mensagem
         for (const msg of messages) {
-          // Buscar anexos específicos desta mensagem
-          const messageAttachments =
-            await this.uploadsService.getFilesByMessageId(msg._id.toString());
+          const isHiddenForClients = msg?.metadata?.hiddenFromClients === true;
+
+          // Buscar anexos específicos desta mensagem (pular para mensagens ocultas)
+          const messageAttachments = isHiddenForClients
+            ? []
+            : await this.uploadsService.getFilesByMessageId(msg._id.toString());
 
           // Converter anexos da mensagem para o formato GeminiAttachment
           const geminiAttachments: GeminiAttachment[] = messageAttachments
@@ -109,7 +127,7 @@ export class IntelligentUserRegistrationService {
             `📎 Mensagem ${msg._id}: ${geminiAttachments.length} anexos encontrados`,
           );
 
-          let messageText = msg.text;
+          let messageText = msg.text || '';
 
           // Adicionar contexto textual dos anexos apenas se houver anexos E houver texto na mensagem
           if (geminiAttachments.length > 0 && messageText.trim().length > 0) {
@@ -130,6 +148,7 @@ export class IntelligentUserRegistrationService {
             text: messageText,
             sender: msg.sender,
             attachments: geminiAttachments,
+            metadata: msg.metadata || undefined,
           });
         }
 
@@ -206,6 +225,7 @@ export class IntelligentUserRegistrationService {
           text: message + attachmentsContext,
           sender: 'user',
           attachments: geminiAttachments,
+          metadata: undefined,
         });
 
         console.log(`📤 ENVIANDO PARA GEMINI SERVICE - DETALHES COMPLETOS:`, {
@@ -248,6 +268,24 @@ export class IntelligentUserRegistrationService {
           geminiMessages,
         );
 
+      if (result.functionCalls?.length) {
+        this.logger.log(
+          `processUserMessage: função(ões) retornadas pelo Gemini (${result.functionCalls.length}) para conversation=${conversationId}`,
+        );
+        this.logger.debug(JSON.stringify(result, null, 2), 'ResultComplete');
+      } else {
+        this.logger.warn(
+          `processUserMessage: GEMINI NÃO RETORNOU FUNCTION CALLS conversation=${conversationId} respostaPreview="${(
+            result.response || ''
+          )
+            .replace(/\s+/g, ' ')
+            .substring(
+              0,
+              200,
+            )}${(result.response || '').length > 200 ? '...' : ''}"`,
+        );
+      }
+
       let userRegistered = false;
       let statusUpdated = false;
       let newStatus: CaseStatus | undefined;
@@ -256,24 +294,110 @@ export class IntelligentUserRegistrationService {
       let shouldShowFeedback = false;
       let feedbackReason: string | undefined;
 
-      // Processar function calls se existirem
-      if (result.functionCalls) {
-        for (const functionCall of result.functionCalls) {
+      // SE HÁ RESPOSTA DE TEXTO NA RESPOSTA INICIAL, ENVIAR IMEDIATAMENTE (independentemente de function calls)
+      if (result.response && result.response.trim()) {
+        this.logger.log(
+          `📝 GEMINI RETORNOU TEXTO INICIAL - Enviando resposta como mensagem separada (function calls: ${result.functionCalls?.length || 0})`,
+        );
+
+        // Criar mensagem separada para a resposta inicial
+        if (realtimeEmitter) {
+          const initialMessageData = await this.messageService.createMessage({
+            conversationId,
+            text: result.response,
+            sender: 'ai',
+            senderId: 'ai-gemini',
+            metadata: {
+              generatedBy: 'gemini',
+              isInitialResponse: true,
+              hasFunctionCalls: Boolean(result.functionCalls?.length),
+            },
+          });
+
+          realtimeEmitter('receive-message', {
+            text: initialMessageData.text,
+            sender: initialMessageData.sender,
+            messageId: initialMessageData._id.toString(),
+            conversationId: conversationId,
+            createdAt: initialMessageData.createdAt?.toISOString(),
+            metadata: initialMessageData.metadata,
+          });
+        }
+      } else if (!result.functionCalls?.length) {
+        this.logger.warn(
+          `⚠️ GEMINI NÃO RETORNOU TEXTO NEM FUNCTION CALLS - Resposta vazia para conversation=${conversationId}`,
+        );
+      }
+
+      // LOOP DE FUNCTION CALLS: Executar function calls e chamar Gemini novamente até obter resposta final
+      let currentResult = result;
+      let iterationCount = 0;
+      const maxIterations = 5; // Limite de segurança para evitar loops infinitos
+
+      while (
+        currentResult.functionCalls?.length &&
+        iterationCount < maxIterations
+      ) {
+        iterationCount++;
+        this.logger.log(
+          `🔄 FUNCTION CALL LOOP - Iteração ${iterationCount}/${maxIterations} para conversation=${conversationId}`,
+        );
+
+        // Processar function calls da resposta atual
+        let sequenceCounter = 0;
+
+        for (const functionCall of currentResult.functionCalls) {
+          // Adicionar delay mínimo para garantir timestamps distintos
+          if (sequenceCounter > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 10)); // 10ms delay
+          }
+
+          await this.recordFunctionCallMessage(
+            conversationId,
+            functionCall,
+            sequenceCounter,
+            realtimeEmitter,
+          );
+
+          this.logger.debug(
+            `processUserMessage: executando function call "${functionCall.name}" ` +
+              `para conversation=${conversationId} payload=${this.formatLogPayload(functionCall.parameters)}`,
+          );
+          let functionExecutionResult: unknown = undefined;
           if (functionCall.name === 'register_user') {
-            await this.handleUserRegistration(
+            const registrationOutcome = await this.handleUserRegistration(
               functionCall.parameters,
               conversationId,
             );
-            userRegistered = true;
+            userRegistered = registrationOutcome.success;
+            functionExecutionResult = registrationOutcome;
+            this.logger.log(
+              `processUserMessage: register_user concluído para conversation=${conversationId}`,
+            );
+          } else if (functionCall.name === 'require_lawyer_assistance') {
+            const assistanceResult = await this.handleLawyerAssistanceRequest(
+              functionCall.parameters,
+              conversationId,
+            );
+            lawyerNeeded = assistanceResult.lawyerNeeded;
+            specializationRequired = assistanceResult.specializationRequired;
+            functionExecutionResult = assistanceResult;
+            this.logger.log(
+              `processUserMessage: require_lawyer_assistance aplicado para conversation=${conversationId} ` +
+                `lawyerNeeded=${lawyerNeeded} specialization=${specializationRequired}`,
+            );
           } else if (functionCall.name === 'update_conversation_status') {
-            const statusResult = await this.handleStatusUpdate(
+            const statusResult = await this.handleConversationStatusUpdate(
               functionCall.parameters,
               conversationId,
             );
-            statusUpdated = true;
+            statusUpdated = statusResult.statusUpdated;
             newStatus = statusResult.newStatus;
-            lawyerNeeded = statusResult.lawyerNeeded;
-            specializationRequired = statusResult.specializationRequired;
+            functionExecutionResult = statusResult;
+            this.logger.log(
+              `processUserMessage: update_conversation_status aplicado para conversation=${conversationId} ` +
+                `statusUpdated=${statusUpdated} newStatus=${newStatus}`,
+            );
           } else if (functionCall.name === 'detect_conversation_completion') {
             // Validação de parâmetros para evitar erros de runtime
             if (
@@ -307,29 +431,178 @@ export class IntelligentUserRegistrationService {
               shouldShowFeedback = false;
               feedbackReason = undefined;
             }
+
+            functionExecutionResult = {
+              shouldShowFeedback,
+              feedbackReason,
+            } satisfies Record<string, unknown>;
           }
+
+          // Adicionar delay mínimo antes de gravar o resultado também
+          await new Promise((resolve) => setTimeout(resolve, 5)); // 5ms delay
+          await this.recordFunctionResultMessage(
+            conversationId,
+            functionCall.name,
+            functionExecutionResult ?? { acknowledged: true },
+            sequenceCounter,
+            realtimeEmitter,
+          );
+
+          sequenceCounter++;
+        }
+
+        // APÓS EXECUTAR TODAS AS FUNCTION CALLS, CHAMAR NOVAMENTE O GEMINI
+        // Recarregar histórico atualizado (incluindo as function calls recém-executadas)
+        const updatedMessages = await this.messageService.getMessages(
+          { conversationId, limit: 50 },
+          {
+            userId: userId || '',
+            role: isAuthenticated ? 'client' : 'anonymous',
+            permissions: [],
+          },
+        );
+
+        // Preparar mensagens atualizadas para o Gemini
+        const updatedGeminiMessages: MessageWithAttachments[] = [];
+
+        for (const msg of updatedMessages) {
+          const isHiddenForClients = msg?.metadata?.hiddenFromClients === true;
+          const messageAttachments = isHiddenForClients
+            ? []
+            : await this.uploadsService.getFilesByMessageId(msg._id.toString());
+
+          const geminiAttachments: GeminiAttachment[] = messageAttachments
+            .filter((attachment: any) => attachment && attachment.aiSignedUrl)
+            .map((attachment: any) => ({
+              fileUri: attachment.aiSignedUrl,
+              mimeType: attachment.mimeType,
+              displayName: attachment.originalName,
+            }));
+
+          let messageText = msg.text || '';
+
+          if (geminiAttachments.length > 0 && messageText.trim().length > 0) {
+            let attachmentsContext =
+              '\n\n📎 DOCUMENTOS ANEXADOS NESTA MENSAGEM:\n';
+            geminiAttachments.forEach((file, index) => {
+              attachmentsContext += `${index + 1}. **${file.displayName}**\n`;
+              attachmentsContext += `   - Tipo: ${file.mimeType}\n`;
+              attachmentsContext += '\n';
+            });
+            attachmentsContext +=
+              '**IMPORTANTE:** Os documentos foram enviados como anexos para análise direta pela IA.\n\n';
+
+            messageText += attachmentsContext;
+          }
+
+          updatedGeminiMessages.push({
+            text: messageText,
+            sender: msg.sender,
+            attachments: geminiAttachments,
+            metadata: msg.metadata || undefined,
+          });
+        }
+
+        this.logger.log(
+          `🔄 CHAMANDO GEMINI NOVAMENTE - Iteração ${iterationCount} com ${updatedGeminiMessages.length} mensagens atualizadas`,
+        );
+
+        // Chamar Gemini novamente com histórico atualizado
+        currentResult =
+          await this.geminiService.generateAIResponseWithFunctions(
+            updatedGeminiMessages,
+          );
+
+        // Se o Gemini retornou mais texto, criar uma NOVA mensagem separada
+        if (currentResult.response && currentResult.response.trim()) {
+          this.logger.log(
+            `📝 GEMINI RETORNOU TEXTO ADICIONAL na iteração ${iterationCount} - Criando nova mensagem separada`,
+          );
+
+          // Criar uma nova mensagem separada para o texto adicional
+          if (realtimeEmitter) {
+            const additionalMessageData =
+              await this.messageService.createMessage({
+                conversationId,
+                text: currentResult.response,
+                sender: 'ai',
+                senderId: 'ai-gemini',
+                metadata: {
+                  generatedBy: 'gemini',
+                  iteration: iterationCount,
+                  isAdditionalResponse: true,
+                },
+              });
+
+            realtimeEmitter('receive-message', {
+              text: additionalMessageData.text,
+              sender: additionalMessageData.sender,
+              messageId: additionalMessageData._id.toString(),
+              conversationId: conversationId,
+              createdAt: additionalMessageData.createdAt?.toISOString(),
+              metadata: additionalMessageData.metadata,
+            });
+          }
+        }
+
+        if (currentResult.functionCalls?.length) {
+          this.logger.log(
+            `🔄 GEMINI RETORNOU MAIS ${currentResult.functionCalls.length} FUNCTION CALLS - Continuando loop`,
+          );
+        } else {
+          this.logger.log(
+            `✅ GEMINI RETORNOU APENAS TEXTO - Finalizando loop após ${iterationCount} iterações`,
+          );
         }
       }
 
-      return {
-        response: result.response,
+      // Verificar se atingimos o limite de iterações
+      if (iterationCount >= maxIterations) {
+        this.logger.warn(
+          `⚠️ FUNCTION CALL LOOP - Limite de ${maxIterations} iterações atingido para conversation=${conversationId}`,
+        );
+      }
+
+      this.logger.debug(
+        `processUserMessage:final conversation=${conversationId} userRegistered=${userRegistered} ` +
+          `statusUpdated=${statusUpdated} newStatus=${newStatus} lawyerNeeded=${lawyerNeeded} shouldShowFeedback=${shouldShowFeedback}`,
+      );
+
+      const response: IntelligentRegistrationResult = {
+        response: result.response, // Retornar APENAS a resposta inicial (texto + function calls originais)
         userRegistered,
-        statusUpdated,
-        newStatus,
-        lawyerNeeded,
-        specializationRequired,
         shouldShowFeedback,
         feedbackReason,
       };
+
+      // Só incluir campos de status se foram realmente alterados
+      if (statusUpdated && newStatus) {
+        response.statusUpdated = statusUpdated;
+        response.newStatus = newStatus;
+      }
+
+      if (lawyerNeeded) {
+        response.lawyerNeeded = lawyerNeeded;
+      }
+
+      if (specializationRequired) {
+        response.specializationRequired = specializationRequired;
+      }
+
+      return response;
     } catch (error) {
-      console.error('Erro no processamento inteligente:', error);
+      this.logger.error(
+        `processUserMessage:error conversation=${conversationId}: ${error?.message || error}`,
+        error?.stack,
+      );
       // Fallback para resposta simples sem function calls
-      const fallbackResponse = await this.geminiService.generateAIResponse([
-        { text: message, sender: 'user' },
-      ]);
+      const fallbackResponse =
+        await this.geminiService.generateAIResponseWithFunctionsLegacy([
+          { text: message, sender: 'user' },
+        ]);
 
       return {
-        response: fallbackResponse,
+        response: fallbackResponse.response,
       };
     }
   }
@@ -340,7 +613,7 @@ export class IntelligentUserRegistrationService {
   private async handleUserRegistration(
     params: RegisterUserFunctionCall['parameters'],
     conversationId: string,
-  ): Promise<void> {
+  ): Promise<RegistrationOutcome> {
     try {
       // Usar o FluidRegistrationService para cadastro fluido
       const contactInfo = {
@@ -369,10 +642,18 @@ export class IntelligentUserRegistrationService {
             priority: this.urgencyToPriorityMap[params.urgency_level] || 'low',
           });
         }
+
+        return {
+          success: true,
+          mode: 'fluid',
+          userId: fluidResult.userId,
+          createdUser: Boolean(fluidResult.userId),
+          message: fluidResult.message,
+        };
       } else {
         console.error(`❌ Erro no cadastro fluido: ${fluidResult.message}`);
         // Fallback para criação direta se o fluido falhar
-        await this.fallbackUserRegistration(params, conversationId);
+        return this.fallbackUserRegistration(params, conversationId);
       }
     } catch (error) {
       console.error('Erro ao registrar usuário:', error);
@@ -386,8 +667,13 @@ export class IntelligentUserRegistrationService {
   private async fallbackUserRegistration(
     params: RegisterUserFunctionCall['parameters'],
     conversationId: string,
-  ): Promise<void> {
+  ): Promise<RegistrationOutcome> {
     try {
+      this.logger.warn(
+        `fallbackUserRegistration: executando fallback para conversation=${conversationId} payload=${this.formatLogPayload(
+          params,
+        )}`,
+      );
       // Criar ou atualizar usuário diretamente
       const userData = {
         name: params.name,
@@ -403,6 +689,8 @@ export class IntelligentUserRegistrationService {
         user = await this.userModel.findOne({ email: params.email });
       }
 
+      let createdUser = false;
+
       if (user) {
         user.name = params.name;
         user.profile = {
@@ -412,6 +700,7 @@ export class IntelligentUserRegistrationService {
         await user.save();
       } else {
         user = await this.userModel.create(userData);
+        createdUser = true;
       }
 
       await this.conversationModel.findByIdAndUpdate(conversationId, {
@@ -424,17 +713,27 @@ export class IntelligentUserRegistrationService {
         },
         priority: this.urgencyToPriorityMap[params.urgency_level] || 'low',
       });
+      this.logger.log(
+        `fallbackUserRegistration: conclusão bem-sucedida para conversation=${conversationId} userId=${user._id}`,
+      );
+
+      return {
+        success: true,
+        mode: 'fallback',
+        userId: user._id?.toString?.() ?? user._id,
+        createdUser,
+      };
     } catch (error) {
-      console.error('Erro no fallback de registro:', error);
+      this.logger.error(
+        `fallbackUserRegistration:error conversation=${conversationId}: ${error?.message || error}`,
+        error?.stack,
+      );
       throw error;
     }
   }
 
-  /**
-   * Trata a atualização de status da conversa via function call
-   */
-  private async handleStatusUpdate(
-    params: UpdateConversationStatusFunctionCall['parameters'],
+  private async handleLawyerAssistanceRequest(
+    params: RequireLawyerAssistanceFunctionCall['parameters'],
     conversationId: string,
   ): Promise<{
     newStatus: CaseStatus;
@@ -442,39 +741,215 @@ export class IntelligentUserRegistrationService {
     specializationRequired?: string;
   }> {
     try {
-      const updateData: any = {
-        status: params.status,
-        lawyerNeeded: params.lawyer_needed,
-        lastUpdated: new Date(),
+      this.logger.debug(
+        `handleLawyerAssistanceRequest:start conversation=${conversationId} payload=${this.formatLogPayload(
+          params,
+        )}`,
+      );
+
+      const updateData: Record<string, any> = {
+        lawyerNeeded: true,
+        updatedAt: new Date(),
       };
 
+      if (params.category) {
+        updateData['classification.category'] = params.category;
+      }
+
       if (params.specialization_required) {
-        updateData.classification = {
-          legalArea: params.specialization_required,
-        };
+        updateData['classification.legalArea'] = params.specialization_required;
       }
 
-      if (params.notes) {
-        updateData.summary = {
-          text: params.notes,
-          lastUpdated: new Date(),
-          generatedBy: 'ai',
-        };
+      if (params.case_summary) {
+        updateData['summary.text'] = params.case_summary;
+        updateData['summary.lastUpdated'] = new Date();
+        updateData['summary.generatedBy'] = 'ai';
       }
 
-      await this.conversationModel.findByIdAndUpdate(
-        conversationId,
-        updateData,
+      if (params.required_specialties) {
+        updateData['notes'] = params.required_specialties; // Armazena especialidades requeridas como notas
+      }
+
+      await this.conversationModel.findByIdAndUpdate(conversationId, {
+        $set: updateData,
+      });
+
+      this.logger.log(
+        `handleLawyerAssistanceRequest:concluded conversation=${conversationId} lawyerNeeded=true specialization=${params.specialization_required}`,
       );
 
       return {
-        newStatus: params.status as CaseStatus,
-        lawyerNeeded: params.lawyer_needed,
+        newStatus: CaseStatus.ACTIVE, // Mantém o status atual como ACTIVE
+        lawyerNeeded: true,
         specializationRequired: params.specialization_required,
       };
     } catch (error) {
-      console.error('Erro ao atualizar status da conversa:', error);
+      this.logger.error(
+        `handleLawyerAssistanceRequest:error conversation=${conversationId}: ${error?.message || error}`,
+        error?.stack,
+      );
       throw error;
+    }
+  }
+
+  private async handleConversationStatusUpdate(
+    params: { status: string; reason?: string },
+    conversationId: string,
+  ): Promise<{
+    statusUpdated: boolean;
+    newStatus: CaseStatus;
+  }> {
+    try {
+      this.logger.debug(
+        `handleConversationStatusUpdate:start conversation=${conversationId} payload=${this.formatLogPayload(
+          params,
+        )}`,
+      );
+
+      // Validar se o status é válido
+      const validStatuses = Object.values(CaseStatus);
+      if (!validStatuses.includes(params.status as CaseStatus)) {
+        throw new Error(
+          `Status inválido: ${params.status}. Status válidos: ${validStatuses.join(', ')}`,
+        );
+      }
+
+      const newStatus = params.status as CaseStatus;
+
+      const updateData: Record<string, any> = {
+        status: newStatus,
+        updatedAt: new Date(),
+      };
+
+      // Se o status for RESOLVED_BY_AI, COMPLETED ou ABANDONED, definir closedAt
+      if (
+        [
+          CaseStatus.RESOLVED_BY_AI,
+          CaseStatus.COMPLETED,
+          CaseStatus.ABANDONED,
+        ].includes(newStatus)
+      ) {
+        updateData.closedAt = new Date();
+        updateData.closedBy = 'ai'; // Indica que foi fechado pela IA
+      }
+
+      // Adicionar razão se fornecida
+      if (params.reason) {
+        updateData.notes = params.reason;
+      }
+
+      await this.conversationModel.findByIdAndUpdate(conversationId, {
+        $set: updateData,
+      });
+
+      this.logger.log(
+        `handleConversationStatusUpdate:concluded conversation=${conversationId} status=${newStatus}`,
+      );
+
+      return {
+        statusUpdated: true,
+        newStatus,
+      };
+    } catch (error) {
+      this.logger.error(
+        `handleConversationStatusUpdate:error conversation=${conversationId}: ${error?.message || error}`,
+        error?.stack,
+      );
+      throw error;
+    }
+  }
+
+  private async recordFunctionCallMessage(
+    conversationId: string,
+    functionCall: FunctionCall,
+    sequenceCounter?: number,
+    realtimeEmitter?: (event: string, data: any) => void,
+  ): Promise<void> {
+    try {
+      const messageData = await this.messageService.createMessage({
+        conversationId,
+        text: `Função IA executada: ${functionCall.name}`,
+        sender: 'ai',
+        senderId: 'ai-gemini',
+        metadata: {
+          type: 'function_call',
+          name: functionCall.name,
+          arguments: functionCall.parameters,
+          sequence: sequenceCounter,
+          hiddenFromClients: true,
+        },
+      });
+
+      // Emitir em tempo real se callback fornecido
+      if (realtimeEmitter && messageData) {
+        realtimeEmitter('receive-message', {
+          text: messageData.text,
+          sender: messageData.sender,
+          messageId: messageData._id.toString(),
+          conversationId: conversationId,
+          createdAt: messageData.createdAt?.toISOString(),
+          metadata: messageData.metadata,
+        });
+      }
+    } catch (error) {
+      this.logger.warn(
+        `recordFunctionCallMessage: falha ao registrar function call ${functionCall.name} para conversation=${conversationId}: ${error?.message || error}`,
+      );
+    }
+  }
+
+  private async recordFunctionResultMessage(
+    conversationId: string,
+    functionName: FunctionCall['name'],
+    result: unknown,
+    sequenceCounter?: number,
+    realtimeEmitter?: (event: string, data: any) => void,
+  ): Promise<void> {
+    try {
+      const messageData = await this.messageService.createMessage({
+        conversationId,
+        text: `Resultado da função ${functionName}`,
+        sender: 'system',
+        metadata: {
+          type: 'function_response',
+          name: functionName,
+          result,
+          sequence: sequenceCounter,
+          hiddenFromClients: true,
+        },
+      });
+
+      // Emitir em tempo real se callback fornecido
+      if (realtimeEmitter && messageData) {
+        realtimeEmitter('receive-message', {
+          text: messageData.text,
+          sender: messageData.sender,
+          messageId: messageData._id.toString(),
+          conversationId: conversationId,
+          createdAt: messageData.createdAt?.toISOString(),
+          metadata: messageData.metadata,
+        });
+      }
+    } catch (error) {
+      this.logger.warn(
+        `recordFunctionResultMessage: falha ao registrar resultado da função ${functionName} para conversation=${conversationId}: ${error?.message || error}`,
+      );
+    }
+  }
+
+  private formatLogPayload(payload: unknown): string {
+    try {
+      return JSON.stringify(payload, (key, value) => {
+        if (typeof value === 'string' && value.length > 200) {
+          return `${value.substring(0, 200)}…(${value.length} chars)`;
+        }
+        return value;
+      });
+    } catch (error) {
+      this.logger.warn(
+        `formatLogPayload: não foi possível serializar payload (${error?.message || error})`,
+      );
+      return '[unserializable-payload]';
     }
   }
 
@@ -505,7 +980,7 @@ export class IntelligentUserRegistrationService {
       [CaseStatus.OPEN]: 0,
       [CaseStatus.ACTIVE]: 0,
       [CaseStatus.RESOLVED_BY_AI]: 0,
-      [CaseStatus.ASSIGNED_TO_LAWYER]: 0,
+      [CaseStatus.ASSIGNED]: 0,
       [CaseStatus.COMPLETED]: 0,
       [CaseStatus.ABANDONED]: 0,
     };

@@ -1,17 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import io, { Socket } from 'socket.io-client';
 import { useNotifications } from '@/hooks/useNotifications';
+import MessageAttachments from '@/components/MessageAttachments';
 
 interface Message {
   id: string;
   text: string;
   sender: 'user' | 'ai' | 'lawyer';
   createdAt: string;
+  attachments?: Array<{
+    id: string;
+    originalName: string;
+    mimeType: string;
+    size: number;
+  }>;
 }
 
 interface Conversation {
@@ -48,27 +55,44 @@ export default function LawyerChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
 
-  useEffect(() => {
-    if (status === 'loading') return;
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin?callbackUrl=/lawyer');
-      return;
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleAttachmentDownload = async (attachment: { id: string; originalName: string; mimeType: string; size: number }) => {
+    try {
+      console.log('⬇️ Baixando anexo:', attachment);
+      const response = await fetch(`/api/uploads/download/${attachment.id}`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachment.originalName;
+      document.body.appendChild(a);
+      a.click();
+
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      notifications.success('Download concluído', `Arquivo ${attachment.originalName} baixado com sucesso`);
+    } catch (error) {
+      console.error('Erro no download:', error);
+      notifications.error('Erro no download', 'Não foi possível baixar o arquivo');
     }
+  };
 
-    if (session && !['lawyer', 'super_admin'].includes(session.user.role)) {
-      router.push('/auth/signin?error=AccessDenied');
-      return;
-    }
-
-    if (session && roomId) {
-      loadConversation();
-      initializeSocket();
-    }
-  }, [session, status, router, roomId]);
-
-  const loadConversation = async () => {
+  const loadConversation = useCallback(async () => {
     try {
       const response = await fetch(`/api/lawyer/cases/${roomId}/messages`, {
         credentials: 'include',
@@ -82,12 +106,17 @@ export default function LawyerChatPage() {
       }
 
       const messagesData = await response.json();
-      setMessages(messagesData.map((msg: { _id: string; text: string; sender: string; createdAt: string }) => ({
-        id: msg._id,
-        text: msg.text,
-        sender: msg.sender,
-        createdAt: msg.createdAt,
-      })));
+      console.log('📨 DEBUG - Mensagens carregadas da API:', messagesData);
+      setMessages(messagesData.map((msg: { _id: string; text: string; sender: string; createdAt: string; attachments?: unknown[] }) => {
+        console.log('📎 DEBUG - Processando mensagem:', msg._id, 'attachments:', msg.attachments);
+        return {
+          id: msg._id,
+          text: msg.text,
+          sender: msg.sender,
+          createdAt: msg.createdAt,
+          attachments: msg.attachments,
+        };
+      }));
 
       // Carregar dados da conversa
       const convResponse = await fetch('/api/lawyer/cases', {
@@ -109,31 +138,23 @@ export default function LawyerChatPage() {
     } finally {
       setIsInitialized(true);
     }
-  };
+  }, [roomId]);
 
-  const initializeSocket = async () => {
-    // Obter token JWT da API
-    let token = '';
-    try {
-      const tokenResponse = await fetch('/api/auth/token', {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      if (tokenResponse.ok) {
-        const tokenData = await tokenResponse.json();
-        token = tokenData.token;
-      }
-    } catch (error) {
-      console.error('Erro ao obter token:', error);
-    }
-
+  const initializeSocket = useCallback(async () => {
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080';
     const newSocket = io(socketUrl, {
-      auth: {
-        token: token,
-      },
+      withCredentials: true, // Cookies são enviados automaticamente pelo navegador
+      transports: ['websocket'], // Forçar apenas WebSocket, sem polling HTTP
+      forceNew: true, // Sempre criar nova conexão
+      timeout: 5000, // Timeout de 5 segundos
+      reconnection: true, // Permitir reconexão automática
+      reconnectionAttempts: 5, // Máximo 5 tentativas de reconexão
+      reconnectionDelay: 1000, // Delay de 1 segundo entre tentativas
+      // Configurações para evitar requisições HTTP automáticas
+      autoConnect: true, // Conectar automaticamente
+      multiplex: false, // Não multiplexar conexões
+      // Desabilitar polling que pode causar requisições HTTP
+      upgrade: false, // Não tentar upgrade para WebSocket
     });
 
     setSocket(newSocket);
@@ -144,24 +165,30 @@ export default function LawyerChatPage() {
       setMessages(history);
     });
 
-    newSocket.on('receive-lawyer-message', (data: { text: string; sender: string; messageId: string; createdAt?: string }) => {
+    newSocket.on('receive-lawyer-message', (data: { text: string; sender: string; messageId: string; createdAt?: string; attachments?: Array<{ id: string; originalName: string; mimeType: string; size: number }> }) => {
+      console.log('📨 Advogado recebeu receive-lawyer-message:', data);
+      console.log('📎 DEBUG - Attachments na mensagem do advogado:', data.attachments);
       const newMessage: Message = {
         id: data.messageId,
         text: data.text,
         sender: data.sender as 'user' | 'ai' | 'lawyer',
         createdAt: data.createdAt || new Date().toISOString(),
+        attachments: data.attachments,
       };
+      console.log('💾 DEBUG - Message criada com attachments:', newMessage.attachments);
       setMessages((prev) => {
         // Evitar mensagens duplicadas
         const exists = prev.find(msg => msg.id === newMessage.id);
         if (exists) return prev;
         return [...prev, newMessage];
       });
-      setIsLoading(false); // Reset loading state when message is received
+      console.log('💾 Mensagem adicionada ao state do advogado');
     });
 
     // Também escutar mensagens regulares do cliente e IA
-    newSocket.on('receive-message', (data: { text: string; sender: string; messageId: string; createdAt?: string }) => {
+    newSocket.on('receive-message', (data: { text: string; sender: string; messageId: string; createdAt?: string; attachments?: Array<{ id: string; originalName: string; mimeType: string; size: number }> }) => {
+      console.log('📨 Advogado recebeu receive-message:', data);
+      console.log('📎 DEBUG - Attachments na mensagem do cliente/IA:', data.attachments);
       // Só processar mensagens de cliente e IA
       if (data.sender === 'user' || data.sender === 'ai' || data.sender === 'system') {
         const newMessage: Message = {
@@ -169,13 +196,16 @@ export default function LawyerChatPage() {
           text: data.text,
           sender: data.sender as 'user' | 'ai' | 'lawyer',
           createdAt: data.createdAt || new Date().toISOString(),
+          attachments: data.attachments,
         };
+        console.log('💾 DEBUG - Message criada com attachments:', newMessage.attachments);
         setMessages((prev) => {
           // Evitar mensagens duplicadas
           const exists = prev.find(msg => msg.id === newMessage.id);
           if (exists) return prev;
           return [...prev, newMessage];
         });
+        console.log('💾 Mensagem do cliente/IA adicionada ao state do advogado');
       }
     });
 
@@ -184,10 +214,56 @@ export default function LawyerChatPage() {
       notifications.error('Erro de Conexão', error.message);
     });
 
+    // Adicionar listeners de typing para comunicação com cliente
+    newSocket.on('typing-start', (data: { conversationId: string }) => {
+      console.log('🎧 Cliente começou a digitar (recebido pelo advogado):', data);
+      setIsTyping(true);
+    });
+
+    newSocket.on('typing-stop', (data: { conversationId: string }) => {
+      console.log('🎧 Cliente parou de digitar (recebido pelo advogado):', data);
+      setIsTyping(false);
+    });
+
     return () => {
       newSocket.disconnect();
     };
-  };
+  }, [roomId, notifications]);
+
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin?callbackUrl=/lawyer');
+      return;
+    }
+
+    if (session && !['lawyer', 'super_admin'].includes(session.user.role)) {
+      router.push('/auth/signin?error=AccessDenied');
+      return;
+    }
+
+    if (session && roomId) {
+      loadConversation();
+      initializeSocket();
+    }
+  }, [session, status, router, roomId, loadConversation, initializeSocket]);
+
+  // Scroll automático quando mensagens mudam
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Scroll na inicialização quando tudo estiver carregado
+  useEffect(() => {
+    if (isInitialized && messages.length > 0) {
+      // Pequeno delay para garantir que o DOM esteja completamente renderizado
+      const timer = setTimeout(() => {
+        scrollToBottom();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isInitialized, messages.length]);
 
   const sendMessage = async () => {
     if (!input.trim() || !socket) return;
@@ -197,15 +273,29 @@ export default function LawyerChatPage() {
     setIsLoading(true);
 
     try {
+      console.log('📤 Enviando mensagem do advogado:', { roomId, message: messageText });
       socket.emit('send-lawyer-message', {
         roomId,
         message: messageText,
         lawyerId: session?.user?.id,
       });
+      
+      // Reset loading imediatamente após enviar - mais responsivo
+      setIsLoading(false);
+      console.log('✅ Mensagem enviada, loading resetado');
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
       notifications.error('Erro ao Enviar', 'Não foi possível enviar sua mensagem. Tente novamente.');
       setIsLoading(false);
+    }
+  };
+
+  const handleInputChange = (value: string) => {
+    setInput(value);
+    
+    if (socket && value.trim()) {
+      // Emitir typing-start se não estiver digitando
+      socket.emit('typing-start', { conversationId: roomId });
     }
   };
 
@@ -318,39 +408,48 @@ export default function LawyerChatPage() {
                 <p className="text-slate-500">Este é o início da conversa com o cliente.</p>
               </div>
             ) : (
-              messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${
-                    message.sender === 'lawyer' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  <div className="max-w-lg">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSenderColor(message.sender)}`}>
-                        {getSenderName(message.sender)}
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        {new Date(message.createdAt).toLocaleTimeString('pt-BR', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
-                    </div>
-                    <div
-                      className={`px-4 py-3 rounded-lg shadow-sm ${
-                        message.sender === 'lawyer'
-                          ? 'bg-purple-600 text-white'
-                          : message.sender === 'user'
-                          ? 'bg-blue-50 text-slate-800 border border-blue-200'
-                          : 'bg-emerald-50 text-slate-800 border border-emerald-200'
-                      }`}
-                    >
-                      {message.text}
+              messages.map((message) => {
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex ${
+                      message.sender === 'lawyer' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    <div className="max-w-lg">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSenderColor(message.sender)}`}>
+                          {getSenderName(message.sender)}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {new Date(message.createdAt).toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                      <div
+                        className={`px-4 py-3 rounded-lg shadow-sm ${
+                          message.sender === 'lawyer'
+                            ? 'bg-purple-600 text-white'
+                            : message.sender === 'user'
+                            ? 'bg-blue-50 text-slate-800 border border-blue-200'
+                            : 'bg-emerald-50 text-slate-800 border border-emerald-200'
+                        }`}
+                      >
+                        {message.text}
+                        {message.attachments && message.attachments.length > 0 && (
+                          <MessageAttachments
+                            key={`attachments-${message.id}`}
+                            attachments={message.attachments}
+                            onDownload={handleAttachmentDownload}
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
             {isLoading && (
               <div className="flex justify-end">
@@ -361,11 +460,27 @@ export default function LawyerChatPage() {
                       <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
                       <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                     </div>
-                    <span>Digitando...</span>
+                    <span>Enviando...</span>
                   </div>
                 </div>
               </div>
             )}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-blue-50 text-slate-800 px-4 py-3 rounded-lg shadow-sm border border-blue-200">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                    </div>
+                    <span>Cliente digitando...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Elemento invisível para scroll automático */}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Input Container */}
@@ -374,7 +489,7 @@ export default function LawyerChatPage() {
               <input
                 type="text"
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => handleInputChange(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                 placeholder="Digite sua mensagem para o cliente..."
                 className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors text-slate-800 placeholder-slate-500"

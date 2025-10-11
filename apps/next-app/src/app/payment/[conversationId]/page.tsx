@@ -15,7 +15,7 @@ export default function PaymentPage() {
     lawyerName: 'Dra. Maria Silva',
   };
 
-  const handlePaymentSuccess = (_payment: { id: string; status: string; paymentUrl?: string }) => {
+  const handlePaymentSuccess = () => {
     // Redirecionar para página de sucesso ou chat
     window.location.href = `/chat?conversation=${conversationId}`;
   };

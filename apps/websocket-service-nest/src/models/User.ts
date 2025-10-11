@@ -12,7 +12,7 @@ export enum CaseStatus {
   OPEN = 'open', // Conversa iniciada, aguardando processamento
   ACTIVE = 'active', // Conversa em andamento, sendo processada pela IA
   RESOLVED_BY_AI = 'resolved_by_ai', // Resolvida apenas por IA (gatilho de feedback)
-  ASSIGNED_TO_LAWYER = 'assigned_to_lawyer', // Atribuída a advogado (gatilho de feedback)
+  ASSIGNED = 'assigned', // Atribuída a um advogado específico (em atendimento)
   COMPLETED = 'completed', // Finalizada com sucesso (gatilho de feedback)
   ABANDONED = 'abandoned', // Abandonada pelo usuário
 }

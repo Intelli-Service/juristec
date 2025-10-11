@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
+import { UploadsService } from '../uploads/uploads.service';
 import Conversation from '../models/Conversation';
 import {
   NextAuthGuard,
@@ -25,6 +26,7 @@ export class LawyerController {
   constructor(
     private aiService: AIService,
     private messageService: MessageService,
+    private uploadsService: UploadsService,
   ) {}
 
   // Dashboard do advogado - ver casos disponíveis e atribuídos
@@ -70,7 +72,34 @@ export class LawyerController {
         },
       );
 
-      return messages;
+      // Integrar anexos nas mensagens (como no ChatGateway)
+      const messagesWithAttachments = await Promise.all(
+        messages.map(async (msg) => {
+          // Buscar anexos da mensagem
+          let attachments: any[] = [];
+          try {
+            attachments = await this.uploadsService.getFilesByMessageId(
+              msg._id.toString(),
+            );
+          } catch (error) {
+            console.warn(
+              `Não foi possível carregar anexos para mensagem ${msg._id}:`,
+              error,
+            );
+          }
+
+          return {
+            id: msg._id.toString(),
+            text: msg.text,
+            sender: msg.sender,
+            timestamp: msg.createdAt,
+            attachments: attachments,
+            metadata: msg.metadata,
+          };
+        }),
+      );
+
+      return messagesWithAttachments;
     } catch (error) {
       console.error('Erro ao buscar mensagens:', error);
       throw error;
@@ -129,7 +158,7 @@ export class LawyerController {
     return Conversation.findOneAndUpdate(
       { roomId },
       {
-        status: 'closed',
+        status: 'completed',
         resolution,
         closedAt: new Date(),
         closedBy: req.user.userId,
@@ -186,14 +215,23 @@ export class LawyerController {
   async getLawyerStats(@Request() req: { user: JwtPayload }) {
     const lawyerId = req.user.userId;
 
-    const [totalCases, openCases, closedCases, assignedCases] =
+    const [totalCases, openCases, closedCases, assignedCases, availableCases] =
       await Promise.all([
         Conversation.countDocuments({ assignedTo: lawyerId }),
         Conversation.countDocuments({ assignedTo: lawyerId, status: 'open' }),
-        Conversation.countDocuments({ assignedTo: lawyerId, status: 'closed' }),
+        Conversation.countDocuments({
+          assignedTo: lawyerId,
+          status: { $in: ['completed', 'abandoned', 'resolved_by_ai'] },
+        }),
         Conversation.countDocuments({
           assignedTo: lawyerId,
           status: 'assigned',
+        }),
+        // Casos disponíveis para atribuição (precisam de advogado mas não foram atribuídos)
+        Conversation.countDocuments({
+          lawyerNeeded: true,
+          assignedTo: { $exists: false },
+          status: { $nin: ['completed', 'abandoned', 'resolved_by_ai'] },
         }),
       ]);
 
@@ -203,7 +241,7 @@ export class LawyerController {
 
     const recentClosedCases = await Conversation.countDocuments({
       assignedTo: lawyerId,
-      status: 'closed',
+      status: { $in: ['completed', 'abandoned', 'resolved_by_ai'] },
       closedAt: { $gte: thirtyDaysAgo },
     });
 
@@ -212,6 +250,7 @@ export class LawyerController {
       openCases,
       closedCases,
       assignedCases,
+      availableCases,
       recentClosedCases,
       successRate:
         totalCases > 0 ? Math.round((closedCases / totalCases) * 100) : 0,

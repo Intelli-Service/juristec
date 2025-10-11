@@ -7,14 +7,12 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useFeedback } from '@/hooks/useFeedback';
 import { useConversations } from '@/hooks/useConversations';
 import { useMessages } from '@/hooks/useMessages';
-import { useChargeModal } from '@/hooks/useChargeModal';
 import { Message, Conversation, CaseAssignment } from '@/types/chat.types';
 import { ChatHeader } from './chat/ChatHeader';
 import { ChatSidebar } from './chat/ChatSidebar';
 import { MobileSidebar } from './chat/MobileSidebar';
 import { MessageList } from './chat/MessageList';
 import { ChatInput } from './chat/ChatInput';
-import { ChargeModal } from './chat/ChargeModal';
 import FeedbackModal, { FeedbackData } from './feedback/FeedbackModal';
 
 export default function Chat() {
@@ -26,6 +24,7 @@ export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
+  const [isTyping, setIsTyping] = useState<Record<string, boolean>>({});
   
   // WebSocket state
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -101,7 +100,6 @@ export default function Chat() {
     hasStartedConversation,
     input,
     selectedFile,
-    setMessages,
     setInput,
     setSelectedFile,
     setClearFileTrigger,
@@ -111,14 +109,6 @@ export default function Chat() {
     setIsUploadingAttachment,
   });
 
-  const {
-    showChargeModal,
-    setShowChargeModal,
-    isCreatingCharge,
-    chargeForm,
-    setChargeForm,
-    handleCreateCharge,
-  } = useChargeModal({ userId });
 
   const handleClearSelectedFile = useCallback(() => {
     setSelectedFile(null);
@@ -180,6 +170,33 @@ export default function Chat() {
       console.log(`Conectado a ${data.activeRooms.length} conversas`);
     });
 
+    console.log('🎧 Registrando listener typing-start...');
+    newSocket.on('typing-start', (data: { conversationId: string }) => {
+      console.log('✍️ Typing start received:', data);
+      console.log('📊 Current isTyping state before:', isTyping);
+      if (data.conversationId) {
+        setIsTyping(prev => {
+          const newState = { ...prev, [data.conversationId]: true };
+          console.log('📊 New isTyping state:', newState);
+          return newState;
+        });
+      }
+    });
+
+    console.log('🎧 Registrando listener typing-stop...');
+    newSocket.on('typing-stop', (data: { conversationId: string }) => {
+      console.log('🛑 Typing stop received:', data);
+      console.log('📊 Current isTyping state before:', isTyping);
+      if (data.conversationId) {
+        setIsTyping(prev => {
+          const newState = { ...prev, [data.conversationId]: false };
+          console.log('📊 New isTyping state:', newState);
+          return newState;
+        });
+      }
+    });
+
+    // Multi-conversation listeners - RESTAURADOS
     newSocket.on('new-conversation-created', (newConversation: Conversation) => {
       setConversations(prev => [newConversation, ...prev]);
       setActiveConversationId(newConversation.id);
@@ -193,17 +210,25 @@ export default function Chat() {
       messages: Message[]
     }) => {
       console.log(`📜 Carregando histórico para conversa ${data.conversationId}: ${data.messages.length} mensagens`);
-      setMessages(data.messages);
+      
+      // Garantir ordenação cronológica das mensagens (mais antigas primeiro)
+      const sortedMessages = data.messages.sort((a, b) => {
+        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return timeA - timeB;
+      });
+      
+      setMessages(sortedMessages);
       setHasStartedConversation(data.messages.length > 0);
     });
 
-    newSocket.on('receive-message', (data: { 
-      text: string; 
-      sender: string; 
-      messageId?: string; 
-      isError?: boolean; 
-      shouldRetry?: boolean; 
-      createdAt?: string; 
+    newSocket.on('receive-message', (data: {
+      text: string;
+      sender: string;
+      messageId?: string;
+      isError?: boolean;
+      shouldRetry?: boolean;
+      createdAt?: string;
       conversationId?: string;
       attachments?: Array<{
         id: string;
@@ -211,36 +236,88 @@ export default function Chat() {
         mimeType: string;
         size: number;
       }>;
+      lawyerName?: string;
+      lawyerId?: string;
+      lawyerLicenseNumber?: string;
+      metadata?: Record<string, unknown>; // Adicionar metadata
     }) => {
-      console.log(`📨 Mensagem recebida:`, data);
-      console.log(`📎 Attachments recebidos:`, data.attachments);
-      
+      console.log(`📨 CLIENTE recebeu receive-message:`, data);
+      console.log(`� Detalhes da mensagem:`, {
+        sender: data.sender,
+        messageId: data.messageId,
+        conversationId: data.conversationId,
+        activeConversationId: activeConversationId,
+        text: data.text?.substring(0, 50) + '...'
+      });
+
       const newMessage: Message = {
         id: data.messageId || Date.now().toString(),
         text: data.text,
         sender: data.sender as 'user' | 'ai' | 'system',
         conversationId: data.conversationId,
+        timestamp: data.createdAt ? new Date(data.createdAt) : new Date(),
         attachments: data.attachments,
+        lawyerName: data.lawyerName,
+        lawyerId: data.lawyerId,
+        lawyerLicenseNumber: data.lawyerLicenseNumber,
+        metadata: data.metadata, // Incluir metadata se disponível
       };
-      
-      console.log(`💾 Mensagem processada para state:`, newMessage);
-      
-      setMessages((prev) => [...prev, newMessage]);
-      
+
+      console.log(`💾 CLIENTE processando mensagem para state:`, newMessage);
+
+      // TEMPORARIAMENTE REMOVIDO: Verificar se a mensagem é para a conversa ativa
+      // if (data.conversationId && data.conversationId !== activeConversationId) {
+      //   console.log(`⚠️ CLIENTE ignorando mensagem - conversa ${data.conversationId} não é ativa (${activeConversationId})`);
+      //   return;
+      // }
+
+      setMessages((prev) => {
+        console.log(`📝 CLIENTE adicionando mensagem ao state. Total anterior: ${prev.length}`);
+        const updated = [...prev, newMessage];
+        
+        // Garantir ordenação cronológica após adicionar nova mensagem
+        updated.sort((a, b) => {
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeA - timeB;
+        });
+        
+        console.log(`📝 CLIENTE state atualizado. Total atual: ${updated.length}`);
+        return updated;
+      });
+
+      // Reset isLoading apenas para liberar o envio de novas mensagens
+      // O indicador de digitação é controlado pelos eventos typing-start/typing-stop
       if (data.conversationId) {
         setIsLoading(prev => ({ ...prev, [data.conversationId as string]: false }));
       }
 
       if (data.sender === 'lawyer') {
+        console.log(`👨‍⚖️ CLIENTE detectou mensagem de advogado, atualizando caseAssigned`);
         setCaseAssigned({
           assigned: true,
-          lawyerName: 'Advogado',
-          lawyerId: 'lawyer'
+          lawyerName: data.lawyerName || 'Advogado',
+          lawyerId: data.lawyerId || 'lawyer',
+          lawyerLicenseNumber: data.lawyerLicenseNumber
         });
       }
     });
 
-    newSocket.on('case-updated', (data: { status: string; assignedTo?: string; lawyerName?: string }) => {
+    newSocket.on('case-updated', (data: { status: string; assignedTo?: string; lawyerName?: string; conversationId?: string }) => {
+      // Atualizar status da conversa
+      if (data.conversationId) {
+        setConversations(prev => prev.map(conv =>
+          conv.id === data.conversationId
+            ? { ...conv, status: data.status }
+            : conv
+        ));
+
+        // Se o status mudou para algo diferente de 'active', parar o indicador de digitando
+        if (data.status !== 'active' && data.conversationId) {
+          setIsLoading(prev => ({ ...prev, [data.conversationId!]: false }));
+        }
+      }
+
       if (data.status === 'assigned' && data.assignedTo) {
         setCaseAssigned({
           assigned: true,
@@ -258,7 +335,7 @@ export default function Chat() {
         feedbackSubmitted: feedbackSubmittedRef.current,
         showFeedbackModal: showFeedbackModalRef.current,
       });
-      
+
       if (!feedbackSubmittedRef.current && !showFeedbackModalRef.current) {
         console.log('✅ Agendando exibição do modal de feedback em 2s');
         setTimeout(() => {
@@ -273,7 +350,7 @@ export default function Chat() {
     return () => {
       newSocket.disconnect();
     };
-  }, [sessionStatus, session]);
+  }, [sessionStatus, session, activeConversationId, isTyping]);
 
   const handleFeedbackSubmit = async (feedbackData: FeedbackData) => {
     await feedbackHook.submitFeedback(feedbackData);
@@ -292,6 +369,10 @@ export default function Chat() {
   }
 
   const currentIsLoading = activeConversationId ? isLoading[activeConversationId] || false : false;
+  
+  // Mostrar "digitando" baseado nos eventos de WebSocket
+  const currentIsTyping = activeConversationId ? isTyping[activeConversationId] || false : false;
+  const shouldShowTyping = currentIsTyping;
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -330,25 +411,13 @@ export default function Chat() {
         <MessageList
           messages={messages}
           activeConversationId={activeConversationId}
-          isLoading={currentIsLoading}
+          isTyping={shouldShowTyping}
           hasStartedConversation={hasStartedConversation}
           isInitialized={isInitialized}
           caseAssigned={caseAssigned}
           onAttachmentDownload={handleAttachmentDownload}
         />
 
-        {/* Billing Button */}
-        {caseAssigned.assigned && caseAssigned.lawyerId && (
-          <div className="p-4 bg-slate-50 border-t border-slate-200">
-            <button
-              onClick={() => setShowChargeModal(true)}
-              className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center space-x-2"
-            >
-              <span>💰</span>
-              <span>Cobrar Cliente</span>
-            </button>
-          </div>
-        )}
 
         <ChatInput
           input={input}
@@ -364,15 +433,6 @@ export default function Chat() {
         />
       </div>
 
-      {/* Modals */}
-      <ChargeModal
-        showChargeModal={showChargeModal}
-        setShowChargeModal={setShowChargeModal}
-        chargeForm={chargeForm}
-        setChargeForm={setChargeForm}
-        handleCreateCharge={handleCreateCharge}
-        isCreatingCharge={isCreatingCharge}
-      />
 
       <FeedbackModal
         isOpen={showFeedbackModal}

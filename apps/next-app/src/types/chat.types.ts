@@ -4,6 +4,36 @@ export interface Message {
   sender: 'user' | 'ai' | 'system' | 'lawyer';
   attachments?: FileAttachment[];
   conversationId?: string;
+  lawyerName?: string;
+  lawyerId?: string;
+  lawyerLicenseNumber?: string;
+  metadata?: MessageMetadata;
+  timestamp?: Date;
+}
+
+export interface MessageMetadata {
+  type?: 'function_call' | 'function_response' | string;
+  name?: string;
+  arguments?: Record<string, unknown>;
+  result?: unknown;
+  hiddenFromClients?: boolean;
+  generatedBy?: string;
+}
+
+export interface FunctionCallMessage extends Message {
+  metadata: MessageMetadata & {
+    type: 'function_call';
+    name: string;
+    arguments: Record<string, unknown>;
+  };
+}
+
+export interface FunctionResponseMessage extends Message {
+  metadata: MessageMetadata & {
+    type: 'function_response';
+    name: string;
+    result: unknown;
+  };
 }
 
 export interface FileAttachment {
@@ -31,6 +61,7 @@ export interface CaseAssignment {
   assigned: boolean;
   lawyerName?: string;
   lawyerId?: string;
+  lawyerLicenseNumber?: string;
 }
 
 export interface ChargeFormData {

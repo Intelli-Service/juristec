@@ -8,6 +8,7 @@ import {
   FileAttachmentDocument,
   ProcessedFileAttachment,
 } from '../models/FileAttachment';
+import Conversation from '../models/Conversation';
 
 @Injectable()
 export class UploadsService implements OnModuleInit {
@@ -464,7 +465,7 @@ export class UploadsService implements OnModuleInit {
   // Download file directly from GCS and return as stream
   async downloadFileDirectly(
     fileId: string,
-    userId: string,
+    requestingUser: { userId: string; role: string; permissions: string[] },
   ): Promise<{ stream: NodeJS.ReadableStream; file: any }> {
     try {
       // Validate fileId is a valid ObjectId
@@ -472,25 +473,77 @@ export class UploadsService implements OnModuleInit {
         throw new Error('Invalid file ID format');
       }
 
-      // Find the file and verify ownership
+      // Find the file
       const file = await this.fileAttachmentModel.findOne({
         _id: new Types.ObjectId(fileId),
-        userId: userId,
       });
 
       if (!file) {
-        throw new Error('File not found or access denied');
+        throw new Error('File not found');
       }
+
+      // Validate permissions based on user role and conversation
+      await this.validateFileAccess(file, requestingUser);
 
       // Get file from GCS
       const fileRef = this.storage.bucket(this.bucket).file(file.gcsPath);
       const stream = fileRef.createReadStream();
 
-      console.log(`📥 Streaming file ${file.filename} for user ${userId}`);
+      console.log(
+        `📥 Streaming file ${file.filename} for user ${requestingUser.userId}`,
+      );
       return { stream, file };
     } catch (error) {
       console.error(`❌ Error downloading file ${fileId}:`, error);
       throw error;
+    }
+  }
+
+  // Validate file access permissions based on user role and conversation
+  private async validateFileAccess(
+    file: any,
+    requestingUser: { userId: string; role: string; permissions: string[] },
+  ): Promise<void> {
+    // Find the conversation associated with the file
+    const conversation = await Conversation.findById(file.conversationId);
+
+    if (!conversation) {
+      throw new Error('Conversation not found');
+    }
+
+    switch (requestingUser.role) {
+      case 'super_admin':
+        // Super admin has total access
+        return;
+
+      case 'anonymous':
+        // Anonymous users can only access their own files
+        if (conversation.userId !== requestingUser.userId) {
+          throw new Error('Access denied to this file');
+        }
+        break;
+
+      case 'lawyer':
+        // Lawyers can access files from cases assigned to them
+        if (conversation.assignedTo !== requestingUser.userId) {
+          throw new Error('Access denied to this file');
+        }
+        break;
+
+      case 'moderator':
+        // Moderators can access files from conversations they have permission to moderate
+        if (!requestingUser.permissions.includes('moderate_conversations')) {
+          throw new Error('Insufficient permissions');
+        }
+        break;
+
+      case 'client':
+        // Clients can only access their own files (not implemented yet)
+        throw new Error('Clients do not have direct access to files');
+        break;
+
+      default:
+        throw new Error('Unauthorized role');
     }
   }
 
