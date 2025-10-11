@@ -133,9 +133,6 @@ export const MessageList: React.FC<MessageListProps> = ({
                         <span>{getRespondentInfo(message.sender, caseAssigned, message).role}</span>
                       </div>
                     </div>
-                    <div>
-                      test123
-                    </div>
                   </div>
                 )}
                 {message.sender === 'system' && (
