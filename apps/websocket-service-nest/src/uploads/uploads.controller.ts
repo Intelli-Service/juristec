@@ -144,12 +144,16 @@ export class UploadsController {
     @Request() req: any,
     @Res() res: any,
   ) {
-    const userId = req.user.userId; // Extract from JWT token
+    const requestingUser = {
+      userId: req.user.userId,
+      role: req.user.role,
+      permissions: req.user.permissions || [],
+    };
 
     try {
       const { stream, file } = await this.uploadsService.downloadFileDirectly(
         fileId,
-        userId,
+        requestingUser,
       );
 
       // Set appropriate headers

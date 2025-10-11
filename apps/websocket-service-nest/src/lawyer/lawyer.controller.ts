@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { AIService } from '../lib/ai.service';
 import { MessageService } from '../lib/message.service';
+import { UploadsService } from '../uploads/uploads.service';
 import Conversation from '../models/Conversation';
 import {
   NextAuthGuard,
@@ -25,6 +26,7 @@ export class LawyerController {
   constructor(
     private aiService: AIService,
     private messageService: MessageService,
+    private uploadsService: UploadsService,
   ) {}
 
   // Dashboard do advogado - ver casos disponíveis e atribuídos
@@ -70,7 +72,34 @@ export class LawyerController {
         },
       );
 
-      return messages;
+      // Integrar anexos nas mensagens (como no ChatGateway)
+      const messagesWithAttachments = await Promise.all(
+        messages.map(async (msg) => {
+          // Buscar anexos da mensagem
+          let attachments: any[] = [];
+          try {
+            attachments = await this.uploadsService.getFilesByMessageId(
+              msg._id.toString(),
+            );
+          } catch (error) {
+            console.warn(
+              `Não foi possível carregar anexos para mensagem ${msg._id}:`,
+              error,
+            );
+          }
+
+          return {
+            id: msg._id.toString(),
+            text: msg.text,
+            sender: msg.sender,
+            timestamp: msg.createdAt,
+            attachments: attachments,
+            metadata: msg.metadata,
+          };
+        }),
+      );
+
+      return messagesWithAttachments;
     } catch (error) {
       console.error('Erro ao buscar mensagens:', error);
       throw error;

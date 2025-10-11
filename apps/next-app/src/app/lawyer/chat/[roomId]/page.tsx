@@ -141,12 +141,17 @@ export default function LawyerChatPage() {
       }
 
       const messagesData = await response.json();
-      setMessages(messagesData.map((msg: { _id: string; text: string; sender: string; createdAt: string }) => ({
-        id: msg._id,
-        text: msg.text,
-        sender: msg.sender,
-        createdAt: msg.createdAt,
-      })));
+      console.log('📨 DEBUG - Mensagens carregadas da API:', messagesData);
+      setMessages(messagesData.map((msg: { _id: string; text: string; sender: string; createdAt: string; attachments?: unknown[] }) => {
+        console.log('📎 DEBUG - Processando mensagem:', msg._id, 'attachments:', msg.attachments);
+        return {
+          id: msg._id,
+          text: msg.text,
+          sender: msg.sender,
+          createdAt: msg.createdAt,
+          attachments: msg.attachments,
+        };
+      }));
 
       // Carregar dados da conversa
       const convResponse = await fetch('/api/lawyer/cases', {
@@ -197,6 +202,7 @@ export default function LawyerChatPage() {
 
     newSocket.on('receive-lawyer-message', (data: { text: string; sender: string; messageId: string; createdAt?: string; attachments?: Array<{ id: string; originalName: string; mimeType: string; size: number }> }) => {
       console.log('📨 Advogado recebeu receive-lawyer-message:', data);
+      console.log('📎 DEBUG - Attachments na mensagem do advogado:', data.attachments);
       const newMessage: Message = {
         id: data.messageId,
         text: data.text,
@@ -204,6 +210,7 @@ export default function LawyerChatPage() {
         createdAt: data.createdAt || new Date().toISOString(),
         attachments: data.attachments,
       };
+      console.log('💾 DEBUG - Message criada com attachments:', newMessage.attachments);
       setMessages((prev) => {
         // Evitar mensagens duplicadas
         const exists = prev.find(msg => msg.id === newMessage.id);
@@ -216,6 +223,7 @@ export default function LawyerChatPage() {
     // Também escutar mensagens regulares do cliente e IA
     newSocket.on('receive-message', (data: { text: string; sender: string; messageId: string; createdAt?: string; attachments?: Array<{ id: string; originalName: string; mimeType: string; size: number }> }) => {
       console.log('📨 Advogado recebeu receive-message:', data);
+      console.log('📎 DEBUG - Attachments na mensagem do cliente/IA:', data.attachments);
       // Só processar mensagens de cliente e IA
       if (data.sender === 'user' || data.sender === 'ai' || data.sender === 'system') {
         const newMessage: Message = {
@@ -225,6 +233,7 @@ export default function LawyerChatPage() {
           createdAt: data.createdAt || new Date().toISOString(),
           attachments: data.attachments,
         };
+        console.log('💾 DEBUG - Message criada com attachments:', newMessage.attachments);
         setMessages((prev) => {
           // Evitar mensagens duplicadas
           const exists = prev.find(msg => msg.id === newMessage.id);
@@ -399,46 +408,48 @@ export default function LawyerChatPage() {
                 <p className="text-slate-500">Este é o início da conversa com o cliente.</p>
               </div>
             ) : (
-              messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${
-                    message.sender === 'lawyer' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  <div className="max-w-lg">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSenderColor(message.sender)}`}>
-                        {getSenderName(message.sender)}
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        {new Date(message.createdAt).toLocaleTimeString('pt-BR', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
-                    </div>
-                    <div
-                      className={`px-4 py-3 rounded-lg shadow-sm ${
-                        message.sender === 'lawyer'
-                          ? 'bg-purple-600 text-white'
-                          : message.sender === 'user'
-                          ? 'bg-blue-50 text-slate-800 border border-blue-200'
-                          : 'bg-emerald-50 text-slate-800 border border-emerald-200'
-                      }`}
-                    >
-                      {message.text}
-                      {message.attachments && message.attachments.length > 0 && (
-                        <MessageAttachments
-                          key={`attachments-${message.id}`}
-                          attachments={message.attachments}
-                          onDownload={handleAttachmentDownload}
-                        />
-                      )}
+              messages.map((message) => {
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex ${
+                      message.sender === 'lawyer' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    <div className="max-w-lg">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSenderColor(message.sender)}`}>
+                          {getSenderName(message.sender)}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {new Date(message.createdAt).toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                      <div
+                        className={`px-4 py-3 rounded-lg shadow-sm ${
+                          message.sender === 'lawyer'
+                            ? 'bg-purple-600 text-white'
+                            : message.sender === 'user'
+                            ? 'bg-blue-50 text-slate-800 border border-blue-200'
+                            : 'bg-emerald-50 text-slate-800 border border-emerald-200'
+                        }`}
+                      >
+                        {message.text}
+                        {message.attachments && message.attachments.length > 0 && (
+                          <MessageAttachments
+                            key={`attachments-${message.id}`}
+                            attachments={message.attachments}
+                            onDownload={handleAttachmentDownload}
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
             {isLoading && (
               <div className="flex justify-end">
